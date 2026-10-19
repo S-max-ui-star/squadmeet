@@ -15,6 +15,7 @@ import {
   type Meetup,
   type MeetupAction,
 } from '../api/meetups'
+import { onMeetupChange } from '../api/live'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
@@ -91,6 +92,21 @@ function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
 
 // The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
 // Meetups, the "Ich bin jetzt hier" form (SCRUM-29), "Später treffen" (SCRUM-35), and
+// Loads now, every REFRESH_MS, and again on each live event for this Place (SCRUM-93).
+function useReloads(reload: () => void, placeId: number) {
+  useEffect(() => {
+    reload()
+    const timer = setInterval(reload, REFRESH_MS)
+    const stop = onMeetupChange((changed) => {
+      if (changed === placeId) reload()
+    })
+    return () => {
+      clearInterval(timer)
+      stop()
+    }
+  }, [reload, placeId])
+}
+
 // "Ich komme mit" / "Verlassen" (SCRUM-34). Guests see only the number of people.
 // The Host can cancel before the start, Leave (handover), and move a Meetup with Joins; the
 // users who were in then choose go along / stay / leave (SCRUM-37).
@@ -132,11 +148,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
       .catch((err: Error) => setError(err.message))
   }, [placeId, user])
 
-  useEffect(() => {
-    reload()
-    const timer = setInterval(reload, REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [reload])
+  useReloads(reload, placeId)
 
   // True when the action worked, so a caller can show its own message.
   async function run(action: (token: string) => Promise<unknown>): Promise<boolean> {

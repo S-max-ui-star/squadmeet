@@ -12,7 +12,7 @@ import {
   type User,
 } from './api/auth'
 import { fetchContacts, type Contacts } from './api/contacts'
-import { connectLive } from './api/live'
+import { announceMeetupChange, connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
 import { countFor, type RequestCount } from './auth/requestCount'
 import { fetchMapMeetups, type Meetup, type TimeSpan } from './api/meetups'
@@ -249,6 +249,12 @@ export default function App() {
     [userId],
   )
 
+  // Live events about Meetups (SCRUM-93): the map loads again (people and Meetups on it).
+  const [meetupEvents, setMeetupEvents] = useState(0)
+  useEffect(() => {
+    if (meetupEvents && lastArea.current) loadPlaces(lastArea.current)
+  }, [meetupEvents, loadPlaces])
+
   // Contact requests and Notifications load at login and again on each live event (SCRUM-93).
   // Notifications also every 60 s, in case the live stream does not get through.
   useEffect(() => {
@@ -277,6 +283,10 @@ export default function App() {
         void reloadNotifications()
       },
       onTopic: (topic) => void (topic === 'contacts' ? reloadContacts() : reloadNotifications()),
+      onMeetups: (placeId) => {
+        setMeetupEvents((count) => count + 1)
+        announceMeetupChange(placeId)
+      },
     })
     return () => {
       current = false

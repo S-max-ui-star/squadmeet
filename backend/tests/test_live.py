@@ -78,9 +78,9 @@ def test_a_new_notification_reaches_only_its_recipient(client, heard, place, hos
 
     assert cancel(client, host[0], meetup["id"]).status_code == 200
 
-    assert to_guest == ["notifications"]
-    assert to_host == []
-    assert to_third == []
+    assert "notifications" in to_guest
+    assert "notifications" not in to_host
+    assert "notifications" not in to_third
 
 
 def test_marking_as_read_reaches_the_users_other_devices(client, heard, place, host, guest):
@@ -93,6 +93,35 @@ def test_marking_as_read_reaches_the_users_other_devices(client, heard, place, h
     client.post(f"/api/notifications/{notice['id']}/read", headers=auth_header(guest[0]))
 
     assert to_guest == ["notifications"]
+
+
+def test_a_new_meetup_reaches_every_open_page_with_its_place(client, heard, place, host, third):
+    to_third = heard(third[1])
+
+    assert create(client, host[0], place.id, starts_at=later(days=1)).status_code == 201
+
+    assert to_third == [f"meetups:{place.id}"]
+
+
+def test_a_join_reaches_every_open_page_with_its_place(client, heard, place, host, guest, third):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    to_host, to_third = heard(host[1]), heard(third[1])
+
+    assert join(client, guest[0], meetup["id"]).status_code == 201
+
+    assert f"meetups:{place.id}" in to_host
+    assert f"meetups:{place.id}" in to_third
+
+
+def test_a_cancelled_meetup_reaches_every_open_page_with_its_place(
+    client, heard, place, host, third
+):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    to_third = heard(third[1])
+
+    assert cancel(client, host[0], meetup["id"]).status_code == 200
+
+    assert to_third == [f"meetups:{place.id}"]
 
 
 def test_nothing_is_sent_before_the_commit_or_after_a_rollback(client, session, heard):
