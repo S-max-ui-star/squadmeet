@@ -107,7 +107,9 @@ def test_secrets_never_appear_in_the_log(client, session):
     body = register(client).json()
     token = body["token"]
     headers = auth_header(token)
-    secret = client.post("/api/auth/mfa/setup", headers=headers).json()["secret"]
+    secret = client.post(
+        "/api/auth/mfa/setup", json={"password": PASSWORD}, headers=headers
+    ).json()["secret"]
     totp = pyotp.TOTP(secret)
     client.post("/api/auth/mfa/enable", json={"code": code_in(totp, 0)}, headers=headers)
     client.post(

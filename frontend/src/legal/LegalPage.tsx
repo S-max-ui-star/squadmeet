@@ -94,7 +94,8 @@ function Privacy() {
         </li>
         <li>
           <strong>Anmeldungen:</strong> pro angemeldetem Gerät einen Schlüssel (nur als Hash), wann
-          die Anmeldung begann und wann sie endet (nach 30 Tagen). Außerdem zählen wir falsche
+          die Anmeldung begann und wann sie endet (nach 30 Tagen). Eine abgelaufene Anmeldung löschen
+          wir, sobald sich danach jemand anmeldet. Außerdem zählen wir falsche
           Anmeldeversuche, bis du dich wieder richtig anmeldest.
         </li>
         <li>
