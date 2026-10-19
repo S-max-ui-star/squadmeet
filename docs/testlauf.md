@@ -12,8 +12,8 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [X] **1.4 Zeitfilter** 👤 — Jetzt, nächste 3 Stunden, nächste 6 Stunden, Heute. Karte und Treffen-Liste zeigen nur Plätze mit Treffen in dieser Zeit.
 - [X] **1.5 Treffen-Liste folgt der Karte** 👤 — Kartenausschnitt verschieben und zoomen. Die Liste wird kürzer oder länger. Leer: „Keine Treffen in diesem Kartenausschnitt.“
 - [?] **1.6 Suche** 👤 — Nach einer Adresse und nach einem Platznamen suchen. SquadMeet-Plätze sind markiert. Unsinn eingeben: „Keine Treffer.“
-- [?] **1.7 Platz-Detail und Link** 👥 — Platz öffnen. Die Adresse /platz/… teilen, im anderen Browser öffnen und neu laden. Der Zurück-Button führt zur Karte.
-- [X] **1.8 Route** 👤 — Im Platz-Detail die Route öffnen. Apple Maps oder Google Maps startet mit dem Platz als Ziel.
+- [?] **1.7 Platzdetails und Link** 👥 — Platz öffnen. Die Adresse /platz/… teilen, im anderen Browser öffnen und neu laden. Der Zurück-Button führt zur Karte.
+- [X] **1.8 Route** 👤 — In den Platzdetails die Route öffnen. Apple Maps oder Google Maps startet mit dem Platz als Ziel.
 - [?] **1.9 Impressum und Datenschutz** 👤 — Beide Seiten öffnen. Stimmen die Angaben, fehlt ein Punkt (Push, Heimatbereich, Fotos)?
 - [X] **1.10 Als App aufs Handy** 👤 — Im Handy-Browser „Zum Home-Bildschirm“. Symbol und Name stimmen, die App öffnet ohne Browserleiste.
 
@@ -28,7 +28,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 ## 3 Treffen
 
-- [X] **3.1 Später treffen** 👥 — Person A legt an einem Platz ein Treffen für später an. Person B sieht es in der Liste und im Platz-Detail.
+- [X] **3.1 Später treffen** 👥 — Person A legt an einem Platz ein Treffen für später an. Person B sieht es in der Liste und in den Platzdetails.
 - [X] **3.2 Ich komme mit** 👥 — B tritt mit Personenzahl 3 bei. A sieht die neue Zahl. B ändert sie oder verlässt das Treffen wieder.
 - [?] **3.3 Ich bin jetzt hier** 👤 — Dauer 1 bis 4 Stunden wählen. Das Treffen ist LIVE. Der Host beendet es früher.
 - [?] **3.4 Verschieben mit Teilnehmer** 👥 — A verschiebt ein Treffen, dem B beigetreten ist. B wählt Mitgehen, Hierbleiben oder Verlassen. Beide Varianten einmal.
@@ -43,7 +43,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [ ] **4.2 Zustand: Mängel** 👤 — Eine Bewertung mit z. B. „Netz kaputt“ oder „Scherben“. Der Platz zeigt „Zustand: Mängel gemeldet“. „Oft überfüllt“ ändert den Zustand nicht.
 - [ ] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
 - [ ] **4.4 Meldung an die Stadt** 👤 — Bei einem Mangel erscheint „Willst du das der Stadt melden?“. Link öffnen, „Ort für die Meldung kopieren“ ausprobieren.
-- [ ] **4.5 Foto hochladen** 👤 — Im Platz-Detail ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
+- [ ] **4.5 Foto hochladen** 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
 - [ ] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
 
 ## 5 Kontakte
@@ -69,7 +69,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 Nur mit dem Admin-Konto. Am besten an einem Testplatz, nicht an einem echten Platz mit Treffen anderer.
 
-- [ ] **7.1 Fotos freigeben** 🔑 — Konto → Fotos freigeben. Ein Foto freigeben (erscheint im Platz-Detail), ein anderes ablehnen (zweiter Schritt „Ja, ablehnen“).
+- [ ] **7.1 Fotos freigeben** 🔑 — Konto → Fotos freigeben. Ein Foto freigeben (erscheint in den Platzdetails), ein anderes ablehnen (zweiter Schritt „Ja, ablehnen“).
 - [ ] **7.2 Gemeldete Plätze** 🔑 — Liste der gemeldeten Plätze. „Verwerfen“ schließt die Meldungen, der Platz bleibt.
 - [ ] **7.3 Platz sperren und entsperren** 🔑 — Platz sperren: weg von der Karte, künftige Treffen abgesagt. Unter „Gesperrte Plätze“ entsperren, abgesagte Treffen bleiben abgesagt.
 - [ ] **7.4 Platz löschen** 🔑 — Nur an einem Testplatz. Danach für niemanden mehr sichtbar.
