@@ -166,6 +166,23 @@ describe('PlaceDetail', () => {
     expect(loggedInContainer.textContent).toContain('höchstens 100 m entfernt')
   })
 
+  it('closes with the "×" button at the top, also while loading and after an error', () => {
+    for (const props of [
+      { place, error: null },
+      { place: null, error: null },
+      { place: null, error: 'GET failed: 500' },
+    ]) {
+      const onClose = vi.fn()
+      const container = render({ ...props, onRetry: () => {}, onClose })
+      const close = container.querySelector<HTMLButtonElement>('.place-detail-head button[aria-label="Schließen"]')!
+
+      act(() => close.click())
+
+      expect(onClose).toHaveBeenCalledOnce()
+      document.body.innerHTML = ''
+    }
+  })
+
   it('offers to try again after an error', () => {
     const onRetry = vi.fn()
     const container = render({ place: null, error: 'GET failed: 500', onRetry, onClose: () => {} })
