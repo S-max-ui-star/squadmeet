@@ -31,12 +31,12 @@ describe('DeleteAccountDialog', () => {
   it('asks only for the password when MFA is off', () => {
     const container = render(false)
 
-    expect(container.querySelectorAll('input')).toHaveLength(1)
+    expect(container.querySelectorAll('input:not([autocomplete="username"])')).toHaveLength(1)
     expect(container.textContent).toContain('Pingpong_Paula')
   })
 
   it('asks for a code as well when MFA is on', () => {
-    expect(render(true).querySelectorAll('input')).toHaveLength(2)
+    expect(render(true).querySelectorAll('input:not([autocomplete="username"])')).toHaveLength(2)
   })
 
   it('links the privacy page', () => {
