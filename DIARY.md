@@ -13,6 +13,10 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ---
 
+## Mo 19.10.2026 — Tag 9
+
+- **Dominik:** `SCRUM-44` beim Test nachgebessert: einmaliger freiwilliger Hinweis zur Push-Einrichtung nach der Anmeldung mit „Push einrichten“ und „Später“; fehlende VAPID-Konfiguration auf dem Live-Server identifiziert.
+
 ## Fr 16.10.2026 — Tag 8
 
 - **Steven:** `SCRUM-66` Änderungsprotokoll test-first gebaut: neue Tabelle `audit_log` speichert bei jedem Anlegen, Ändern und Löschen wer, wann und was (ohne Passwörter, Codes und Anmeldeschlüssel); beim Konto-Löschen verschwinden Nickname und Urheber. `psql`-Abfrage in deploy/README.md, Satz in der Datenschutzerklärung. PR #69 im Review, CI grün.
