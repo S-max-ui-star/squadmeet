@@ -39,19 +39,19 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 ## 4 Bewertungen, Zustand und Fotos
 
-- [ ] **4.1 Bewerten** 👤 — 1 bis 5 Sterne und mindestens eine Begründung. Ohne Stern oder Begründung kommt ein Hinweis. Pro Person nur eine Bewertung je Platz, ändern geht.
-- [ ] **4.2 Zustand: Mängel** 👤 — Eine Bewertung mit z. B. „Netz kaputt“ oder „Scherben“. Der Platz zeigt „Zustand: Mängel gemeldet“. „Oft überfüllt“ ändert den Zustand nicht.
-- [ ] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
+- [X] **4.1 Bewerten** 👤 — 1 bis 5 Sterne und mindestens eine Begründung. Ohne Stern oder Begründung kommt ein Hinweis. Pro Person nur eine Bewertung je Platz, ändern geht.
+- [X] **4.2 Zustand: Mängel** 👤 — Eine Bewertung mit z. B. „Netz kaputt“ oder „Scherben“. Der Platz zeigt „Zustand: Mängel gemeldet“. „Oft überfüllt“ ändert den Zustand nicht.
+- [?] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
 - [ ] **4.4 Meldung an die Stadt** 👤 — Bei einem Mangel erscheint „Willst du das der Stadt melden?“. Link öffnen, „Ort für die Meldung kopieren“ ausprobieren.
-- [ ] **4.5 Foto hochladen** 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
-- [ ] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
+- [In Diskussion] **4.5 Foto hochladen** 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
+- [?] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
 
 ## 5 Kontakte
 
-- [ ] **5.1 Kontaktanfrage** 👥 — A schickt B eine Anfrage mit dem genauen Nickname. B lehnt ab, A sieht das und fragt erneut. B nimmt an.
-- [ ] **5.2 Kontakt-Benachrichtigung** 👥 — A erstellt ein Treffen. B bekommt eine Benachrichtigung mit A's Namen in der Glocke.
-- [ ] **5.3 Kontakte einladen** 👥 — A ist im Treffen und lädt B ein. B sieht die Einladung und tritt mit „Ich komme mit“ direkt bei. Zweite Einladung an B geht nicht.
-- [ ] **5.4 Blockieren** 👥 — B blockiert A. A kann B keine Anfrage mehr schicken und sieht B's Treffen nicht. B wird gewarnt, wenn beide im selben Treffen sind. Danach wieder entsperren.
+- [X] **5.1 Kontaktanfrage** 👥 — A schickt B eine Anfrage mit dem genauen Nickname. B lehnt ab, A sieht das und fragt erneut. B nimmt an.
+- [X] **5.2 Kontakt-Benachrichtigung** 👥 — A erstellt ein Treffen. B bekommt eine Benachrichtigung mit A's Namen in der Glocke.
+- [?] **5.3 Kontakte einladen** 👥 — A ist im Treffen und lädt B ein. B sieht die Einladung und tritt mit „Ich komme mit“ direkt bei. Zweite Einladung an B geht nicht.
+- [X] **5.4 Blockieren** 👥 — B blockiert A. A kann B keine Anfrage mehr schicken und sieht B's Treffen nicht. B wird gewarnt, wenn beide im selben Treffen sind. Danach wieder entsperren.
 
 ## 6 Benachrichtigungen und Push
 
