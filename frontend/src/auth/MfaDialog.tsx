@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { mfaDisable, mfaEnable, mfaSetup, type MfaSetup, type User } from '../api/auth'
 import LegalLinks from '../legal/LegalLinks'
+import UsernameField from './UsernameField'
 
 type Props = {
   token: string
@@ -52,17 +53,20 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
   }
 
   const passwordField = (
-    <label>
-      Passwort
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        autoFocus
-        autoComplete="current-password"
-      />
-    </label>
+    <>
+      <UsernameField nickname={user.nickname} />
+      <label>
+        Passwort
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoFocus
+          autoComplete="current-password"
+        />
+      </label>
+    </>
   )
 
   const codeField = (

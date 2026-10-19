@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { newRecoveryCodes, type User } from '../api/auth'
+import PasswordAndCodeFields from './PasswordAndCodeFields'
 import RecoveryCodes from './RecoveryCodes'
 
 type Props = {
@@ -41,29 +42,13 @@ export default function RecoveryCodesDialog({ token, user, onClose }: Props) {
           Du bekommst 10 neue Codes. Deine alten Codes gelten danach nicht mehr, auch die noch
           nicht benutzten.
         </p>
-        <label>
-          Passwort
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoFocus
-            autoComplete="current-password"
-          />
-        </label>
-        {user.mfa_enabled && (
-          <label>
-            Code aus der App oder Wiederherstellungscode
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </label>
-        )}
+        <PasswordAndCodeFields
+          user={user}
+          password={password}
+          onPassword={setPassword}
+          code={code}
+          onCode={setCode}
+        />
 
         {error && <p className="form-error">{error}</p>}
 
