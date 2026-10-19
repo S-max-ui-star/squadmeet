@@ -15,11 +15,11 @@ from app.meetups import router as meetups_router
 from app.notifications import router as notifications_router
 from app.photo_storage import router as photo_files_router
 from app.photos import router as photos_router
-from app.push import router as push_router
 from app.place_reports import router as place_reports_router
-from app.series import router as series_router
 from app.places import router as places_router
+from app.push import router as push_router
 from app.ratings import router as ratings_router
+from app.series import router as series_router
 from app.suggestions import router as suggestions_router
 
 # audit_request runs first: the auth dependencies then set the actor of the audit log.
@@ -30,6 +30,8 @@ app = FastAPI(title="SquadMeet API", dependencies=[Depends(audit_request)])
 async def lifecycle_error(_request: Request, error: LifecycleError) -> JSONResponse:
     """A Meetup rule said no (app.meetup_lifecycle, SCRUM-61): its status and German text."""
     return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+
 api = APIRouter(prefix="/api")
 
 

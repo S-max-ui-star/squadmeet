@@ -8,9 +8,9 @@ Recovery codes and session tokens are long random values, so a fast SHA-256 hash
 
 import hashlib
 import hmac
+import os
 import re
 import secrets
-import os
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -57,6 +57,8 @@ login_per_ip = RateLimit(limit=10, window_seconds=60)
 # Attempts to turn MFA off per user. It asks for password and code, so a stolen session
 # token must not become an unlimited guessing machine for both (Stefan's review of SCRUM-26).
 mfa_disable_per_user = RateLimit(limit=5, window_seconds=15 * 60)
+# Attempts to start turning MFA on per user: it asks for the password too (review SCRUM-68).
+mfa_setup_per_user = RateLimit(limit=5, window_seconds=15 * 60)
 # Password resets per IP address (SCRUM-33). Each try also needs the captcha.
 reset_per_ip = RateLimit(limit=10, window_seconds=60 * 60)
 # New sets of Recovery codes per user: it asks for the password, like turning MFA off.
@@ -124,8 +126,9 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    nickname: str
-    password: str
+    # The same upper limits as at registration, so Argon2 never hashes a huge input.
+    nickname: str = Field(max_length=20)
+    password: str = Field(max_length=128)
     # Needed when MFA is on: a 6-digit code from the authenticator app or a Recovery code.
     code: str | None = None
     # Needed after CAPTCHA_AFTER_FAILED_LOGINS failed logins.
@@ -145,6 +148,9 @@ class RegisterResponse(LoginResponse):
 def start_session(session: Session, user: User) -> str:
     token = secrets.token_urlsafe(32)
     now = datetime.now(UTC)
+    # Expired sessions of all users go here, so no row stays long after its end (the privacy
+    # page says a session ends after 30 days).
+    session.exec(delete(LoginSession).where(LoginSession.expires_at <= now))
     session.add(
         LoginSession(
             user_id=user.id,
@@ -456,6 +462,12 @@ class MfaSetupResponse(BaseModel):
     qr_code: str
 
 
+class MfaSetupRequest(BaseModel):
+    # Asked again: with a stolen session token alone, a thief could turn MFA on with their own
+    # app, log out the user's other devices and lock out a user without Recovery codes.
+    password: str
+
+
 class MfaCodeRequest(BaseModel):
     code: str
 
@@ -466,12 +478,19 @@ class MfaDisableRequest(MfaCodeRequest):
 
 
 @router.post("/mfa/setup", response_model=MfaSetupResponse)
-def mfa_setup(user: User = Depends(current_user), session: Session = Depends(get_session)):
+def mfa_setup(
+    body: MfaSetupRequest,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
     """A new secret. MFA is not on until /mfa/enable confirms a code from it."""
     if user.mfa_enabled_at is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Zwei-Faktor-Anmeldung ist schon an"
         )
+    mfa_setup_per_user.hit(user.id)
+    if not password_hash.verify(body.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwort falsch")
     user.mfa_secret = pyotp.random_base32()
     user.mfa_last_step = None
     session.commit()

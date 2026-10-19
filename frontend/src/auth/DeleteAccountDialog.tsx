@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { deleteAccount, type User } from '../api/auth'
 import LegalLinks from '../legal/LegalLinks'
+import PasswordAndCodeFields from './PasswordAndCodeFields'
 
 type Props = {
   token: string
@@ -37,29 +38,13 @@ export default function DeleteAccountDialog({ token, user, onDeleted, onClose }:
           Wir löschen dein Konto <strong>{user.nickname}</strong> und alle Daten dazu: Nickname,
           Avatar, Passwort, Wiederherstellungscodes und deine Treffen. Das geht nicht rückgängig.
         </p>
-        <label>
-          Passwort
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoFocus
-            autoComplete="current-password"
-          />
-        </label>
-        {user.mfa_enabled && (
-          <label>
-            Code aus der App oder Wiederherstellungscode
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </label>
-        )}
+        <PasswordAndCodeFields
+          user={user}
+          password={password}
+          onPassword={setPassword}
+          code={code}
+          onCode={setCode}
+        />
 
         {error && <p className="form-error">{error}</p>}
 

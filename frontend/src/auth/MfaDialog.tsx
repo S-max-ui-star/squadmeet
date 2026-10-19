@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { mfaDisable, mfaEnable, mfaSetup, type MfaSetup, type User } from '../api/auth'
 import LegalLinks from '../legal/LegalLinks'
+import UsernameField from './UsernameField'
 
 type Props = {
   token: string
@@ -33,6 +34,14 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
 
   function submit(event: FormEvent) {
     event.preventDefault()
+    if (!user.mfa_enabled && !setup) {
+      // The password is asked again, so a stolen session token alone cannot turn MFA on.
+      run(async () => {
+        setSetup(await mfaSetup(token, password))
+        setPassword('')
+      })
+      return
+    }
     run(async () => {
       onChanged(
         await (user.mfa_enabled ? mfaDisable(token, password, code) : mfaEnable(token, code)),
@@ -42,6 +51,23 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
       setPassword('')
     })
   }
+
+  const passwordField = (
+    <>
+      <UsernameField nickname={user.nickname} />
+      <label>
+        Passwort
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoFocus
+          autoComplete="current-password"
+        />
+      </label>
+    </>
+  )
 
   const codeField = (
     <label>
@@ -68,17 +94,7 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
               Die Zwei-Faktor-Anmeldung ist <strong>an</strong>. Beim Anmelden fragen wir nach dem
               Code aus deiner Authenticator-App.
             </p>
-            <label>
-              Passwort
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoFocus
-                autoComplete="current-password"
-              />
-            </label>
+            {passwordField}
             {codeField}
             <button type="submit" disabled={busy}>
               Ausschalten
@@ -107,11 +123,8 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
               aus einer Authenticator-App.
               {user.is_admin && ' Als Admin brauchst du sie für die Admin-Funktionen.'}
             </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(async () => setSetup(await mfaSetup(token)))}
-            >
+            {passwordField}
+            <button type="submit" disabled={busy}>
               Einschalten
             </button>
           </>

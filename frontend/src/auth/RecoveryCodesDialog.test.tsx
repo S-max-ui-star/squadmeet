@@ -25,10 +25,10 @@ function render(mfaEnabled: boolean) {
 
 describe('RecoveryCodesDialog (SCRUM-33)', () => {
   it('asks only for the password when MFA is off', () => {
-    expect(render(false).querySelectorAll('input')).toHaveLength(1)
+    expect(render(false).querySelectorAll('input:not([autocomplete="username"])')).toHaveLength(1)
   })
 
   it('asks for the password and a code when MFA is on', () => {
-    expect(render(true).querySelectorAll('input')).toHaveLength(2)
+    expect(render(true).querySelectorAll('input:not([autocomplete="username"])')).toHaveLength(2)
   })
 })

@@ -155,9 +155,9 @@ export async function fetchCaptchaSiteKey(): Promise<string | null> {
   return (await response.json()).site_key
 }
 
-/** A new secret for the authenticator app. MFA is on only after mfaEnable. */
-export function mfaSetup(token: string): Promise<MfaSetup> {
-  return postJson('/api/auth/mfa/setup', {}, token)
+/** A new secret for the authenticator app. MFA is on only after mfaEnable. The password is asked again. */
+export function mfaSetup(token: string, password: string): Promise<MfaSetup> {
+  return postJson('/api/auth/mfa/setup', { password }, token)
 }
 
 export function mfaEnable(token: string, code: string): Promise<User> {
