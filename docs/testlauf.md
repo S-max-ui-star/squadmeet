@@ -61,7 +61,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [ ] **6.4 Nur eine Nachricht** 👥 — B hat A als Kontakt und den Platz als Favorit. A erstellt ein Treffen: B bekommt nur eine Benachrichtigung, nicht zwei.
 - [ ] **6.5 Heimatbereich** 👥 — B setzt Punkt, Radius (1–20 km) und Sportarten. A erstellt ein Treffen innerhalb: eine Nachricht. Außerhalb oder andere Sportart: keine.
 - [ ] **6.6 Heimatbereich und Serie** 👥 — A legt im Heimatbereich von B eine Serie an. B wird nur einmal benachrichtigt. Danach Heimatbereich ausschalten.
-- [ ] **6.7 Push einschalten** 👤 — Konto → Push-Benachrichtigungen → Push einschalten, Browser-Erlaubnis geben. „Push ist eingeschaltet.“ Falls „noch nicht eingerichtet“: VAPID-Schlüssel fehlen auf dem Server.
+- [ ] **6.7 Push einschalten** 👤 — Nach der Anmeldung erscheint einmalig „Push-Benachrichtigungen?“; „Später“ schließt den Hinweis. Über „Push einrichten“ oder Konto → Push-Benachrichtigungen → Push einschalten die Browser-Erlaubnis geben. Danach steht dort „Push ist eingeschaltet.“ Falls „noch nicht eingerichtet“: VAPID-Schlüssel fehlen auf dem Server.
 - [ ] **6.8 Push kommt an** 👥 — Tab im Hintergrund oder geschlossen. A erstellt ein Treffen, B bekommt eine Push-Nachricht. Antippen öffnet den Platz.
 - [ ] **6.9 Push ausschalten** 👥 — Push ausschalten. Ein neues Treffen erscheint nur noch in der Glocke.
 

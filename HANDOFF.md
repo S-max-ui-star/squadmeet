@@ -7,7 +7,7 @@ debugging case.
 Each person's own progress (*Now*, *In flight*, *Next*, *Log*) is in **`HANDOFF.local.md`**.
 That file is not in git (`.gitignore`), because each person's progress differs.
 
-**Last update:** 2026-10-19 · Stefan · Sprint 3 tickets from the test run (`SCRUM-76` – `SCRUM-92`)
+**Last update:** 2026-10-19 · Stefan · Sprint 3 tickets from the test run (`SCRUM-76` – `SCRUM-92`); Dominik · `SCRUM-44` Push onboarding and missing live VAPID setup
 
 ---
 
@@ -171,6 +171,9 @@ authenticate. There are no shared credentials.
 
 - Final app name. Working name: **SquadMeet** (2026-10-07; quick web search found no app with this name, but similar "Squadsheet" and "squadSet" exist; no brand or domain check yet). "Meetup" rejected: Meetup.com brand, and it is our glossary term.
 - Demo data and demo devices (decided later, `SCRUM-15`).
+- Production Web Push (`SCRUM-44`): the live check on 2026-10-19 showed that VAPID is not set up
+  on Stefan's AWS host. Stefan must run `AWS_REGION=eu-central-1 deploy/setup-push.sh` with access
+  to account `146062274476`, then deploy `main` again. Dominik has no access to that AWS account.
 
 ## Decisions
 

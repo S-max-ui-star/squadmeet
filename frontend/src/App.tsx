@@ -41,6 +41,7 @@ import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
 import NotificationsDialog from './notifications/NotificationsDialog'
 import HomeAreaDialog from './notifications/HomeAreaDialog'
+import PushOnboarding from './notifications/PushOnboarding'
 import PushSettingsDialog from './notifications/PushSettingsDialog'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
@@ -354,6 +355,14 @@ export default function App() {
         )}
       </div>
       {showAuth && <AuthDialog onLoggedIn={handleLoggedIn} onClose={() => setShowAuth(false)} />}
+      {user && !showPushSettings && (
+        <PushOnboarding
+          key={user.id}
+          userId={user.id}
+          token={loadToken() ?? ''}
+          onConfigure={() => setShowPushSettings(true)}
+        />
+      )}
       {showNotifications && user && (
         <NotificationsDialog
           key={user.id}
