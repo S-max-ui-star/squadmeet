@@ -42,7 +42,9 @@ services:
     # that a client sends, so a client cannot fake its address.
     # --no-access-log: the access log has the client IP on every line, and Docker keeps logs
     # without a time limit. The privacy page says we keep no IP addresses in logs (SCRUM-28).
-    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips '*' --no-access-log"
+    # --timeout-graceful-shutdown: open live streams (SCRUM-93) never end by themselves, so a
+    # deploy waits at most 5 s for them.
+    command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips '*' --no-access-log --timeout-graceful-shutdown 5"
     depends_on:
       db:
         condition: service_healthy

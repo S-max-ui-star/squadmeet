@@ -12,6 +12,7 @@ import {
   type User,
 } from './api/auth'
 import { fetchContacts, type Contacts } from './api/contacts'
+import { connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
 import { countFor, type RequestCount } from './auth/requestCount'
 import { fetchMapMeetups, type Meetup, type TimeSpan } from './api/meetups'
@@ -236,23 +237,9 @@ export default function App() {
     },
     [userId],
   )
-  useEffect(() => {
-    const token = loadToken()
-    if (!userId || !token) return
-    // A late answer for a user who has logged out since must not set the count.
-    let current = true
-    fetchContacts(token)
-      .then((contacts) => {
-        if (current) updateRequests(contacts)
-      })
-      .catch(() => {})
-    return () => {
-      current = false
-    }
-  }, [userId, updateRequests])
 
-  // Notifications are refreshed while signed in. Keep every answer with its user so a late
-  // response after logout cannot expose that user's unread count to the next login.
+  // Notifications: keep every answer with its user so a late response after logout cannot
+  // expose that user's unread count to the next login.
   const notifications = notificationsFor(notificationState, userId)
   const unreadNotifications = notifications.filter((notice) => !notice.read).length
   const updateNotifications = useCallback(
@@ -261,23 +248,42 @@ export default function App() {
     },
     [userId],
   )
+
+  // Contact requests and Notifications load at login and again on each live event (SCRUM-93).
+  // Notifications also every 60 s, in case the live stream does not get through.
   useEffect(() => {
     const token = loadToken()
     if (!userId || !token) return
+    // A late answer for a user who has logged out since must not set the counts.
     let current = true
-    const reload = () =>
+    const reloadContacts = () =>
+      fetchContacts(token)
+        .then((contacts) => {
+          if (current) updateRequests(contacts)
+        })
+        .catch(() => {})
+    const reloadNotifications = () =>
       fetchNotifications(token)
         .then((found) => {
           if (current) updateNotifications(found)
         })
         .catch(() => {})
-    void reload()
-    const timer = setInterval(reload, NOTIFICATIONS_REFRESH_MS)
+    void reloadContacts()
+    void reloadNotifications()
+    const timer = setInterval(reloadNotifications, NOTIFICATIONS_REFRESH_MS)
+    const stopLive = connectLive(token, {
+      onOpen: () => {
+        void reloadContacts()
+        void reloadNotifications()
+      },
+      onTopic: (topic) => void (topic === 'contacts' ? reloadContacts() : reloadNotifications()),
+    })
     return () => {
       current = false
       clearInterval(timer)
+      stopLive()
     }
-  }, [userId, updateNotifications])
+  }, [userId, updateRequests, updateNotifications])
 
   function handleLoggedIn(result: LoginResult) {
     saveToken(result.token)

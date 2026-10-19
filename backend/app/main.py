@@ -10,6 +10,7 @@ from app.auth import router as auth_router
 from app.contacts import router as contacts_router
 from app.favorites import router as favorites_router
 from app.home_area import router as home_area_router
+from app.live import router as live_router
 from app.meetup_lifecycle import LifecycleError
 from app.meetups import router as meetups_router
 from app.notifications import router as notifications_router
@@ -47,6 +48,7 @@ api.include_router(auth_router)
 api.include_router(meetups_router)
 api.include_router(notifications_router)
 api.include_router(push_router)
+api.include_router(live_router)
 api.include_router(series_router)
 api.include_router(contacts_router)
 api.include_router(favorites_router)
