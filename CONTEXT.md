@@ -10,6 +10,12 @@ German; the German UI word is in brackets.
 A public, free location where one Activity type can be done, for example one table tennis table.
 _Avoid_: Ort, spot, location, venue
 
+**Place detail** (Platzdetails; URL `/platz/<id>`):
+The panel over the map that opens for one Place: name, Activity type, address, Favorite, start a
+Meetup, the Place's Meetups, Ratings, Condition, City report and Photos. It sits at the bottom on a
+phone and is a card on the left on a laptop. A Notification tap or a shared link opens it.
+_Avoid_: popup, window, sheet, card, Place page, Place view
+
 **Activity type** (Aktivität):
 The kind of activity a Place is for: table tennis, basketball, football pitch, beach volleyball,
 outdoor fitness.
