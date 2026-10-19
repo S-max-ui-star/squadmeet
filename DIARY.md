@@ -15,6 +15,7 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Mo 19.10.2026 — Tag 9
 
+- **Stefan:** Besprechung des Testdokuments (`SCRUM-67`, docs/testlauf.md) im Team; daraus 17 Tickets für Sprint 3 angelegt (`SCRUM-76` – `SCRUM-92`) und auf alle drei verteilt. `SCRUM-76` Platzdetails gebaut (× zum Schließen, Tippen auf die Karte schließt, offener Platz markiert, Impressum raus), PR #83 gemergt und mit Release #85 live. VAPID-Schlüssel auf dem Server eingerichtet, damit Push (`SCRUM-44`) gehen kann.
 - **Dominik:** `SCRUM-44` beim Test nachgebessert: einmaliger freiwilliger Hinweis zur Push-Einrichtung nach der Anmeldung mit „Push einrichten“ und „Später“; fehlende VAPID-Konfiguration auf dem Live-Server identifiziert.
 
 ## Fr 16.10.2026 — Tag 8
