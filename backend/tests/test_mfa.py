@@ -12,8 +12,14 @@ from app.models import LoginSession, RecoveryCode, User
 from tests.test_auth import PASSWORD, auth_header, register
 
 
+def start_setup(client, token, password=PASSWORD):
+    return client.post(
+        "/api/auth/mfa/setup", json={"password": password}, headers=auth_header(token)
+    )
+
+
 def setup_mfa(client, token):
-    response = client.post("/api/auth/mfa/setup", headers=auth_header(token))
+    response = start_setup(client, token)
     assert response.status_code == 200
     return pyotp.TOTP(response.json()["secret"])
 
@@ -48,7 +54,7 @@ def login(client, code=None):
 def test_setup_returns_secret_uri_and_qr_code(client):
     token = register(client).json()["token"]
 
-    body = client.post("/api/auth/mfa/setup", headers=auth_header(token)).json()
+    body = start_setup(client, token).json()
 
     assert body["otpauth_uri"].startswith("otpauth://totp/Squadmeet:Pingpong_Paula?")
     assert f"secret={body['secret']}" in body["otpauth_uri"]
@@ -200,7 +206,17 @@ def test_disable_needs_a_valid_code(client, mfa_user):
 def test_setup_is_refused_while_mfa_is_on(client, mfa_user):
     token, _, _ = mfa_user
 
-    assert client.post("/api/auth/mfa/setup", headers=auth_header(token)).status_code == 409
+    assert start_setup(client, token).status_code == 409
+
+
+def test_setup_needs_the_password(client):
+    # A stolen session token alone must not turn MFA on: that would log out the user's other
+    # devices and lock out a user without Recovery codes (review SCRUM-68).
+    token = register(client).json()["token"]
+
+    assert start_setup(client, token, password="falsches-passwort").status_code == 400
+    no_password = client.post("/api/auth/mfa/setup", json={}, headers=auth_header(token))
+    assert no_password.status_code == 422
 
 
 def test_admin_without_mfa_is_blocked(client, session):

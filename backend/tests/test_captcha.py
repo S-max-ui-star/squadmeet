@@ -10,7 +10,7 @@ from app.main import app
 from app.models import User
 from tests.conftest import CAPTCHA_OK
 from tests.test_auth import PASSWORD, auth_header, register
-from tests.test_mfa import code_in, disable, mfa_user  # noqa: F401 (fixture)
+from tests.test_mfa import code_in, disable, mfa_user, start_setup  # noqa: F401 (fixture)
 
 
 def login(client, password=PASSWORD, **extra):
@@ -141,3 +141,20 @@ def test_mfa_disable_rate_limit_per_user(client, mfa_user):
     assert response.status_code == 429
     assert client.get("/api/auth/me", headers=auth_header(token)).json()["mfa_enabled"] is True
 
+
+def test_mfa_setup_rate_limit_per_user(client):
+    token = register(client).json()["token"]
+    for _ in range(5):
+        assert start_setup(client, token, password="falsches-passwort").status_code == 400
+
+    # The right password does not help until the window ends.
+    assert start_setup(client, token).status_code == 429
+
+
+def test_login_rejects_a_too_long_password_or_nickname(client):
+    register(client)
+
+    assert login(client, password="x" * 129).status_code == 422
+    assert client.post(
+        "/api/auth/login", json={"nickname": "x" * 21, "password": PASSWORD}
+    ).status_code == 422

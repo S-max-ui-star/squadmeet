@@ -1,7 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
 from sqlmodel import select
 
-from app.auth import RECOVERY_CODE_COUNT
-from app.models import RecoveryCode, User
+from app.auth import RECOVERY_CODE_COUNT, sha256
+from app.models import LoginSession, RecoveryCode, User
 from tests.conftest import CAPTCHA_OK
 
 PASSWORD = "richtig-langes-passwort"
@@ -97,3 +99,30 @@ def test_logout_ends_the_session(client):
 
     assert client.post("/api/auth/logout", headers=auth_header(token)).status_code == 204
     assert client.get("/api/auth/me", headers=auth_header(token)).status_code == 401
+
+
+def expire_all_sessions(session):
+    for login in session.exec(select(LoginSession)).all():
+        login.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    session.commit()
+
+
+def test_an_expired_session_is_rejected(client, session):
+    token = register(client).json()["token"]
+    expire_all_sessions(session)
+
+    assert client.get("/api/auth/me", headers=auth_header(token)).status_code == 401
+
+
+def test_a_login_deletes_expired_sessions(client, session):
+    # The privacy page says a session ends after 30 days; the row must not stay (review SCRUM-68).
+    old = register(client).json()["token"]
+    expire_all_sessions(session)
+
+    new = client.post(
+        "/api/auth/login", json={"nickname": "Pingpong_Paula", "password": PASSWORD}
+    ).json()["token"]
+
+    hashes = [s.token_hash for s in session.exec(select(LoginSession)).all()]
+    assert hashes == [sha256(new)]
+    assert sha256(old) not in hashes
