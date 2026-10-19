@@ -2,6 +2,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { User } from '../api/auth'
+import { announceMeetupChange } from '../api/live'
 import PlaceMeetups from './PlaceMeetups'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -68,6 +69,19 @@ const button = (container: HTMLElement, text: string) =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
 
 describe('PlaceMeetups', () => {
+  it('loads again on a live Meetup event for its own Place only (SCRUM-93)', async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(Response.json([meetup])))
+    vi.stubGlobal('fetch', fetch)
+    await render(paula)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    await act(async () => announceMeetupChange(4))
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await act(async () => announceMeetupChange(3))
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('lists the active Meetups with Host and people', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([meetup])))
 
