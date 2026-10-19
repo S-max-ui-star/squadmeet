@@ -15,6 +15,7 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Mo 19.10.2026 — Tag 9
 
+- **Steven:** `SCRUM-68` Backend-Review (Login, MFA, Captcha, Limits): 5 Funde test-first behoben, MFA einschalten braucht jetzt das Passwort (PR #81). `SCRUM-91` Safari-AutoFill füllt das Passwort in den Konto-Dialogen (PR #84); Release-PR #85 als Entwurf. `SCRUM-93` Live-Daten ohne Neuladen per Server-Sent Events: Kontaktanfragen, Benachrichtigungen und Treffen erscheinen sofort (PR #86).
 - **Dominik:** `SCRUM-44` beim Test nachgebessert: einmaliger freiwilliger Hinweis zur Push-Einrichtung nach der Anmeldung mit „Push einrichten“ und „Später“; fehlende VAPID-Konfiguration auf dem Live-Server identifiziert.
 
 ## Fr 16.10.2026 — Tag 8

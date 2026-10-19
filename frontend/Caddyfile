@@ -1,7 +1,16 @@
 # Caddy in the production image. DOMAIN comes from the environment (deploy/compose.yml).
 # With a real domain, Caddy gets a Let's Encrypt certificate and redirects HTTP to HTTPS.
 {$DOMAIN:localhost} {
-	encode zstd gzip
+	# Not the live stream (SCRUM-93): compression would hold its events back.
+	@compress not path /api/live
+	encode @compress zstd gzip
+
+	# Each live event goes to the page at once.
+	handle /api/live {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
 
 	handle /api/* {
 		reverse_proxy backend:8000
