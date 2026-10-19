@@ -54,6 +54,10 @@ export default function PlaceDetail({
           <h2>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
           {activity && <span>{activity.label}</span>}
         </div>
+        {/* At the top, so a phone user need not scroll down to "Zurück zur Karte" (SCRUM-76). */}
+        <button type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
+          ×
+        </button>
       </div>
 
       {place && (

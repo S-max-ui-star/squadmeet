@@ -57,6 +57,8 @@ function areaCenter(area: MapArea | null): [number, number] {
 // Meetups end by themselves (SCRUM-29); the map asks again so an ended one leaves the map.
 const PLACES_REFRESH_MS = 60_000
 const NOTIFICATIONS_REFRESH_MS = 60_000
+// Lifts the open Place's marker above its neighbours (SCRUM-76).
+const SELECTED_Z = 1000
 
 // Calls onMove with the visible map area at the start and after each pan or zoom.
 function MapAreaWatcher({ onMove }: { onMove: (area: MapArea) => void }) {
@@ -67,6 +69,13 @@ function MapAreaWatcher({ onMove }: { onMove: (area: MapArea) => void }) {
   }
   useMapEvents({ moveend: report })
   useEffect(report, [map, onMove])
+  return null
+}
+
+// A tap on the map itself closes the open Place detail (SCRUM-76). Markers and popups do not
+// pass their clicks on to the map, and a pan or zoom is no click.
+function CloseOnMapTap({ onTap }: { onTap: () => void }) {
+  useMapEvents({ click: onTap })
   return null
 }
 
@@ -552,7 +561,6 @@ export default function App() {
             user={user}
             onLoginNeeded={() => setShowAuth(true)}
           />
-          <LegalLinks navigate={navigate} className="legal-links-inline" />
         </PlaceDetail>
       )}
       <MapContainer center={LEIPZIG} zoom={13} minZoom={MIN_ZOOM} style={{ height: '100%' }}>
@@ -562,6 +570,7 @@ export default function App() {
         />
         <MapAreaWatcher onMove={loadPlaces} />
         <CenterOnSearch target={searchTarget} />
+        {selectedId !== null && <CloseOnMapTap onTap={() => navigate('/')} />}
         {selected && <CenterOn place={selected} />}
         {spots.map((spot) => {
           const isSelected = spot.places.some((place) => place.id === selectedId)
@@ -572,6 +581,7 @@ export default function App() {
                 key={place.id}
                 position={[spot.lat, spot.lon]}
                 icon={placeIcon(place.activity_type, isSelected, place.people_now, place.is_suggestion)}
+                zIndexOffset={isSelected ? SELECTED_Z : 0}
                 title={place.name}
                 eventHandlers={{ click: () => openPlace(place.id) }}
               />
@@ -579,7 +589,12 @@ export default function App() {
           }
           // Several Activity types on one spot: the marker shows how many; a tap shows the choice.
           return (
-            <Marker key={`spot-${spot.places[0].id}`} position={[spot.lat, spot.lon]} icon={spotIcon(spot, isSelected)}>
+            <Marker
+              key={`spot-${spot.places[0].id}`}
+              position={[spot.lat, spot.lon]}
+              icon={spotIcon(spot, isSelected)}
+              zIndexOffset={isSelected ? SELECTED_Z : 0}
+            >
               <Popup>
                 <ul className="spot-choice">
                   {spot.places.map((place) => {
