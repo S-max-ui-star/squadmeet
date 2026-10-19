@@ -6,36 +6,36 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 ## 1 Start und Karte
 
-- [ ] **1.1 Seite und Karte laden** 👤 — Auf Handy und Laptop öffnen. Die Karte zeigt Plätze als Marker, der OpenStreetMap-Hinweis ist sichtbar.
-- [ ] **1.2 Weit herauszoomen** 👤 — Bei sehr großem Ausschnitt erscheint „Zu viele Plätze. Bitte näher heranzoomen.“
-- [ ] **1.3 Aktivitätsfilter** 👤 — Nur Tischtennis, dann nur Basketball usw. wählen. Die Karte zeigt nur passende Plätze.
-- [ ] **1.4 Zeitfilter** 👤 — Jetzt, nächste 3 Stunden, nächste 6 Stunden, Heute. Karte und Treffen-Liste zeigen nur Plätze mit Treffen in dieser Zeit.
-- [ ] **1.5 Treffen-Liste folgt der Karte** 👤 — Kartenausschnitt verschieben und zoomen. Die Liste wird kürzer oder länger. Leer: „Keine Treffen in diesem Kartenausschnitt.“
-- [ ] **1.6 Suche** 👤 — Nach einer Adresse und nach einem Platznamen suchen. SquadMeet-Plätze sind markiert. Unsinn eingeben: „Keine Treffer.“
-- [ ] **1.7 Platz-Detail und Link** 👥 — Platz öffnen. Die Adresse /platz/… teilen, im anderen Browser öffnen und neu laden. Der Zurück-Button führt zur Karte.
-- [ ] **1.8 Route** 👤 — Im Platz-Detail die Route öffnen. Apple Maps oder Google Maps startet mit dem Platz als Ziel.
-- [ ] **1.9 Impressum und Datenschutz** 👤 — Beide Seiten öffnen. Stimmen die Angaben, fehlt ein Punkt (Push, Heimatbereich, Fotos)?
-- [ ] **1.10 Als App aufs Handy** 👤 — Im Handy-Browser „Zum Home-Bildschirm“. Symbol und Name stimmen, die App öffnet ohne Browserleiste.
+- [X] **1.1 Seite und Karte laden** 👤 — Auf Handy und Laptop öffnen. Die Karte zeigt Plätze als Marker, der OpenStreetMap-Hinweis ist sichtbar.
+- [?] **1.2 Weit herauszoomen** 👤 — Bei sehr großem Ausschnitt erscheint „Zu viele Plätze. Bitte näher heranzoomen.“
+- [x] **1.3 Aktivitätsfilter** 👤 — Nur Tischtennis, dann nur Basketball usw. wählen. Die Karte zeigt nur passende Plätze.
+- [X] **1.4 Zeitfilter** 👤 — Jetzt, nächste 3 Stunden, nächste 6 Stunden, Heute. Karte und Treffen-Liste zeigen nur Plätze mit Treffen in dieser Zeit.
+- [X] **1.5 Treffen-Liste folgt der Karte** 👤 — Kartenausschnitt verschieben und zoomen. Die Liste wird kürzer oder länger. Leer: „Keine Treffen in diesem Kartenausschnitt.“
+- [?] **1.6 Suche** 👤 — Nach einer Adresse und nach einem Platznamen suchen. SquadMeet-Plätze sind markiert. Unsinn eingeben: „Keine Treffer.“
+- [?] **1.7 Platz-Detail und Link** 👥 — Platz öffnen. Die Adresse /platz/… teilen, im anderen Browser öffnen und neu laden. Der Zurück-Button führt zur Karte.
+- [X] **1.8 Route** 👤 — Im Platz-Detail die Route öffnen. Apple Maps oder Google Maps startet mit dem Platz als Ziel.
+- [?] **1.9 Impressum und Datenschutz** 👤 — Beide Seiten öffnen. Stimmen die Angaben, fehlt ein Punkt (Push, Heimatbereich, Fotos)?
+- [X] **1.10 Als App aufs Handy** 👤 — Im Handy-Browser „Zum Home-Bildschirm“. Symbol und Name stimmen, die App öffnet ohne Browserleiste.
 
 ## 2 Konto
 
-- [ ] **2.1 Registrieren** 👤 — Nickname, Passwort, Avatar wählen, Captcha. Danach erscheinen die Wiederherstellungscodes „nur jetzt“. Codes aufschreiben.
-- [ ] **2.2 Nickname schon vergeben** 👥 — Die zweite Person versucht denselben Nickname. Es kommt eine verständliche Fehlermeldung.
-- [ ] **2.3 Abmelden und Anmelden** 👤 — Abmelden, falsches Passwort probieren, dann richtig anmelden.
-- [ ] **2.4 Passwort vergessen** 👤 — „Passwort vergessen?“ mit einem Wiederherstellungscode. Neues Passwort setzen, derselbe Code geht danach nicht noch einmal.
-- [ ] **2.5 Zwei-Faktor-Anmeldung** 👤 — Unter Konto einschalten, mit einer Authenticator-App koppeln. Anmelden mit Passwort und Code, dann einmal mit Wiederherstellungscode statt App.
-- [ ] **2.6 Neue Wiederherstellungscodes** 👤 — Neue Codes erzeugen (Passwort nötig). Ein alter Code funktioniert danach nicht mehr.
+- [X] **2.1 Registrieren** 👤 — Nickname, Passwort, Avatar wählen, Captcha. Danach erscheinen die Wiederherstellungscodes „nur jetzt“. Codes aufschreiben.
+- [X] **2.2 Nickname schon vergeben** 👥 — Die zweite Person versucht denselben Nickname. Es kommt eine verständliche Fehlermeldung.
+- [X] **2.3 Abmelden und Anmelden** 👤 — Abmelden, falsches Passwort probieren, dann richtig anmelden.
+- [X] **2.4 Passwort vergessen** 👤 — „Passwort vergessen?“ mit einem Wiederherstellungscode. Neues Passwort setzen, derselbe Code geht danach nicht noch einmal.
+- [X] **2.5 Zwei-Faktor-Anmeldung** 👤 — Unter Konto einschalten, mit einer Authenticator-App koppeln. Anmelden mit Passwort und Code, dann einmal mit Wiederherstellungscode statt App.
+- [X] **2.6 Neue Wiederherstellungscodes** 👤 — Neue Codes erzeugen (Passwort nötig). Ein alter Code funktioniert danach nicht mehr.
 
 ## 3 Treffen
 
-- [ ] **3.1 Später treffen** 👥 — Person A legt an einem Platz ein Treffen für später an. Person B sieht es in der Liste und im Platz-Detail.
-- [ ] **3.2 Ich komme mit** 👥 — B tritt mit Personenzahl 3 bei. A sieht die neue Zahl. B ändert sie oder verlässt das Treffen wieder.
-- [ ] **3.3 Ich bin jetzt hier** 👤 — Dauer 1 bis 4 Stunden wählen. Das Treffen ist LIVE. Der Host beendet es früher.
-- [ ] **3.4 Verschieben mit Teilnehmer** 👥 — A verschiebt ein Treffen, dem B beigetreten ist. B wählt Mitgehen, Hierbleiben oder Verlassen. Beide Varianten einmal.
-- [ ] **3.5 Host verlässt** 👥 — A verlässt ein Treffen, in dem B ist. B ist danach Gastgeber und kann bearbeiten und absagen.
-- [ ] **3.6 Absagen** 👥 — Host sagt ein Treffen ab. Es bleibt als „Abgesagt“ sichtbar bis zur Endzeit.
-- [ ] **3.7 Alle verlassen** 👥 — Beide verlassen ein Treffen. Es ist danach geschlossen.
-- [ ] **3.8 Serie** 👥 — Wöchentliche Serie mit zwei Wochentagen, eigener Uhrzeit, optional Enddatum. Termine der nächsten 30 Tage erscheinen. B tritt nur einem Termin bei.
+- [X] **3.1 Später treffen** 👥 — Person A legt an einem Platz ein Treffen für später an. Person B sieht es in der Liste und im Platz-Detail.
+- [X] **3.2 Ich komme mit** 👥 — B tritt mit Personenzahl 3 bei. A sieht die neue Zahl. B ändert sie oder verlässt das Treffen wieder.
+- [?] **3.3 Ich bin jetzt hier** 👤 — Dauer 1 bis 4 Stunden wählen. Das Treffen ist LIVE. Der Host beendet es früher.
+- [?] **3.4 Verschieben mit Teilnehmer** 👥 — A verschiebt ein Treffen, dem B beigetreten ist. B wählt Mitgehen, Hierbleiben oder Verlassen. Beide Varianten einmal.
+- [?] **3.5 Host verlässt** 👥 — A verlässt ein Treffen, in dem B ist. B ist danach Gastgeber und kann bearbeiten und absagen.
+- [X] **3.6 Absagen** 👥 — Host sagt ein Treffen ab. Es bleibt als „Abgesagt“ sichtbar bis zur Endzeit.
+- [X] **3.7 Alle verlassen** 👥 — Beide verlassen ein Treffen. Es ist danach geschlossen.
+- [X] **3.8 Serie** 👥 — Wöchentliche Serie mit zwei Wochentagen, eigener Uhrzeit, optional Enddatum. Termine der nächsten 30 Tage erscheinen. B tritt nur einem Termin bei.
 
 ## 4 Bewertungen, Zustand und Fotos
 
