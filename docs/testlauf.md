@@ -23,7 +23,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [X] **2.2 Nickname schon vergeben** 👥 — Die zweite Person versucht denselben Nickname. Es kommt eine verständliche Fehlermeldung.
 - [X] **2.3 Abmelden und Anmelden** 👤 — Abmelden, falsches Passwort probieren, dann richtig anmelden.
 - [X] **2.4 Passwort vergessen** 👤 — „Passwort vergessen?“ mit einem Wiederherstellungscode. Neues Passwort setzen, derselbe Code geht danach nicht noch einmal.
-- [X] **2.5 Zwei-Faktor-Anmeldung** 👤 — Unter Konto einschalten, mit einer Authenticator-App koppeln. Anmelden mit Passwort und Code, dann einmal mit Wiederherstellungscode statt App.
+- [X] **2.5 Zwei-Faktor-Anmeldung** 👤 — Unter Konto einschalten, mit einer Authenticator-App koppeln. Anmelden mit Passwort und Code, dann einmal mit Wiederherstellungscode statt App. Seit `SCRUM-68` (PR #81) fragt „Einschalten“ zuerst das Passwort; ein falsches Passwort zeigt „Passwort falsch“. Dieser Schritt ist noch nicht getestet.
 - [X] **2.6 Neue Wiederherstellungscodes** 👤 — Neue Codes erzeugen (Passwort nötig). Ein alter Code funktioniert danach nicht mehr.
 
 ## 3 Treffen
