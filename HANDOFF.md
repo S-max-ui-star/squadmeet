@@ -7,6 +7,7 @@ debugging case.
 Each person's own progress (*Now*, *In flight*, *Next*, *Log*) is in **`HANDOFF.local.md`**.
 That file is not in git (`.gitignore`), because each person's progress differs.
 
+**Last update:** 2026-10-20 · Steven · Photos deferred (`SCRUM-94`): decision row
 **Last update:** 2026-10-20 · Stefan · `SCRUM-79` move answer words: decision row
 
 ---
@@ -47,7 +48,7 @@ Rules. Keep them short so everybody follows them.
   2026-10-15 (`SCRUM-48`) it runs on one EC2 host in Stefan's AWS account `146062274476` (login
   `aws login`, SSO role "Student", region `eu-central-1`): instance `i-0c6f51ccbb8ba4cbe`, fixed IP
   3.74.38.119, `t2.micro`. Photos are in the private S3 bucket `squadmeet-photos-146062274476`
-  (`SCRUM-42`). DuckDNS and Cloudflare Turnstile are Stefan's. Setup, shell access and
+  (`SCRUM-42`); they are deferred since 2026-10-20 and go off with `SCRUM-94` (see *Decisions*; switch on again: [deploy/README.md](deploy/README.md) → *Photo storage*). DuckDNS and Cloudflare Turnstile are Stefan's. Setup, shell access and
   troubleshooting: [deploy/README.md](deploy/README.md).
 - **Repo:** https://github.com/S-max-ui-star/squadmeet (private, Stefan's since 2026-10-15,
   `SCRUM-48`; collaborators GitGitRice, khaldrogo98). Images: `ghcr.io/s-max-ui-star/squadmeet-*`.
@@ -174,6 +175,8 @@ authenticate. There are no shared credentials.
 - Production Web Push (`SCRUM-44`): the live check on 2026-10-19 showed that VAPID is not set up
   on Stefan's AWS host. Stefan must run `AWS_REGION=eu-central-1 deploy/setup-push.sh` with access
   to account `146062274476`, then deploy `main` again. Dominik has no access to that AWS account.
+- Privacy text while Photos are off (`SCRUM-94`): how does the privacy page name the Photos that
+  are already stored in S3? Stefan decides (product owner, privacy text).
 
 ## Decisions
 
@@ -182,6 +185,7 @@ Short entries. Put the reason next to the decision. Longer reasoning goes to a s
 
 | Date | Decision | Why | Where |
 |------|----------|-----|-------|
+| 2026-10-20 | **Photos deferred** until after the course. Upload is off and nobody sees Photos, also not the Admin approval. One backend switch `PHOTOS_ENABLED` (default off) does it, and the frontend hides the photo section and "Fotos freigeben" (`SCRUM-94`, Must, Sprint 3). Nothing is deleted: S3 bucket, `photo` table, code, tests and `deploy/setup-photos.sh` stay. Switch on again = `PHOTOS_ENABLED=true` + deploy. `SCRUM-83` (at most 5 Photos per Place) and `SCRUM-92` (Admin deletes approved Photos) left Sprint 3 for the backlog (label `deferred`). Until `SCRUM-94` is merged and live, Photos are still on. Off, the privacy page still names the stored Photos (wording for Stefan to check) | Steven (team), 2026-10-20. A switch, not a code removal, makes it easy to turn Photos on again | `SCRUM-94`, [backend/app/photo_storage.py](backend/app/photo_storage.py), [deploy/compose.yml](deploy/compose.yml) |
 | 2026-10-20 | Move answer (`SCRUM-79`): "{Host} hat das Treffen auf 18:00 verlegt. Wann bist du dabei?" with the buttons new time (go) · old time (stay) · "Gar nicht" (leave); a button shows the day too when the two starts are on different days. A running Meetup's Host without Joins gets only "Jetzt beenden" (`host_alone` in `lifecycle.actions`) | Stefan (product owner) after the test run: "Mitgehen" was unclear and "Absagen" meant Leave; clicking the time you want needs no explaining. Alone, End and Leave do the same | `SCRUM-79`, [frontend/src/places/PlaceMeetups.tsx](frontend/src/places/PlaceMeetups.tsx), [backend/app/meetup_lifecycle.py](backend/app/meetup_lifecycle.py) |
 | 2026-10-20 | A page in the background sends no requests (`SCRUM-78`, [frontend/src/whileVisible.ts](frontend/src/whileVisible.ts)): the 60 s polls (map, Notifications, Place panel) skip their turn while `document.visibilityState` is not `visible`, and live events (`SCRUM-93`) are ignored then. Back in front, the map and the open Place panel load once, and the live stream opens again and loads Notifications and Contacts (`onOpen`) | Acceptance criterion of `SCRUM-78`. The rest of the ticket (open Place panel and Contacts dialog update by themselves) was already done by `SCRUM-93` (PR #86, #89) | `SCRUM-78`, [frontend/src/App.tsx](frontend/src/App.tsx), [frontend/src/places/PlaceMeetups.tsx](frontend/src/places/PlaceMeetups.tsx) |
 | 2026-10-20 | Overlap limit (`SCRUM-80`): a user is in at most 2 Meetups at one moment (`MAX_AT_ONCE` in [backend/app/meetup_lifecycle.py](backend/app/meetup_lifecycle.py)). Checked on create, Join, Move and the "go" answer to a Move; 409 "Du bist zu dieser Zeit schon bei 2 Treffen.". It counts the most Meetups that run at the same moment inside the new time, so a 3rd that touches 2 separate Meetups is allowed. Only the time from now counts; a Move or "go" does not count the Meetup the user leaves. A new Series with one full date is refused as a whole (409 "Am 27.10. bist du …"); a later fill of the 30-day window skips a full date and tries it again next time | Stefan (product owner) set the limit on 19.10. Steven chose the Series rule on 20.10.: the user sees why at creation, and a later fill has nobody to show an error to | `SCRUM-80`, [backend/app/series.py](backend/app/series.py), [CONTEXT.md](CONTEXT.md) (Overlap limit) |

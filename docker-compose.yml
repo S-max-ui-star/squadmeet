@@ -29,6 +29,8 @@ services:
       NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-SquadMeet/1.0 (https://squadmeet.duckdns.org)}
       # Photos (SCRUM-42) in backend/photos/ (not in git); production uses S3 (PHOTO_BUCKET).
       PHOTO_DIR: photos
+      # Photos are deferred (SCRUM-94): off like in production. "true" switches them on.
+      PHOTOS_ENABLED: "false"
       # Optional Web Push keys (SCRUM-44). Keep the private value only in the ignored .env.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

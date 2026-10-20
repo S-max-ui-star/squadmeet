@@ -3,13 +3,15 @@ import LegalLinks from './LegalLinks'
 
 type Props = {
   kind: LegalPageKind
+  // Photos are on (SCRUM-94). Off, the stored Photos are still named.
+  photos: boolean
   navigate: (to: string) => void
 }
 
 // Privacy page and imprint (SCRUM-28): a full page over the map, reachable without login.
 // Keep the privacy text true: a new feature that stores personal data or calls a new service
 // (for example Photos, SCRUM-42, or web push, SCRUM-44) must add it here.
-export default function LegalPage({ kind, navigate }: Props) {
+export default function LegalPage({ kind, photos, navigate }: Props) {
   return (
     <article className="legal-page">
       <a
@@ -22,7 +24,7 @@ export default function LegalPage({ kind, navigate }: Props) {
       >
         ← Zur Karte
       </a>
-      {kind === 'privacy' ? <Privacy /> : <Imprint />}
+      {kind === 'privacy' ? <Privacy photos={photos} /> : <Imprint />}
       <LegalLinks navigate={navigate} className="legal-links-inline" />
     </article>
   )
@@ -59,7 +61,7 @@ function Imprint() {
   )
 }
 
-function Privacy() {
+function Privacy({ photos }: { photos: boolean }) {
   return (
     <>
       <h1>Datenschutzerklärung</h1>
@@ -186,14 +188,24 @@ function Privacy() {
           und Uhrzeiten für Benachrichtigungen über neue Treffen. Diese Angaben sind nur für dich
           sichtbar und werden gelöscht, wenn du den Favoriten oder dein Konto löschst.
         </li>
-        <li>
-          <strong>Fotos:</strong> wenn du ein Foto eines Platzes hochlädst, das Foto, zu welchem
-          Platz es gehört, von wem es ist und wann. Unser Server speichert eine verkleinerte Kopie
-          ohne die Zusatzdaten deiner Kamera (EXIF), also auch ohne Aufnahmeort. Ein Foto ist erst
-          sichtbar, wenn ein Admin es freigegeben hat; der Admin sieht dabei deinen Nickname,
-          andere sehen ihn nicht. Bitte fotografiere keine Personen. Ein abgelehntes Foto löschen
-          wir.
-        </li>
+        {photos ? (
+          <li>
+            <strong>Fotos:</strong> wenn du ein Foto eines Platzes hochlädst, das Foto, zu welchem
+            Platz es gehört, von wem es ist und wann. Unser Server speichert eine verkleinerte Kopie
+            ohne die Zusatzdaten deiner Kamera (EXIF), also auch ohne Aufnahmeort. Ein Foto ist erst
+            sichtbar, wenn ein Admin es freigegeben hat; der Admin sieht dabei deinen Nickname,
+            andere sehen ihn nicht. Bitte fotografiere keine Personen. Ein abgelehntes Foto löschen
+            wir.
+          </li>
+        ) : (
+          // SCRUM-94: Photos are deferred. Stefan (product owner) checks this wording.
+          <li>
+            <strong>Fotos:</strong> Fotos sind zurzeit ausgeschaltet. Du kannst keine Fotos
+            hochladen, und niemand sieht Fotos. Fotos, die schon hochgeladen wurden, bleiben
+            gespeichert: das Foto als verkleinerte Kopie ohne Aufnahmeort, zu welchem Platz es
+            gehört, von wem es ist und wann.
+          </li>
+        )}
         <li>
           <strong>Heimatgebiet:</strong> nur, wenn du es angibst, sobald es diese Funktion gibt.
         </li>

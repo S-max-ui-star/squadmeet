@@ -32,6 +32,8 @@ services:
       # Photos (SCRUM-42): the private S3 bucket from deploy/setup-photos.sh; empty = Photos off.
       # boto3 uses the host role and needs the region.
       PHOTO_BUCKET: ${PHOTO_BUCKET:-}
+      # Photos are deferred (SCRUM-94): off until this is "true". The bucket stays.
+      PHOTOS_ENABLED: "false"
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:?}
       # Web Push (SCRUM-44): generated once by setup-push.sh and read from SSM at deploy.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

@@ -15,6 +15,8 @@ type Props = {
   onLockedPlaces: () => void
   onSuggestions: () => void
   onReports: () => void
+  // Photos are on (SCRUM-94); off, "Fotos freigeben" is hidden.
+  photos: boolean
   onPhotos: () => void
   onClose: () => void
 }
@@ -32,6 +34,7 @@ export default function AccountDialog({
   onLockedPlaces,
   onSuggestions,
   onReports,
+  photos,
   onPhotos,
   onClose,
 }: Props) {
@@ -62,9 +65,11 @@ export default function AccountDialog({
             <button type="button" onClick={onReports}>
               Gemeldete Plätze
             </button>
-            <button type="button" onClick={onPhotos}>
-              Fotos freigeben
-            </button>
+            {photos && (
+              <button type="button" onClick={onPhotos}>
+                Fotos freigeben
+              </button>
+            )}
             <button type="button" onClick={onLockedPlaces}>
               Gesperrte Plätze
             </button>
