@@ -161,6 +161,46 @@ def test_unblock(client, paula, karl):
     assert ask(client, karl[0], "Pingpong_Paula").status_code == 201
 
 
+def test_meetup_list_names_contacts_who_host_or_join(client, place, paula, karl, mia):
+    karl_request = ask(client, paula[0], "Korb_Karl").json()["id"]
+    answer(client, karl[0], karl_request, "accept")
+    mia_request = ask(client, paula[0], "Mia_Matte").json()["id"]
+    answer(client, mia[0], mia_request, "accept")
+    meetup = create(client, karl[0], place.id).json()
+    join(client, mia[0], meetup["id"])
+
+    [listed] = map_meetups(client, "now", paula[0]).json()["meetups"]
+
+    assert [(contact["nickname"], contact["avatar"]) for contact in listed["contacts"]] == [
+        ("Korb_Karl", "fox"),
+        ("Mia_Matte", "fox"),
+    ]
+
+
+def test_guests_and_users_without_contacts_get_no_meetup_contacts(client, place, paula, karl):
+    create(client, karl[0], place.id)
+
+    [guest_view] = map_meetups(client, "now").json()["meetups"]
+    [user_view] = map_meetups(client, "now", paula[0]).json()["meetups"]
+
+    assert guest_view["contacts"] is None
+    assert user_view["contacts"] == []
+
+
+def test_a_blocked_former_contact_is_not_named_in_the_meetup_list(
+    client, place, paula, karl, mia
+):
+    request_id = ask(client, paula[0], "Korb_Karl").json()["id"]
+    answer(client, karl[0], request_id, "accept")
+    meetup = create(client, mia[0], place.id).json()
+    join(client, karl[0], meetup["id"])
+
+    block(client, paula[0], "Korb_Karl")
+    [listed] = map_meetups(client, "now", paula[0]).json()["meetups"]
+
+    assert listed["contacts"] == []
+
+
 def test_blocking_twice_is_fine(client, paula, karl):
     block(client, paula[0], "Korb_Karl")
 

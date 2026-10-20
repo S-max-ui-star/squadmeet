@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { User } from '../api/auth'
 import { announceMeetupChange } from '../api/live'
@@ -49,7 +49,12 @@ const laterMeetup = {
   actions: ['cancel', 'move', 'leave'],
 }
 
+// Unmounted after each test, so an old panel does not answer the next test's events.
+const roots: Root[] = []
+
 afterEach(() => {
+  act(() => roots.splice(0).forEach((root) => root.unmount()))
+  vi.restoreAllMocks()
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
   localStorage.clear()
@@ -58,8 +63,10 @@ afterEach(() => {
 async function render(user: User | null, onLoginNeeded = () => {}) {
   const container = document.createElement('div')
   document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
   await act(async () =>
-    createRoot(container).render(
+    root.render(
       <PlaceMeetups placeId={3} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} />,
     ),
   )
@@ -79,6 +86,19 @@ describe('PlaceMeetups', () => {
     await act(async () => announceMeetupChange(4))
     expect(fetch).toHaveBeenCalledTimes(1)
     await act(async () => announceMeetupChange(3))
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads again when the page comes back to the front (SCRUM-78)', async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(Response.json([meetup])))
+    vi.stubGlobal('fetch', fetch)
+    await render(paula)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // jsdom says "prerender"; a real page in front says "visible".
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
 
     expect(fetch).toHaveBeenCalledTimes(2)
   })

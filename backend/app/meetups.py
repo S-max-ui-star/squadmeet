@@ -23,7 +23,7 @@ from app import meetup_lifecycle as lifecycle
 from app.auth import bearer, current_login, current_user
 from app.blocks import blocked_by, blockers_of
 from app.db import get_session
-from app.contact_notifications import MAX_INVITES, invite, notify_new_meetup
+from app.contact_notifications import MAX_INVITES, blocks_with, contacts_of, invite, notify_new_meetup
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
 from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
 from app.place_status import PlaceUse, require, view_use
@@ -146,6 +146,8 @@ class MeetupRead(BaseModel):
     people: int
     # The users who joined, the earliest first; None for a guest.
     participants: list[ParticipantRead] | None
+    # The viewer's Contacts among Host and Joins, Host first; None for a guest (SCRUM-87).
+    contacts: list[HostRead] | None
     starts_at: datetime
     ends_at: datetime
     cancelled: bool
@@ -214,9 +216,11 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
     # SCRUM-32: the viewer's blockers stay unnamed; the users the viewer blocked trigger a warning.
     hidden = blockers_of(session, user.id) if user else set()
     blocked = blocked_by(session, user.id) if user else set()
+    contact_ids = contacts_of(session, user.id) - blocks_with(session, user.id) if user else set()
     reads = []
     for meetup in meetups:
         host = hosts[meetup.host_id]
+        present = [host, *(member for _, member in joins[meetup.id])]
         members = {meetup.host_id} | {member.id for _, member in joins[meetup.id]}
         reads.append(
             MeetupRead(
@@ -238,6 +242,13 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     )
                     for join, member in joins[meetup.id]
                     if member.id not in hidden
+                ],
+                contacts=None
+                if user is None
+                else [
+                    HostRead(id=member.id, nickname=member.nickname, avatar=member.avatar)
+                    for member in present
+                    if member.id in contact_ids
                 ],
                 starts_at=meetup.starts_at,
                 ends_at=meetup.ends_at,

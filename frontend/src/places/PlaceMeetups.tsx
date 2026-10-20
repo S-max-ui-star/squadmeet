@@ -16,6 +16,7 @@ import {
   type MeetupAction,
 } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
+import { whileVisible } from '../whileVisible'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
@@ -92,16 +93,17 @@ function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
 
 // The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
 // Meetups, the "Ich bin jetzt hier" form (SCRUM-29), "Später treffen" (SCRUM-35), and
-// Loads now, every REFRESH_MS, and again on each live event for this Place (SCRUM-93).
+// Loads now, every REFRESH_MS while the page is visible, once when it comes back to the front
+// (SCRUM-78), and again on each live event for this Place (SCRUM-93).
 function useReloads(reload: () => void, placeId: number) {
   useEffect(() => {
     reload()
-    const timer = setInterval(reload, REFRESH_MS)
+    const stopTimer = whileVisible(reload, REFRESH_MS)
     const stop = onMeetupChange((changed) => {
       if (changed === placeId) reload()
     })
     return () => {
-      clearInterval(timer)
+      stopTimer()
       stop()
     }
   }, [reload, placeId])
