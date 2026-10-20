@@ -450,6 +450,38 @@ body {
   right: 8px;
 }
 
+/* SCRUM-85: Contacts, Favorites, Home area as icons right of the search field. The search
+   container gets narrower to make room; the search field itself is unchanged. */
+.map-toolbar {
+  position: absolute;
+  z-index: 1200;
+  top: 52px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.map-toolbar button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.3rem;
+  background: white;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 30%);
+  cursor: pointer;
+}
+
+.map-toolbar button:hover {
+  background: #eef0f3;
+}
+
+.map-toolbar + .place-search {
+  right: 156px;
+}
+
 .place-search form {
   display: flex;
   max-width: 420px;
@@ -709,11 +741,18 @@ body {
 
 /* Laptop: the detail is a card on the left, so the map stays big. */
 @media (min-width: 768px) {
-  .place-search {
+  .place-search,
+  .map-toolbar + .place-search {
     top: 8px;
     left: 56px;
     right: auto;
     width: 420px;
+  }
+
+  .map-toolbar {
+    top: 8px;
+    left: 484px;
+    right: auto;
   }
 
   .activity-filter {
@@ -737,6 +776,15 @@ body {
     width: 360px;
     max-height: calc(100% - 168px);
     border-radius: 12px;
+  }
+}
+
+/* A narrow laptop: next to the search the toolbar would meet the account bar, so it sits one
+   row lower, right of the time filter (SCRUM-85). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .map-toolbar {
+    top: 54px;
+    left: 316px;
   }
 }
 

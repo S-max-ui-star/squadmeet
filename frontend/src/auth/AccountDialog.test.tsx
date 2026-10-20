@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import AccountDialog from './AccountDialog'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -12,18 +12,14 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-async function render(photos: boolean) {
+async function render(photos: boolean, onClose = none) {
   const container = document.createElement('div')
   document.body.append(container)
   await act(async () =>
     createRoot(container).render(
       <AccountDialog
         user={admin}
-        incomingRequests={0}
         photos={photos}
-        onContacts={none}
-        onFavorites={none}
-        onHomeArea={none}
         onPush={none}
         onMfa={none}
         onDelete={none}
@@ -31,7 +27,7 @@ async function render(photos: boolean) {
         onSuggestions={none}
         onReports={none}
         onPhotos={none}
-        onClose={none}
+        onClose={onClose}
       />,
     ),
   )
@@ -48,5 +44,22 @@ describe('AccountDialog', () => {
 
     expect(buttons).not.toContain('Fotos freigeben')
     expect(buttons).toContain('Gemeldete Plätze')
+  })
+
+  it('no longer holds Contacts, Favorites and Home area: they are in the toolbar (SCRUM-85)', async () => {
+    const buttons = await render(true)
+
+    for (const text of ['Kontakte', 'Favoriten', 'Heimatbereich']) {
+      expect(buttons.some((b) => b?.startsWith(text))).toBe(false)
+    }
+  })
+
+  it('closes with the × at the top, as the Place panel (SCRUM-85)', async () => {
+    const onClose = vi.fn()
+    await render(true, onClose)
+
+    await act(async () => document.querySelector<HTMLButtonElement>('.dialog-close')!.click())
+
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })
