@@ -2,6 +2,7 @@
 approved Photos are visible; the server stores them as JPEG without EXIF."""
 
 import time
+from datetime import UTC, datetime
 from io import BytesIO
 from urllib.parse import parse_qs, urlsplit
 
@@ -10,7 +11,7 @@ from PIL import Image
 from sqlmodel import select
 
 from app.models import Photo, Place, User
-from app.photo_storage import LINK_SECONDS, LocalPhotoStorage, get_photo_storage
+from app.photo_storage import LINK_SECONDS, LocalPhotoStorage, get_photo_storage, photos_enabled
 from app.photos import MAX_BYTES, MAX_PENDING, MAX_SIDE
 from app.main import app
 from tests.test_admin_places import admin, lock  # noqa: F401 (fixture)
@@ -40,6 +41,14 @@ class MemoryStorage:
 def storage(client):
     storage = MemoryStorage()
     app.dependency_overrides[get_photo_storage] = lambda: storage
+    app.dependency_overrides[photos_enabled] = lambda: True
+    return storage
+
+
+@pytest.fixture
+def switched_off(storage):
+    """The switch PHOTOS_ENABLED is off (SCRUM-94), although a storage is there."""
+    app.dependency_overrides[photos_enabled] = lambda: False
     return storage
 
 
@@ -248,7 +257,8 @@ def test_a_locked_place_hides_its_photos(client, storage, place, host, admin):
     assert queue(client, admin).json() == []
 
 
-def test_photos_off_answers_503_and_an_empty_list(client, place, host):
+def test_no_storage_answers_503_and_an_empty_list(client, place, host):
+    app.dependency_overrides[photos_enabled] = lambda: True
     app.dependency_overrides[get_photo_storage] = lambda: None
 
     response = upload(client, host[0], place.id)
@@ -287,6 +297,7 @@ def test_newest_approved_photo_first(client, session, storage, place, host, admi
 def local(client, tmp_path):
     storage = LocalPhotoStorage(tmp_path, secret=b"test")
     app.dependency_overrides[get_photo_storage] = lambda: storage
+    app.dependency_overrides[photos_enabled] = lambda: True
     return storage
 
 
@@ -321,3 +332,68 @@ def test_the_database_has_no_file_data(client, session, storage, place, host):
 
     [photo] = session.exec(select(Photo).where(Photo.place_id == place.id)).all()
     assert photo.storage_key in storage.files
+
+
+# The switch PHOTOS_ENABLED (SCRUM-94): Photos are deferred, but easy to switch on again.
+
+
+def test_the_config_says_whether_photos_are_on(client, storage):
+    assert client.get("/api/photos/config").json() == {"enabled": True}
+
+    app.dependency_overrides[photos_enabled] = lambda: False
+
+    assert client.get("/api/photos/config").json() == {"enabled": False}
+
+
+def test_switched_off_every_photo_endpoint_answers_404(
+    client, session, switched_off, place, host, admin
+):
+    # A Photo from before the switch: it stays in the database, but nobody reaches it.
+    old = Photo(
+        place_id=place.id,
+        user_id=host[1],
+        storage_key=f"places/{place.id}/{'a' * 32}.jpg",
+        width=800,
+        height=600,
+        created_at=datetime.now(UTC),
+    )
+    session.add(old)
+    session.commit()
+
+    assert upload(client, host[0], place.id).status_code == 404
+    assert upload(client, None, place.id).status_code == 404
+    assert public_list(client, place.id).status_code == 404
+    assert queue(client, admin).status_code == 404
+    assert approve(client, admin, old.id).status_code == 404
+    assert reject(client, admin, old.id).status_code == 404
+
+    assert switched_off.files == {}
+    session.expire_all()
+    stored = session.get(Photo, old.id)
+    assert stored is not None
+    assert stored.approved_at is None
+
+
+def test_switched_on_again_the_old_photos_come_back(client, session, switched_off, place, host, admin):
+    app.dependency_overrides[photos_enabled] = lambda: True
+    photo_id = upload(client, host[0], place.id).json()["id"]
+    approve(client, admin, photo_id)
+    app.dependency_overrides[photos_enabled] = lambda: False
+    assert public_list(client, place.id).status_code == 404
+
+    app.dependency_overrides[photos_enabled] = lambda: True
+
+    assert [p["id"] for p in public_list(client, place.id).json()] == [photo_id]
+
+
+@pytest.mark.parametrize(
+    ("value", "on"),
+    [(None, False), ("", False), ("false", False), ("no", False), ("true", True), ("TRUE", True)],
+)
+def test_the_switch_is_on_only_with_true(monkeypatch, value, on):
+    if value is None:
+        monkeypatch.delenv("PHOTOS_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("PHOTOS_ENABLED", value)
+
+    assert photos_enabled() is on

@@ -14,6 +14,7 @@ import {
 import { fetchContacts, type Contacts } from './api/contacts'
 import { announceMeetupChange, announceTopicChange, connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
+import { fetchPhotosEnabled } from './api/photos'
 import { countFor, type RequestCount } from './auth/requestCount'
 import { fetchMapMeetups, type Meetup, type TimeSpan } from './api/meetups'
 import AccountDialog from './auth/AccountDialog'
@@ -166,8 +167,14 @@ export default function App() {
   const [detailTry, setDetailTry] = useState(0)
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
   const [searchDismissRequest, setSearchDismissRequest] = useState(0)
+  // Photos are deferred (SCRUM-94): hidden until the server switch PHOTOS_ENABLED is on.
+  const [photos, setPhotos] = useState(false)
   const current = detail && detail.id === selectedId ? detail : null
   const selected = current?.place ?? null
+
+  useEffect(() => {
+    void fetchPhotosEnabled().then(setPhotos)
+  }, [])
 
   // The API, not the loaded map Places: a shared link can point outside the visible area.
   useEffect(() => {
@@ -448,6 +455,7 @@ export default function App() {
         <AccountDialog
           user={user}
           incomingRequests={incomingRequests}
+          photos={photos}
           onContacts={() => {
             setShowAccount(false)
             setShowContacts(true)
@@ -559,7 +567,7 @@ export default function App() {
           onClose={() => setShowDelete(false)}
         />
       )}
-      {legalPage && <LegalPage kind={legalPage} navigate={navigate} />}
+      {legalPage && <LegalPage kind={legalPage} photos={photos} navigate={navigate} />}
       <LegalLinks navigate={navigate} />
       {showRecoveryCodes && user && (
         <RecoveryCodesDialog
@@ -619,12 +627,14 @@ export default function App() {
             onLoginNeeded={() => setShowAuth(true)}
           />
           {/* A new key per Admin decision too: an approved Photo shows at once. */}
-          <PlacePhotos
-            key={`${selectedId}-${user?.id ?? 'guest'}-${detailTry}`}
-            placeId={selectedId}
-            user={user}
-            onLoginNeeded={() => setShowAuth(true)}
-          />
+          {photos && (
+            <PlacePhotos
+              key={`${selectedId}-${user?.id ?? 'guest'}-${detailTry}`}
+              placeId={selectedId}
+              user={user}
+              onLoginNeeded={() => setShowAuth(true)}
+            />
+          )}
         </PlaceDetail>
       )}
       <MapContainer
