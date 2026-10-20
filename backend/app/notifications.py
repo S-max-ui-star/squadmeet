@@ -37,6 +37,17 @@ class NotificationRead(BaseModel):
     actor_nickname: str | None = None
 
 
+def own_notification(session: Session, notification_id: int, user_id: int) -> Notification:
+    notice = session.exec(
+        select(Notification).where(
+            Notification.id == notification_id, Notification.user_id == user_id
+        )
+    ).first()
+    if notice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    return notice
+
+
 @router.get("", response_model=list[NotificationRead])
 def list_notifications(
     user: User = Depends(current_user), session: Session = Depends(get_session)
@@ -73,14 +84,31 @@ def mark_notification_read(
     session: Session = Depends(get_session),
 ):
     """A tap marks only the signed-in user's Notification as read."""
-    notice = session.exec(
-        select(Notification).where(
-            Notification.id == notification_id, Notification.user_id == user.id
-        )
-    ).first()
-    if notice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    notice = own_notification(session, notification_id, user.id)
     if notice.read_at is None:
         notice.read_at = datetime.now(UTC)
         session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_notification(
+    notification_id: int,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    """Delete one Notification only when it belongs to the signed-in user."""
+    session.delete(own_notification(session, notification_id, user.id))
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_notifications(
+    user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    """Delete all Notifications of the signed-in user and nobody else's."""
+    for notice in session.exec(select(Notification).where(Notification.user_id == user.id)):
+        session.delete(notice)
+    session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

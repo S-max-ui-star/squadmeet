@@ -73,6 +73,10 @@ body {
   list-style: none;
 }
 
+.notification-list li {
+  position: relative;
+}
+
 .notification-list button {
   display: flex;
   flex-direction: column;
@@ -87,6 +91,31 @@ body {
   border-color: #1a5fb4;
   background: #eef5ff;
   font-weight: 600;
+}
+
+.notification-list button.notification-open {
+  padding-right: 44px;
+}
+
+.notification-list button.notification-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: block;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #505663;
+  font-size: 1.4rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.notification-list button.notification-delete:hover {
+  background: #e1e5ea;
 }
 
 .notification-list time {

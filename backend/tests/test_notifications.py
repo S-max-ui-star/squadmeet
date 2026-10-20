@@ -108,6 +108,38 @@ def test_tap_marks_only_the_users_notification_as_read(client, place, host, gues
     assert notifications(client, third[0]).json()[0]["read"] is False
 
 
+def test_delete_removes_only_the_users_own_notification(client, place, host, guest, third):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    join(client, guest[0], meetup["id"])
+    join(client, third[0], meetup["id"])
+    cancel(client, host[0], meetup["id"])
+    [guest_notice] = notifications(client, guest[0]).json()
+
+    assert client.delete(
+        f"/api/notifications/{guest_notice['id']}", headers=auth_header(third[0])
+    ).status_code == 404
+    assert len(notifications(client, guest[0]).json()) == 1
+    assert len(notifications(client, third[0]).json()) == 1
+
+    assert client.delete(
+        f"/api/notifications/{guest_notice['id']}", headers=auth_header(guest[0])
+    ).status_code == 204
+    assert notifications(client, guest[0]).json() == []
+    assert len(notifications(client, third[0]).json()) == 1
+
+
+def test_delete_all_removes_only_the_users_notifications(client, place, host, guest, third):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    join(client, guest[0], meetup["id"])
+    join(client, third[0], meetup["id"])
+    cancel(client, host[0], meetup["id"])
+
+    assert client.delete("/api/notifications", headers=auth_header(guest[0])).status_code == 204
+
+    assert notifications(client, guest[0]).json() == []
+    assert len(notifications(client, third[0]).json()) == 1
+
+
 def test_notifications_are_newest_first(client, session, place, host, guest):
     meetup = create(client, host[0], place.id).json()
     old = datetime(2026, 10, 15, 8, tzinfo=UTC)
@@ -134,3 +166,5 @@ def test_notifications_are_newest_first(client, session, place, host, guest):
 
 def test_notifications_need_a_login(client):
     assert client.get("/api/notifications").status_code == 401
+    assert client.delete("/api/notifications/1").status_code == 401
+    assert client.delete("/api/notifications").status_code == 401
