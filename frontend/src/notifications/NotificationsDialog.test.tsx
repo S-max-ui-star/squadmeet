@@ -1,6 +1,7 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { announceTopicChange } from '../api/live'
 import type { Notification } from '../api/notifications'
 import NotificationsDialog from './NotificationsDialog'
 
@@ -29,7 +30,12 @@ const notices: Notification[] = [
   },
 ]
 
+// Unmount, so a dialog from an earlier test does not answer live events.
+let root: Root | undefined
+
 afterEach(() => {
+  act(() => root?.unmount())
+  root = undefined
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
 })
@@ -38,8 +44,9 @@ async function render(fetchMock: ReturnType<typeof vi.fn>, onChanged = vi.fn(), 
   vi.stubGlobal('fetch', fetchMock)
   const container = document.createElement('div')
   document.body.append(container)
+  root = createRoot(container)
   await act(async () =>
-    createRoot(container).render(
+    root!.render(
       <NotificationsDialog token="tok" onChanged={onChanged} onOpenMeetup={onOpenMeetup} onClose={() => {}} />,
     ),
   )
@@ -78,5 +85,18 @@ describe('NotificationsDialog (SCRUM-40)', () => {
   it('shows an empty state', async () => {
     const { container } = await render(vi.fn(async () => Response.json([])))
     expect(container.textContent).toContain('Noch keine Benachrichtigungen')
+  })
+
+  it('loads again on a live Notifications event while it is open (SCRUM-93)', async () => {
+    const fetchMock = vi.fn(async () => Response.json(notices))
+    const { onChanged } = await render(fetchMock)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => announceTopicChange('contacts'))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await act(async () => announceTopicChange('notifications'))
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(onChanged).toHaveBeenCalledTimes(2)
   })
 })
