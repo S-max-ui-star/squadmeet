@@ -47,6 +47,7 @@ import PushSettingsDialog from './notifications/PushSettingsDialog'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
 import { groupBySpot } from './places/spots'
+import { loadMapView, saveMapView } from './places/mapView'
 
 const LEIPZIG: [number, number] = [51.3397, 12.3731]
 // Zoomed out further, an area could hold more Places than the API sends (MAX_PLACES).
@@ -71,6 +72,17 @@ function MapAreaWatcher({ onMove }: { onMove: (area: MapArea) => void }) {
   }
   useMapEvents({ moveend: report })
   useEffect(report, [map, onMove])
+  return null
+}
+
+// Stores center and zoom after each pan or zoom, so a reload starts there (SCRUM-77).
+function RememberView() {
+  const map = useMapEvents({
+    moveend: () => {
+      const { lat, lng } = map.getCenter()
+      saveMapView({ center: [lat, lng], zoom: map.getZoom() })
+    },
+  })
   return null
 }
 
@@ -112,6 +124,9 @@ function CenterOnSearch({ target }: { target: SearchTarget | null }) {
 
 // fallow-ignore-next-line complexity -- Existing top-level composition; feature logic stays in focused modules.
 export default function App() {
+  // Where the map starts: the view before the last reload, else Leipzig (SCRUM-77). A shared
+  // /platz/<id> link still wins: CenterOn moves to that Place when it is not in view.
+  const [startView] = useState(() => loadMapView(MIN_ZOOM))
   const [places, setPlaces] = useState<Place[]>([])
   const [mapMeetups, setMapMeetups] = useState<Meetup[]>([])
   const [timeSpan, setTimeSpan] = useState<TimeSpan | null>(null)
@@ -588,12 +603,18 @@ export default function App() {
           />
         </PlaceDetail>
       )}
-      <MapContainer center={LEIPZIG} zoom={13} minZoom={MIN_ZOOM} style={{ height: '100%' }}>
+      <MapContainer
+        center={startView?.center ?? LEIPZIG}
+        zoom={startView?.zoom ?? 13}
+        minZoom={MIN_ZOOM}
+        style={{ height: '100%' }}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapAreaWatcher onMove={loadPlaces} />
+        <RememberView />
         <CenterOnSearch target={searchTarget} />
         {selectedId !== null && <CloseOnMapTap onTap={() => navigate('/')} />}
         {selected && <CenterOn place={selected} />}
