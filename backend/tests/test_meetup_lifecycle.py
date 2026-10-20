@@ -102,6 +102,17 @@ def test_actions(viewer, joined, now, expected):
     assert lifecycle.actions(meetup(), viewer, joined, now) == expected
 
 
+def test_a_host_alone_in_a_running_meetup_only_ends_it():
+    """SCRUM-79: without Joins, End and Leave do the same, so only "Jetzt beenden" shows."""
+    running = T0 + timedelta(minutes=1)
+
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=True) == ["end", "invite"]
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=False) == ["end", "leave", "invite"]
+    # Before the start the Host still may Leave (handover or Closed, SCRUM-37).
+    before = T0 - timedelta(hours=1)
+    assert "leave" in lifecycle.actions(meetup(), HOST, False, before, host_alone=True)
+
+
 def test_cancel_series_only_for_the_host_of_a_running_series():
     series = MeetupSeries(id=5, place_id=1, host_id=HOST, party_size=2, slots=[], created_at=T0)
     before = T0 - timedelta(hours=1)
