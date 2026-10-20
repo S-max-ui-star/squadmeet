@@ -202,6 +202,50 @@ def test_a_contact_blocked_with_the_host_is_not_invited(
     assert kinds(client, fourth[0]) == []
 
 
+def already_in_or_invited(client, token, meetup_id):
+    return client.get(f"/api/meetups/{meetup_id}/invite", headers=auth_header(token))
+
+
+def test_the_chooser_learns_which_contacts_are_already_in_or_invited(
+    client, place, host, guest, third, fourth, friends
+):
+    # SCRUM-84: Paula's Contacts are Karl (invited), Mia (joined) and Nora (neither).
+    befriend(client, host, third, "Mia_Matte")
+    befriend(client, host, fourth, "Netz_Nora")
+    meetup = create(client, host[0], place.id).json()
+    join(client, third[0], meetup["id"])
+    invite(client, host[0], meetup["id"], [guest[1]])
+
+    response = already_in_or_invited(client, host[0], meetup["id"])
+
+    assert response.status_code == 200
+    assert sorted(response.json()["user_ids"]) == sorted([guest[1], third[1]])
+
+
+def test_the_chooser_names_only_the_viewers_own_contacts(
+    client, place, host, guest, third, fourth, friends
+):
+    # Karl joins and invites his Contact Nora; Mia joined too, but she is not Karl's Contact.
+    befriend(client, guest, fourth, "Netz_Nora")
+    meetup = create(client, host[0], place.id).json()
+    join(client, guest[0], meetup["id"])
+    join(client, third[0], meetup["id"])
+    invite(client, guest[0], meetup["id"], [fourth[1]])
+
+    # The Host Paula is Karl's Contact and is in the Meetup.
+    assert sorted(already_in_or_invited(client, guest[0], meetup["id"]).json()["user_ids"]) == sorted(
+        [host[1], fourth[1]]
+    )
+
+
+def test_someone_not_in_the_meetup_cannot_see_who_is_invited(
+    client, place, host, guest, friends
+):
+    meetup = create(client, host[0], place.id).json()
+
+    assert already_in_or_invited(client, guest[0], meetup["id"]).status_code == 403
+
+
 def test_no_invitation_to_a_cancelled_meetup(client, place, host, guest, friends):
     meetup = create(client, host[0], place.id, starts_at=later(hours=3)).json()
     cancel(client, host[0], meetup["id"])

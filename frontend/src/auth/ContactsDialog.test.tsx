@@ -93,10 +93,25 @@ describe('ContactsDialog (SCRUM-32)', () => {
     const container = await render(fetchMock)
 
     await act(async () => button(container, 'Blockieren')!.click())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Mia_Matte blockieren? Die Person wird aus deinen Kontakten gelöscht.')
+    await act(async () => button(container, 'Ja, blockieren')!.click())
 
     expect(fetchMock.mock.calls[1][0]).toBe('/api/blocks')
     expect(container.textContent).toContain('Blockiert')
     expect(button(container, 'Aufheben')).toBeDefined()
+  })
+
+  it('"Abbrechen" in the confirm step does not block (SCRUM-84)', async () => {
+    const fetchMock = vi.fn(async () => Response.json(data))
+    const container = await render(fetchMock)
+
+    await act(async () => button(container, 'Blockieren')!.click())
+    await act(async () => button(container, 'Abbrechen')!.click())
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain('blockieren?')
+    expect(button(container, 'Blockieren')).toBeDefined()
   })
 
   it('loads again on a live Contacts event while it is open (SCRUM-93)', async () => {
