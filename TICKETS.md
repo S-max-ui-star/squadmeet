@@ -5,6 +5,7 @@ Snapshot von Jira (Projekt `SCRUM`) am 20.10.2026, in Sprint 3. Jira ist die Sin
 - **✓ = erledigt** (Done in Jira).
 - **● = in Arbeit** (In Progress oder In Review in Jira).
 - **▶ = jetzt starten** (alle Blocker erledigt).
+- **⏸ = zurückgestellt** (nicht in Sprint 3).
 - **Blockiert von** = Jira "is blocked by" Verknüpfung. Starte ein Ticket, wenn diese erledigt (Done) sind.
 - **Prio**: Must / Should / Could. Must zuerst.
 
@@ -28,6 +29,7 @@ Erledigte Tickets aus Sprint 1 und 2 stehen in Jira.
 | ✓ | SCRUM-60 | Refactor: ein Modul für den Platzstatus | SCRUM-7 Plätze & Karte | Could | — |
 | ✓ | SCRUM-65 | Fallow-Codeanalyse für das Frontend (CI nur Bericht, Commit-Hook) | SCRUM-6 Infrastruktur | — | — |
 | ● | SCRUM-93 | Live-Daten ohne Neuladen (Server-Sent Events) — live, Browser-Check fehlt | SCRUM-12 Benachrichtigungen | Could | — |
+| ▶ | SCRUM-94 | Fotos aus: ein Schalter blendet Upload, Fotos und Admin-Freigabe aus | SCRUM-10 Bewertungen & Fotos | Must | — |
 | ▶ | SCRUM-69 | Backend-Review 2/7: Datenmodell, Migrationen, Audit-Log, Test-Setup | SCRUM-49 Review | Must | — |
 | ▶ | SCRUM-70 | Backend-Review 3/7: Plätze, Kartendaten, OSM-Import, Geocoding | SCRUM-49 Review | Must | — |
 | ▶ | SCRUM-71 | Backend-Review 4/7: Platzvorschläge, Meldungen, Admin | SCRUM-49 Review | Must | — |
@@ -35,9 +37,7 @@ Erledigte Tickets aus Sprint 1 und 2 stehen in Jira.
 | ▶ | SCRUM-73 | Backend-Review 6/7: Bewertungen, Fotos, Favoriten | SCRUM-49 Review | Must | — |
 | ▶ | SCRUM-74 | Backend-Review 7/7: Kontakte, Blockieren, Benachrichtigungen, Web-Push, Home-Bereich | SCRUM-49 Review | Must | — |
 | ▶ | SCRUM-80 | Eine Person ist in höchstens 2 zeitlich überlappenden Meetups | SCRUM-8 Treffen | Should | — |
-| ▶ | SCRUM-83 | Höchstens 5 Fotos pro Platz | SCRUM-10 Bewertungen & Fotos | Should | — |
 | ▶ | SCRUM-84 | Kontakte: Haken für eingeladene/beigetretene Kontakte, Bestätigung vor Blockieren | SCRUM-11 Kontakte | Should | — |
-| ▶ | SCRUM-92 | Admin löscht freigegebene Fotos | SCRUM-13 Admin & Moderation | Should | — |
 | ▶ | SCRUM-75 | Audit-Log in einer Datenbank-App auf dem Laptop lesen (SSM-Port-Forward) | SCRUM-13 Admin & Moderation | Could | 66 |
 
 ## Stefan
@@ -79,6 +79,15 @@ Erledigte Tickets aus Sprint 1 und 2 stehen in Jira.
 | ▶ | SCRUM-88 | Benachrichtigungen (Glocke): eine löschen, alle löschen | SCRUM-12 Benachrichtigungen | Should | — |
 | ▶ | SCRUM-89 | Benachrichtigungstext: "<Kontakt> hat ein Treffen erstellt: …" mit Grund | SCRUM-12 Benachrichtigungen | Should | — |
 | ▶ | SCRUM-90 | Tipp auf Benachrichtigung zoomt und zentriert den Platz | SCRUM-12 Benachrichtigungen | Should | — |
+
+## Zurückgestellt (nach dem Kurs)
+
+Fotos sind seit 20.10. zurückgestellt (`SCRUM-94`). Diese Tickets sind nicht mehr in Sprint 3 (Label `deferred`). Wieder aufnehmen, wenn `PHOTOS_ENABLED=true` ist.
+
+| | Key | Titel | Epic | Prio | Owner |
+|-|-----|-------|------|------|-------|
+| ⏸ | SCRUM-83 | Höchstens 5 Fotos pro Platz | SCRUM-10 Bewertungen & Fotos | Should | Steven |
+| ⏸ | SCRUM-92 | Admin löscht freigegebene Fotos | SCRUM-13 Admin & Moderation | Should | Steven |
 
 ## Refactors ohne Owner (aus dem Architektur-Review vom 13.10.)
 

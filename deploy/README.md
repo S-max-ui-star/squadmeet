@@ -222,6 +222,9 @@ a container, one network hop behind the host, and IMDSv2 answers only within the
 
 Without the parameter the deploy still works and Photos are off (upload answers 503).
 
+**Deferred since 2026-10-20:** Photos go off with a switch `PHOTOS_ENABLED` (`SCRUM-94`, not
+built yet). The bucket and its parameter stay, so switching on again needs no new setup run.
+
 ## Web Push (VAPID)
 
 Web Push (`SCRUM-44`) uses one P-256 VAPID key pair. The public key is sent to signed-in browsers;

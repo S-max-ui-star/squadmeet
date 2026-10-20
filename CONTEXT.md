@@ -156,6 +156,7 @@ _Avoid_: complaint, ticket, Place report
 A picture of a Place uploaded by a user. It is visible only after an Admin approves it; a
 rejected Photo is deleted. Stored as a smaller JPEG without EXIF (no location). At most 3 pending
 per user and Place; none at a Place suggestion. After an account delete it stays without a name.
+Deferred since 2026-10-20: Photos are off until the switch `PHOTOS_ENABLED` is on (`SCRUM-94`).
 _Avoid_: image, upload
 
 ## People

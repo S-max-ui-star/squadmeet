@@ -43,7 +43,7 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [X] **4.2 Zustand: Mängel** 👤 — Eine Bewertung mit z. B. „Netz kaputt“ oder „Scherben“. Der Platz zeigt „Zustand: Mängel gemeldet“. „Oft überfüllt“ ändert den Zustand nicht.
 - [?] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
 - [ ] **4.4 Meldung an die Stadt** 👤 — Bei einem Mangel erscheint „Willst du das der Stadt melden?“. Link öffnen, „Ort für die Meldung kopieren“ ausprobieren.
-- [In Diskussion] **4.5 Foto hochladen** 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
+- [Zurückgestellt] **4.5 Foto hochladen** (Fotos aus seit 20.10., `SCRUM-94`) 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
 - [?] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
 
 ## 5 Kontakte
@@ -69,14 +69,14 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 Nur mit dem Admin-Konto. Am besten an einem Testplatz, nicht an einem echten Platz mit Treffen anderer.
 
-- [ ] **7.1 Fotos freigeben** 🔑 — Konto → Fotos freigeben. Ein Foto freigeben (erscheint in den Platzdetails), ein anderes ablehnen (zweiter Schritt „Ja, ablehnen“).
+- [Zurückgestellt] **7.1 Fotos freigeben** (Fotos aus seit 20.10., `SCRUM-94`) 🔑 — Konto → Fotos freigeben. Ein Foto freigeben (erscheint in den Platzdetails), ein anderes ablehnen (zweiter Schritt „Ja, ablehnen“).
 - [ ] **7.2 Gemeldete Plätze** 🔑 — Liste der gemeldeten Plätze. „Verwerfen“ schließt die Meldungen, der Platz bleibt.
 - [ ] **7.3 Platz sperren und entsperren** 🔑 — Platz sperren: weg von der Karte, künftige Treffen abgesagt. Unter „Gesperrte Plätze“ entsperren, abgesagte Treffen bleiben abgesagt.
 - [ ] **7.4 Platz löschen** 🔑 — Nur an einem Testplatz. Danach für niemanden mehr sichtbar.
 
 ## 8 Zum Schluss drinnen
 
-- [ ] **8.1 Konto löschen** 👤 — Erst nach den Draußen-Tests und nur mit einem Testkonto. Passwort nötig. Danach Anmelden unmöglich, Fotos bleiben ohne Namen.
+- [ ] **8.1 Konto löschen** 👤 — Erst nach den Draußen-Tests und nur mit einem Testkonto. Passwort nötig. Danach Anmelden unmöglich. (Fotos bleiben ohne Namen: zurückgestellt, `SCRUM-94`.)
 
 ## 9 Nur draußen
 
@@ -89,7 +89,7 @@ An einem echten Platz mit Handy, GPS und mobilem Netz. Platz vorschlagen und bes
 - [ ] **9.5 Mit der Route hinfinden** 👤 — Von zuhause die Route öffnen und wirklich hinlaufen oder hinfahren. Stimmt der Punkt auf der Karte mit dem echten Platz überein?
 - [ ] **9.6 Ich bin jetzt hier am Platz** 👥 — Am Platz ein Jetzt-Treffen starten. Die zweite Person sieht es unterwegs live und tritt bei.
 - [ ] **9.7 Zustand am echten Platz** 👤 — Stimmt der angezeigte Zustand? Bei „Ist das noch so?“ ehrlich antworten.
-- [ ] **9.8 Foto mit der Handykamera** 👤 — Direkt mit der Kamera ein Foto vom Platz hochladen. Nach der Freigabe prüfen: kein Standort in den Bilddaten.
+- [Zurückgestellt] **9.8 Foto mit der Handykamera** (Fotos aus seit 20.10., `SCRUM-94`) 👤 — Direkt mit der Kamera ein Foto vom Platz hochladen. Nach der Freigabe prüfen: kein Standort in den Bilddaten.
 - [ ] **9.9 Push unterwegs** 👥 — App geschlossen, Handy in der Tasche, mobiles Netz. Die andere Person erstellt ein Treffen. Kommt die Push-Nachricht, und wie schnell?
 - [ ] **9.10 Bedienung draußen** 👤 — In der Sonne lesbar? Mit einer Hand bedienbar? Lädt die Karte mit schwachem Netz?
 
