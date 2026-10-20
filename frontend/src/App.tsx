@@ -47,6 +47,7 @@ import PushSettingsDialog from './notifications/PushSettingsDialog'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
 import { groupBySpot } from './places/spots'
+import { pageVisible, whileVisible } from './whileVisible'
 import { loadMapView, saveMapView } from './places/mapView'
 
 const LEIPZIG: [number, number] = [51.3397, 12.3731]
@@ -231,12 +232,14 @@ export default function App() {
     if (selectedId !== null) navigate('/')
   }
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (lastArea.current) loadPlaces(lastArea.current)
-    }, PLACES_REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [loadPlaces])
+  // Not in the background; once when the page comes back to the front (SCRUM-78).
+  useEffect(
+    () =>
+      whileVisible(() => {
+        if (lastArea.current) loadPlaces(lastArea.current)
+      }, PLACES_REFRESH_MS),
+    [loadPlaces],
+  )
 
   // Restore the login from an earlier visit; drop the token when the server no longer knows it.
   useEffect(() => {
@@ -299,7 +302,10 @@ export default function App() {
         .catch(() => {})
     void reloadContacts()
     void reloadNotifications()
-    const timer = setInterval(reloadNotifications, NOTIFICATIONS_REFRESH_MS)
+    // Not in the background (SCRUM-78); the stream opens again in front and loads them then.
+    const timer = setInterval(() => {
+      if (pageVisible()) void reloadNotifications()
+    }, NOTIFICATIONS_REFRESH_MS)
     const stopLive = connectLive(token, {
       // Open dialogs load again too.
       onOpen: () => {
@@ -308,11 +314,15 @@ export default function App() {
         announceTopicChange('contacts')
         announceTopicChange('notifications')
       },
+      // In the background nothing loads (SCRUM-78): back in front, the stream opens again
+      // (onOpen) and the map and Place panel load once (whileVisible).
       onTopic: (topic) => {
+        if (!pageVisible()) return
         void (topic === 'contacts' ? reloadContacts() : reloadNotifications())
         announceTopicChange(topic)
       },
       onMeetups: (placeId) => {
+        if (!pageVisible()) return
         setMeetupEvents((count) => count + 1)
         announceMeetupChange(placeId)
       },
