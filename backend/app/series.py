@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 from app.auth import current_user
 from app.db import get_session
 from app.contact_notifications import notify_new_meetup
-from app.meetup_lifecycle import call_off
+from app.meetup_lifecycle import MAX_AT_ONCE, Conflict, LifecycleError, call_off, has_room
 from app.models import Meetup, MeetupSeries, Place, User
 from app.place_status import PlaceUse, allowed_in, require
 
@@ -101,7 +101,11 @@ def fill_series(
     """Makes the missing Occurrences of the next WINDOW_DAYS days; the number made. The caller
     commits. Each new Occurrence notifies the Favorites; for a `new_series` the first one also
     notifies the Host's Contacts (SCRUM-43) and the Home areas (SCRUM-45), once for the whole
-    Series."""
+    Series.
+
+    Each date counts on its own for the limit of Meetups at one moment (SCRUM-80): a
+    `new_series` with a full date is refused (Conflict), a later fill skips that date and
+    tries it again next time."""
     if series.cancelled_at is not None:
         return 0
     slots = [Slot.model_validate(slot) for slot in series.slots]
@@ -109,6 +113,10 @@ def fill_series(
     created = []
     for start, day, hours in occurrence_times(slots, now, now + timedelta(days=WINDOW_DAYS), series.until):
         if day in have:
+            continue
+        if not has_room(session, series.host_id, start, start + timedelta(hours=hours), now):
+            if new_series:
+                raise Conflict(f"Am {day:%d.%m.} bist du zu dieser Zeit schon bei {MAX_AT_ONCE} Treffen.")
             continue
         meetup = Meetup(
             place_id=series.place_id,
@@ -176,7 +184,11 @@ def create_series(
     )
     session.add(series)
     session.flush()
-    fill_series(session, series, now, new_series=True)
+    try:
+        fill_series(session, series, now, new_series=True)
+    except LifecycleError:
+        session.rollback()
+        raise
     session.commit()
     session.refresh(series)
     return to_read(series)

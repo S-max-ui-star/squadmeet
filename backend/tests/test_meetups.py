@@ -743,3 +743,16 @@ def test_an_unknown_answer_is_rejected(client, third, moved):
     old_id, _ = moved
 
     assert answer_move(client, third[0], old_id, "maybe").status_code == 422
+
+
+def test_a_third_meetup_at_the_same_time_is_refused(client, place, host):
+    """SCRUM-80: at most 2 Meetups at one moment; a later one at another time is fine."""
+    assert create(client, host[0], place.id).status_code == 201
+    assert create(client, host[0], place.id).status_code == 201
+
+    response = create(client, host[0], place.id)
+    later = create(client, host[0], place.id, starts_at=(datetime.now(UTC) + timedelta(hours=3)).isoformat())
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Du bist zu dieser Zeit schon bei 2 Treffen."
+    assert later.status_code == 201
