@@ -179,29 +179,36 @@ def cancel(session: Session, meetup: Meetup, by: int, now: datetime) -> None:
     require_open(meetup, now)
     if state(meetup, now) is MeetupState.LIVE:
         raise Conflict("Das Treffen läuft schon, beende es stattdessen")
-    notify_joined(session, meetup, "meetup_cancelled", now)
+    notify_joined(session, meetup, "meetup_cancelled", now, actor_id=by)
     meetup.cancelled_at = now
 
 
-def end(meetup: Meetup, by: int, now: datetime) -> None:
+def end(session: Session, meetup: Meetup, by: int, now: datetime) -> None:
     """The Host ends a running Meetup now; it leaves the map at once."""
     require_host(meetup, by, "das Treffen beenden")
     require_open(meetup, now)
     if state(meetup, now) is MeetupState.UPCOMING:
         # Calling off a Meetup before it starts is Cancel (SCRUM-37).
         raise Conflict("Das Treffen hat noch nicht begonnen")
+    notify_joined(session, meetup, "meetup_ended", now, actor_id=by)
     meetup.ends_at = now
 
 
-def call_off(session: Session, meetup: Meetup, now: datetime, end_running: bool = True) -> None:
+def call_off(
+    session: Session,
+    meetup: Meetup,
+    now: datetime,
+    actor_id: int,
+    end_running: bool = True,
+) -> None:
     """The system calls a Meetup off (no Host check): an upcoming one is cancelled, a running
     one ended (Admin lock, SCRUM-39) or left running (a cancelled Series, SCRUM-38)."""
     current = state(meetup, now)
     if current is MeetupState.UPCOMING:
-        notify_joined(session, meetup, "meetup_cancelled", now)
+        notify_joined(session, meetup, "meetup_cancelled", now, actor_id=actor_id)
         meetup.cancelled_at = now
     elif current is MeetupState.LIVE and end_running:
-        notify_joined(session, meetup, "meetup_ended", now)
+        notify_joined(session, meetup, "meetup_ended", now, actor_id=actor_id)
         meetup.ends_at = now
 
 
@@ -233,7 +240,7 @@ def join(session: Session, meetup: Meetup, by: int, party_size: int, now: dateti
                 )
             )
         )
-        notify_users(session, present_blockers, meetup, "blocked_user_joined", now)
+        notify_users(session, present_blockers, meetup, "blocked_user_joined", now, actor_id=by)
 
 
 def hand_over(session: Session, meetup: Meetup, now: datetime) -> None:
@@ -248,10 +255,11 @@ def hand_over(session: Session, meetup: Meetup, now: datetime) -> None:
         meetup.closed_at = now
         meetup.host_move_pending = False
         return
+    previous_host = meetup.host_id
     meetup.host_id = first.user_id
     meetup.party_size = first.party_size
     meetup.host_move_pending = first.move_pending
-    notify_users(session, {first.user_id}, meetup, "host_handover", now)
+    notify_users(session, {first.user_id}, meetup, "host_handover", now, actor_id=previous_host)
     session.delete(first)
 
 
@@ -308,6 +316,7 @@ def move(session: Session, meetup: Meetup, by: int, starts_at: datetime, now: da
     meetup.moved_to_id = moved.id
     for each in joins:
         each.move_pending = True
+    notify_joined(session, meetup, "meetup_moved", now, actor_id=by)
     hand_over(session, meetup, now)
     return moved
 

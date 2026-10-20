@@ -62,5 +62,12 @@ def notify_favorites(
             )
         )
     }
-    notify_users(session, recipients, meetup, "favorite_meetup_created", now)
+    notify_users(
+        session,
+        recipients,
+        meetup,
+        "favorite_meetup_created",
+        now,
+        actor_id=meetup.host_id,
+    )
     return recipients

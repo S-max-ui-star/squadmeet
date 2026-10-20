@@ -15,7 +15,7 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Di 20.10.2026 — Tag 10
 
-- **Dominik:** `SCRUM-86` Suchergebnisse schließen jetzt beim Kartenklick und nach dem Leeren des Suchfelds; test-first umgesetzt und automatisiert geprüft. `SCRUM-87` zeigt beteiligte Kontakte mit Avatar in der Treffen-Liste und blendet blockierte Nutzer aus. `SCRUM-88` ergänzt das einzelne und vollständige Löschen eigener Benachrichtigungen mit Sicherheitsabfrage.
+- **Dominik:** `SCRUM-86` Suchergebnisse schließen jetzt beim Kartenklick und nach dem Leeren des Suchfelds; test-first umgesetzt und automatisiert geprüft. `SCRUM-87` zeigt beteiligte Kontakte mit Avatar in der Treffen-Liste und blendet blockierte Nutzer aus. `SCRUM-88` ergänzt das Löschen eigener Benachrichtigungen. `SCRUM-89` vereinheitlicht Glocken- und Push-Texte und meldet auch Zeitänderungen.
 
 ## Mo 19.10.2026 — Tag 9
 

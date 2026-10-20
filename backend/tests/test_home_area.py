@@ -19,7 +19,7 @@ from tests.test_meetups import (  # noqa: F401 (fixtures)
     place,
     third,
 )
-from tests.test_notifications import kinds
+from tests.test_notifications import kinds, notifications
 from tests.test_series import create_series, slot
 
 # The test Place is at lat 0.5, lon -30.5 (tests/test_meetups.py). At the equator 0.01° of
@@ -119,7 +119,9 @@ def test_a_now_meetup_inside_the_radius_notifies(client, place, host, guest):
 
     create(client, host[0], place.id)
 
-    assert kinds(client, guest[0]) == ["home_area_meetup_created"]
+    [notice] = notifications(client, guest[0]).json()
+    assert notice["kind"] == "home_area_meetup_created"
+    assert notice["text"] == "Pingpong_Paula hat ein Treffen erstellt: Tischtennis"
 
 
 def test_a_later_meetup_inside_the_radius_notifies(client, place, host, guest):

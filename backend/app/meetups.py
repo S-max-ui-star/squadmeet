@@ -350,7 +350,7 @@ def end_meetup_early(
 ):
     """The Host ends the Meetup now; it leaves the map at once."""
     meetup = get_meetup(session, meetup_id)
-    lifecycle.end(meetup, user.id, datetime.now(UTC))
+    lifecycle.end(session, meetup, user.id, datetime.now(UTC))
     session.commit()
     session.refresh(meetup)
     return to_read(session, meetup, user)

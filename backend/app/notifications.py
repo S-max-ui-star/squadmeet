@@ -1,8 +1,6 @@
 """The signed-in user's in-app Notification list (SCRUM-40)."""
 
 from datetime import UTC, datetime
-from typing import Literal
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -10,30 +8,22 @@ from sqlmodel import Session, select
 from app.auth import current_user
 from app.db import get_session
 from app.models import Meetup, Notification, Place, User
+from app.notification_text import NotificationKind, notification_text
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 class NotificationRead(BaseModel):
     id: int
-    kind: Literal[
-        "meetup_cancelled",
-        "meetup_ended",
-        "host_handover",
-        "blocked_user_joined",
-        "favorite_meetup_created",
-        "contact_meetup_created",
-        "meetup_invitation",
-        "home_area_meetup_created",
-    ]
+    kind: NotificationKind
     meetup_id: int
     place_id: int
     place_name: str
     place_address: str | None
+    text: str
     created_at: datetime
     read: bool
-    # SCRUM-43: the Contact's Nickname for the Contact kinds; null for the others and after
-    # that account was deleted.
+    # The person who caused the event; null after that account was deleted.
     actor_nickname: str | None = None
 
 
@@ -54,7 +44,14 @@ def list_notifications(
 ):
     """Newest first; a Notification stays until the account or Meetup is deleted."""
     rows = session.exec(
-        select(Notification, Meetup.place_id, Place.name, Place.address, User.nickname)
+        select(
+            Notification,
+            Meetup.place_id,
+            Place.name,
+            Place.activity_type,
+            Place.address,
+            User.nickname,
+        )
         .join(Meetup, Meetup.id == Notification.meetup_id)
         .join(Place, Place.id == Meetup.place_id)
         .outerjoin(User, User.id == Notification.actor_id)
@@ -69,11 +66,12 @@ def list_notifications(
             place_id=place_id,
             place_name=place_name,
             place_address=place_address,
+            text=notification_text(notice.kind, actor_nickname, activity_type, place_address),
             created_at=notice.created_at,
             read=notice.read_at is not None,
             actor_nickname=actor_nickname,
         )
-        for notice, place_id, place_name, place_address, actor_nickname in rows
+        for notice, place_id, place_name, activity_type, place_address, actor_nickname in rows
     ]
 
 

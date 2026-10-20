@@ -5,6 +5,7 @@ import { answer } from './http'
 export type NotificationKind =
   | 'meetup_cancelled'
   | 'meetup_ended'
+  | 'meetup_moved'
   | 'host_handover'
   | 'blocked_user_joined'
   | 'favorite_meetup_created'
@@ -21,9 +22,10 @@ export type Notification = {
   place_id: number
   place_name: string
   place_address: string | null
+  text: string
   created_at: string
   read: boolean
-  // The Contact for the SCRUM-43 kinds; null for the others and after that account was deleted.
+  // The person who caused the event; null after that account was deleted.
   actor_nickname?: string | null
 }
 

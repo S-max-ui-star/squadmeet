@@ -215,7 +215,7 @@ def cancel_series(
     series.cancelled_at = now
     for meetup in session.exec(select(Meetup).where(Meetup.series_id == series.id)):
         # Upcoming ones are cancelled, a running one goes on (SCRUM-61: one transition).
-        call_off(session, meetup, now, end_running=False)
+        call_off(session, meetup, now, user.id, end_running=False)
     session.commit()
     session.refresh(series)
     return to_read(series)

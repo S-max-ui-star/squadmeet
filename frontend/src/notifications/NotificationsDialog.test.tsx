@@ -15,6 +15,7 @@ const notices: Notification[] = [
     place_id: 4,
     place_name: 'Clara-Zetkin-Park',
     place_address: 'Anton-Bruckner-Allee, 04107 Leipzig',
+    text: 'Pingpong_Paula hat dir die Gastgeberrolle übergeben: Tischtennis in der Anton-Bruckner-Allee',
     created_at: '2026-10-15T08:00:00Z',
     read: false,
   },
@@ -25,6 +26,7 @@ const notices: Notification[] = [
     place_id: 3,
     place_name: 'Friedenspark',
     place_address: 'Linnéstraße, 04103 Leipzig',
+    text: 'Pingpong_Paula hat das Treffen abgesagt: Tischtennis in der Linnéstraße',
     created_at: '2026-10-15T07:00:00Z',
     read: true,
   },
@@ -59,11 +61,10 @@ describe('NotificationsDialog (SCRUM-40)', () => {
     const items = [...container.querySelectorAll('.notification-open')]
 
     expect(items.map((item) => item.textContent)).toEqual([
-      expect.stringContaining(
-        'Du bist jetzt Gastgeber des Treffens bei „Clara-Zetkin-Park“.Anton-Bruckner-Allee, 04107 Leipzig',
-      ),
-      expect.stringContaining('Das Treffen bei „Friedenspark“ wurde abgesagt.Linnéstraße, 04103 Leipzig'),
+      expect.stringContaining(notices[0].text),
+      expect.stringContaining(notices[1].text),
     ])
+    expect(items[0].textContent).not.toContain('04107')
     expect(items[0].classList.contains('unread')).toBe(true)
     expect(items[1].classList.contains('unread')).toBe(false)
   })
