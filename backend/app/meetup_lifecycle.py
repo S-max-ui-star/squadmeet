@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Literal
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlmodel import Session, select
 
 from app.blocks import blockers_of
@@ -24,6 +24,10 @@ from app.notification_events import notify_joined, notify_users
 # The furthest start of a later Meetup. frontend/src/places/meetupTime.ts has a copy for the
 # date picker only; the server always checks.
 MAX_DAYS_AHEAD = 30
+
+# A user is in at most this many Meetups at one moment, as Host or with a Join (SCRUM-80).
+MAX_AT_ONCE = 2
+FULL = f"Du bist zu dieser Zeit schon bei {MAX_AT_ONCE} Treffen."
 
 
 class MeetupState(StrEnum):
@@ -118,6 +122,57 @@ def check_start(starts_at: datetime, now: datetime) -> None:
         raise Invalid(f"Ein Treffen kann höchstens {MAX_DAYS_AHEAD} Tage im Voraus geplant werden")
 
 
+def most_at_once(spans: list[tuple[datetime, datetime]], start: datetime, end: datetime) -> int:
+    """The most of these time spans that run at one moment between start and end. A span
+    ends before the next one starts at the same moment."""
+    events = sorted(
+        [(max(begin, start), 1) for begin, _ in spans] + [(min(finish, end), -1) for _, finish in spans]
+    )
+    most = running = 0
+    for _, step in events:
+        running += step
+        most = max(most, running)
+    return most
+
+
+def has_room(
+    session: Session,
+    user_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    now: datetime,
+    leaving: frozenset[int] = frozenset(),
+) -> bool:
+    """Whether the user can be in one more Meetup from starts_at until ends_at. Only the time
+    from `now` counts, and only upcoming and live Meetups the user hosts or joined; `leaving`
+    are Meetups the user leaves in the same step (a move)."""
+    start = max(starts_at, now)
+    joined = select(MeetupJoin.meetup_id).where(MeetupJoin.user_id == user_id)
+    query = select(Meetup.starts_at, Meetup.ends_at).where(
+        or_(Meetup.host_id == user_id, Meetup.id.in_(joined)),
+        Meetup.cancelled_at.is_(None),
+        Meetup.closed_at.is_(None),
+        Meetup.starts_at < ends_at,
+        Meetup.ends_at > start,
+    )
+    if leaving:
+        query = query.where(Meetup.id.not_in(leaving))
+    spans = [(begin, finish) for begin, finish in session.exec(query)]
+    return most_at_once(spans, start, ends_at) < MAX_AT_ONCE
+
+
+def require_room(
+    session: Session,
+    user_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    now: datetime,
+    leaving: frozenset[int] = frozenset(),
+) -> None:
+    if not has_room(session, user_id, starts_at, ends_at, now, leaving):
+        raise Conflict(FULL)
+
+
 def cancel(session: Session, meetup: Meetup, by: int, now: datetime) -> None:
     """Absagen: the Host calls off a Meetup before it starts. A running one is ended instead."""
     require_host(meetup, by, "das Treffen absagen")
@@ -168,6 +223,7 @@ def join(session: Session, meetup: Meetup, by: int, party_size: int, now: dateti
         raise Conflict("Du bist der Gastgeber dieses Treffens")
     if find_join(session, meetup, by) is not None:
         raise Conflict("Du bist schon dabei")
+    require_room(session, by, meetup.starts_at, meetup.ends_at, now)
     session.add(MeetupJoin(meetup_id=meetup.id, user_id=by, party_size=party_size, joined_at=now))
     if blockers:
         present_blockers = set(
@@ -233,6 +289,8 @@ def move(session: Session, meetup: Meetup, by: int, starts_at: datetime, now: da
         raise Conflict("Das Treffen hat schon begonnen")
     check_start(starts_at, now)
     duration = meetup.ends_at - meetup.starts_at
+    # The Host leaves the old time in both cases.
+    require_room(session, by, starts_at, starts_at + duration, now, leaving=frozenset({meetup.id}))
     joins = session.exec(select(MeetupJoin).where(MeetupJoin.meetup_id == meetup.id)).all()
     if not joins:
         meetup.starts_at = starts_at
@@ -275,6 +333,7 @@ def answer_move(
     if answer == "go":
         require_open(target, now)
         if target.host_id != by and find_join(session, target, by) is None:
+            require_room(session, by, target.starts_at, target.ends_at, now, leaving=frozenset({meetup.id}))
             session.add(MeetupJoin(meetup_id=target.id, user_id=by, party_size=party_size, joined_at=now))
     leave(session, meetup, by, now)
 

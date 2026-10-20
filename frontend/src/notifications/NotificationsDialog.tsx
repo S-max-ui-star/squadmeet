@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import Dialog from '../Dialog'
+import { onTopicChange } from '../api/live'
 import { joinMeetup } from '../api/meetups'
 import {
   fetchNotifications,
@@ -53,8 +55,10 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     [token, onChanged],
   )
 
+  // Loads now and again on each live event while open (SCRUM-93).
   useEffect(() => {
     void reload()
+    return onTopicChange('notifications', () => void reload())
   }, [reload])
 
   async function open(notice: Notification) {
@@ -92,39 +96,36 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog notifications" role="dialog" aria-label="Benachrichtigungen">
-        <h2>Benachrichtigungen</h2>
-        {error && <p className="form-error">{error}</p>}
-        {data === null && !error && <p>Lädt …</p>}
-        {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
-        {data && data.length > 0 && (
-          <ul className="notification-list">
-            {data.map((notice) => (
-              <li key={notice.id}>
-                <button
-                  type="button"
-                  className={notice.read ? '' : 'unread'}
-                  disabled={busy}
-                  onClick={() => open(notice)}
-                >
-                  <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
-                  {notice.place_address && <span>{notice.place_address}</span>}
-                  <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
+    <Dialog title="Benachrichtigungen" className="notifications" onClose={onClose}>
+      {error && <p className="form-error">{error}</p>}
+      {data === null && !error && <p>Lädt …</p>}
+      {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
+      {data && data.length > 0 && (
+        <ul className="notification-list">
+          {data.map((notice) => (
+            <li key={notice.id}>
+              <button
+                type="button"
+                className={notice.read ? '' : 'unread'}
+                disabled={busy}
+                onClick={() => open(notice)}
+              >
+                <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
+                {notice.place_address && <span>{notice.place_address}</span>}
+                <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
+              </button>
+              {notice.kind === 'meetup_invitation' && !accepted.has(notice.id) && (
+                <button type="button" className="notification-accept" disabled={busy} onClick={() => accept(notice)}>
+                  Ich komme mit
                 </button>
-                {notice.kind === 'meetup_invitation' && !accepted.has(notice.id) && (
-                  <button type="button" className="notification-accept" disabled={busy} onClick={() => accept(notice)}>
-                    Ich komme mit
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
-        </button>
-      </div>
-    </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="link" onClick={onClose}>
+        Schließen
+      </button>
+    </Dialog>
   )
 }

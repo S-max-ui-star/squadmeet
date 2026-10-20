@@ -13,9 +13,14 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ---
 
+## Di 20.10.2026 — Tag 10
+
+- **Dominik:** `SCRUM-86` Suchergebnisse schließen jetzt beim Kartenklick und nach dem Leeren des Suchfelds; test-first umgesetzt und automatisiert geprüft.
+
 ## Mo 19.10.2026 — Tag 9
 
 - **Steven:** `SCRUM-68` Backend-Review (Login, MFA, Captcha, Limits): 5 Funde test-first behoben, MFA einschalten braucht jetzt das Passwort (PR #81). `SCRUM-91` Safari-AutoFill füllt das Passwort in den Konto-Dialogen (PR #84); Release-PR #85 als Entwurf. `SCRUM-93` Live-Daten ohne Neuladen per Server-Sent Events: Kontaktanfragen, Benachrichtigungen und Treffen erscheinen sofort (PR #86).
+- **Stefan:** Besprechung des Testdokuments (`SCRUM-67`, docs/testlauf.md) im Team; daraus 17 Tickets für Sprint 3 angelegt (`SCRUM-76` – `SCRUM-92`) und auf alle drei verteilt. `SCRUM-76` Platzdetails gebaut (× zum Schließen, Tippen auf die Karte schließt, offener Platz markiert, Impressum raus), PR #83 gemergt und mit Release #85 live. VAPID-Schlüssel auf dem Server eingerichtet, damit Push (`SCRUM-44`) gehen kann.
 - **Dominik:** `SCRUM-44` beim Test nachgebessert: einmaliger freiwilliger Hinweis zur Push-Einrichtung nach der Anmeldung mit „Push einrichten“ und „Später“; fehlende VAPID-Konfiguration auf dem Live-Server identifiziert.
 
 ## Fr 16.10.2026 — Tag 8

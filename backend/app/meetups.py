@@ -285,6 +285,7 @@ def create_meetup(
     if body.starts_at is not None:
         lifecycle.check_start(body.starts_at, now)
         starts_at = body.starts_at
+    lifecycle.require_room(session, user.id, starts_at, starts_at + timedelta(hours=body.hours), now)
     meetup = Meetup(
         place_id=body.place_id,
         host_id=user.id,

@@ -120,6 +120,11 @@ _Avoid_: instance
 A user's statement that they will come to one Occurrence or Meetup, with a Party size.
 _Avoid_: RSVP, attendance, registration
 
+**Overlap limit** (höchstens 2 gleichzeitig):
+A user is in at most 2 Meetups at one moment, as Host or with a Join. Cancelled, ended and Closed
+Meetups do not count. Each Occurrence of a Series counts on its own.
+_Avoid_: double booking, conflict
+
 **Party size** (Personenzahl):
 The number of people a user brings, including themselves (1–10). Extra people need no account.
 _Avoid_: group, guests

@@ -232,3 +232,35 @@ def test_occurrence_dates_for_a_window(session):
         ("Mon 19.10. 19:00", 2),
         ("Thu 22.10. 18:00", 3),
     ]
+
+
+def test_a_series_is_refused_when_a_date_is_full(session, client, place, host):
+    """SCRUM-80: each date counts on its own. At creation the whole Series is refused and
+    names the date; a later fill skips a full date."""
+    every_day = [slot(d) for d in range(7)]
+    create_series(client, host[0], place.id, every_day)
+    create_series(client, host[0], place.id, every_day)
+
+    response = create_series(client, host[0], place.id, every_day)
+    morning = create_series(client, host[0], place.id, [slot(d, "10:00") for d in range(7)])
+
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("Am ")
+    assert response.json()["detail"].endswith(" bist du zu dieser Zeit schon bei 2 Treffen.")
+    assert morning.status_code == 201
+
+
+def test_a_later_fill_skips_a_full_date(session, client, place, host):
+    from app.models import MeetupSeries
+
+    every_day = [slot(d) for d in range(7)]
+    create_series(client, host[0], place.id, every_day)
+    create_series(client, host[0], place.id, every_day)
+    now = datetime.now(UTC)
+    third = MeetupSeries(
+        place_id=place.id, host_id=host[1], party_size=1, slots=every_day, created_at=now
+    )
+    session.add(third)
+    session.flush()
+
+    assert series_module.fill_series(session, third, now) == 0
