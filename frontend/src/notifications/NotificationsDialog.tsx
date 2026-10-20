@@ -3,6 +3,8 @@ import Dialog from '../Dialog'
 import { onTopicChange } from '../api/live'
 import { joinMeetup } from '../api/meetups'
 import {
+  deleteAllNotifications,
+  deleteNotification,
   fetchNotifications,
   markNotificationRead,
   type Notification,
@@ -78,6 +80,37 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     }
   }
 
+  async function remove(notice: Notification) {
+    if (busy || data === null) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteNotification(token, notice.id)
+      const updated = data.filter((item) => item.id !== notice.id)
+      setData(updated)
+      onChanged(updated)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeAll() {
+    if (busy || data === null || !window.confirm('Alle Benachrichtigungen löschen?')) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteAllNotifications(token)
+      setData([])
+      onChanged([])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // "Ich komme mit" right from an invitation, with Party size 1; then the Meetup opens.
   async function accept(notice: Notification) {
     if (busy) return
@@ -101,27 +134,41 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
       {data === null && !error && <p>Lädt …</p>}
       {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
       {data && data.length > 0 && (
-        <ul className="notification-list">
-          {data.map((notice) => (
-            <li key={notice.id}>
-              <button
-                type="button"
-                className={notice.read ? '' : 'unread'}
-                disabled={busy}
-                onClick={() => open(notice)}
-              >
-                <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
-                {notice.place_address && <span>{notice.place_address}</span>}
-                <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
-              </button>
-              {notice.kind === 'meetup_invitation' && !accepted.has(notice.id) && (
-                <button type="button" className="notification-accept" disabled={busy} onClick={() => accept(notice)}>
-                  Ich komme mit
+        <>
+          <button type="button" className="danger notification-delete-all" disabled={busy} onClick={removeAll}>
+            Alle löschen
+          </button>
+          <ul className="notification-list">
+            {data.map((notice) => (
+              <li key={notice.id}>
+                <button
+                  type="button"
+                  className={`notification-open${notice.read ? '' : ' unread'}`}
+                  disabled={busy}
+                  onClick={() => open(notice)}
+                >
+                  <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
+                  {notice.place_address && <span>{notice.place_address}</span>}
+                  <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
                 </button>
-              )}
-            </li>
-          ))}
-        </ul>
+                <button
+                  type="button"
+                  className="notification-delete"
+                  aria-label="Löschen"
+                  disabled={busy}
+                  onClick={() => remove(notice)}
+                >
+                  ×
+                </button>
+                {notice.kind === 'meetup_invitation' && !accepted.has(notice.id) && (
+                  <button type="button" className="notification-accept" disabled={busy} onClick={() => accept(notice)}>
+                    Ich komme mit
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <button type="button" className="link" onClick={onClose}>
         Schließen

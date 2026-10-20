@@ -41,3 +41,19 @@ export async function markNotificationRead(token: string, notificationId: number
   })
   if (!response.ok) await answer(response, 'POST notification read')
 }
+
+export async function deleteNotification(token: string, notificationId: number): Promise<void> {
+  const response = await fetch(`/api/notifications/${notificationId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) await answer(response, 'DELETE notification')
+}
+
+export async function deleteAllNotifications(token: string): Promise<void> {
+  const response = await fetch('/api/notifications', {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) await answer(response, 'DELETE notifications')
+}
