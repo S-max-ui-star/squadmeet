@@ -47,6 +47,8 @@ import PushOnboarding from './notifications/PushOnboarding'
 import PushSettingsDialog from './notifications/PushSettingsDialog'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
+import CenterOn from './places/CenterOn'
+import { useFocusRequest } from './places/focus'
 import { groupBySpot } from './places/spots'
 import { pageVisible, whileVisible } from './whileVisible'
 import { loadMapView, saveMapView } from './places/mapView'
@@ -95,26 +97,6 @@ function CloseOnMapTap({ onTap }: { onTap: () => void }) {
   return null
 }
 
-// Moves the map so the open Place is visible and not under the detail panel: on a phone the
-// panel covers the lower 60 % of the map, on a laptop a 360 px card on the left (index.css).
-function CenterOn({ place }: { place: Place }) {
-  const map = useMap()
-  // fallow-ignore-next-line complexity -- Existing viewport positioning; SCRUM-86 only wires the map tap.
-  useEffect(() => {
-    const size = map.getSize()
-    const phone = size.x < 768
-    const point = map.latLngToContainerPoint([place.lat, place.lon])
-    const left = phone ? 0 : 384
-    const bottom = phone ? size.y * 0.4 : size.y
-    if (point.x >= left && point.x <= size.x && point.y >= 0 && point.y <= bottom) return
-    const inView = map.getBounds().contains([place.lat, place.lon])
-    map.setView([place.lat, place.lon], inView ? map.getZoom() : 16, { animate: false })
-    // Shift the map so the Place sits in the free part: upper fifth (phone) or right of the card.
-    map.panBy(phone ? [0, size.y * 0.3] : [-left / 2, 0], { animate: false })
-  }, [map, place])
-  return null
-}
-
 type SearchTarget = { lat: number; lon: number; request: number }
 
 function CenterOnSearch({ target }: { target: SearchTarget | null }) {
@@ -160,6 +142,8 @@ export default function App() {
   const [chosen, setChosen] = useState<Set<ActivityType>>(() => new Set(ACTIVITY_TYPES))
   const [path, navigate] = usePath()
   const selectedId = placeIdFromPath(path)
+  // Set by a tap on a Notification: the map zooms in on that Place (SCRUM-90).
+  const [focus, focusOn] = useFocusRequest()
   const legalPage = legalPageFromPath(path)
   // The answer for the Place in the detail URL. It keeps its id, so an old answer never shows.
   const [detail, setDetail] = useState<{ id: number; place?: Place; error?: string } | null>(null)
@@ -432,6 +416,7 @@ export default function App() {
           onChanged={updateNotifications}
           onOpenMeetup={(placeId) => {
             setShowNotifications(false)
+            focusOn(placeId)
             openPlace(placeId)
           }}
           onClose={() => setShowNotifications(false)}
@@ -651,7 +636,9 @@ export default function App() {
         <RememberView />
         <CenterOnSearch target={searchTarget} />
         <CloseOnMapTap onTap={closeOnMapTap} />
-        {selected && <CenterOn place={selected} />}
+        {selected && (
+          <CenterOn place={selected} focus={focus?.id === selected.id ? focus.request : null} />
+        )}
         {spots.map((spot) => {
           const isSelected = spot.places.some((place) => place.id === selectedId)
           if (spot.places.length === 1) {
