@@ -25,6 +25,8 @@ export type Meetup = {
   people: number
   // The users who joined, the earliest first; null for a guest.
   participants: Participant[] | null
+  // The viewer's Contacts among Host and participants, Host first; null for a guest.
+  contacts: MeetupHost[] | null
   // ISO 8601 with time zone, e.g. "2026-10-12T09:00:00Z".
   starts_at: string
   ends_at: string
@@ -160,8 +162,6 @@ export async function cancelSeries(token: string, seriesId: number): Promise<{ i
   return answer(response, 'POST cancel series')
 }
 
-// "Kontakte einladen" (SCRUM-43): the number of new invitations (Contacts already in the Meetup
-// or already invited are not counted).
 // The viewer's Contacts who are already in the Meetup or already invited (SCRUM-84).
 export async function fetchInvited(token: string, meetupId: number): Promise<number[]> {
   const response = await fetch(`/api/meetups/${meetupId}/invite`, { headers: { Authorization: `Bearer ${token}` } })
@@ -169,6 +169,8 @@ export async function fetchInvited(token: string, meetupId: number): Promise<num
   return body.user_ids
 }
 
+// "Kontakte einladen" (SCRUM-43): the number of new invitations (Contacts already in the Meetup
+// or already invited are not counted).
 export async function inviteContacts(token: string, meetupId: number, userIds: number[]): Promise<number> {
   const response = await fetch(`/api/meetups/${meetupId}/invite`, {
     method: 'POST',

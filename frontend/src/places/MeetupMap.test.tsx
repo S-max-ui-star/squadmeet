@@ -24,6 +24,7 @@ const meetup: Meetup = {
   party_size: 2,
   people: 2,
   participants: null,
+  contacts: null,
   starts_at: '2026-10-14T16:00:00Z',
   ends_at: '2026-10-14T18:00:00Z',
   cancelled: false,
@@ -38,7 +39,10 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-function render(span: 'now' | '3h' | '6h' | 'today' | null = null) {
+function render(
+  span: 'now' | '3h' | '6h' | 'today' | null = null,
+  meetups: Meetup[] = span ? [meetup] : [],
+) {
   const container = document.createElement('div')
   document.body.append(container)
   const onSpanChange = vi.fn()
@@ -47,7 +51,7 @@ function render(span: 'now' | '3h' | '6h' | 'today' | null = null) {
     createRoot(container).render(
       <MeetupMap
         span={span}
-        meetups={span ? [meetup] : []}
+        meetups={meetups}
         places={span ? [place] : []}
         onSpanChange={onSpanChange}
         onOpenPlace={onOpenPlace}
@@ -79,5 +83,31 @@ describe('MeetupMap', () => {
 
   it('does not show a Meetup list while the Time filter is off', () => {
     expect(render().container.querySelector('.map-meetup-list')).toBeNull()
+  })
+
+  it('shows a participating Contact with avatar and Nickname', () => {
+    const withContact = {
+      ...meetup,
+      contacts: [{ id: 2, nickname: 'Korb_Karl', avatar: 'bear' }],
+    }
+
+    const { container } = render('now', [withContact])
+
+    expect(container.querySelector('.map-meetup-contacts')?.textContent).toBe('🐻 Korb_Karl ist dabei')
+  })
+
+  it('summarizes more than two participating Contacts', () => {
+    const withContacts = {
+      ...meetup,
+      contacts: [
+        { id: 2, nickname: 'Korb_Karl', avatar: 'bear' },
+        { id: 3, nickname: 'Mia_Matte', avatar: 'cat' },
+        { id: 4, nickname: 'Netz_Nora', avatar: 'owl' },
+      ],
+    }
+
+    const { container } = render('now', [withContacts])
+
+    expect(container.querySelector('.map-meetup-contacts')?.textContent).toBe('🐻 Korb_Karl und 2 weitere')
   })
 })

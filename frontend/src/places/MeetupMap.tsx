@@ -1,4 +1,5 @@
 import type { Meetup, TimeSpan } from '../api/meetups'
+import { AVATARS } from '../auth/avatars'
 import type { Place } from '../api/places'
 import { slot } from './meetupTime'
 
@@ -16,6 +17,19 @@ type Props = {
   onSpanChange: (span: TimeSpan | null) => void
   onOpenPlace: (placeId: number) => void
   showList?: boolean
+}
+
+function ContactSummary({ contacts }: { contacts: NonNullable<Meetup['contacts']> }) {
+  if (contacts.length === 0) return null
+  const first = `${AVATARS[contacts[0].avatar]?.emoji ?? ''} ${contacts[0].nickname}`.trim()
+  let text = `${first} ist dabei`
+  if (contacts.length === 2) {
+    const second = `${AVATARS[contacts[1].avatar]?.emoji ?? ''} ${contacts[1].nickname}`.trim()
+    text = `${first} und ${second} sind dabei`
+  } else if (contacts.length > 2) {
+    text = `${first} und ${contacts.length - 1} weitere`
+  }
+  return <span className="map-meetup-meta map-meetup-contacts">{text}</span>
 }
 
 export default function MeetupMap({
@@ -59,6 +73,7 @@ export default function MeetupMap({
                       <strong>{place.name}</strong>
                       <span className="map-meetup-meta">{slot(meetup)}</span>
                       <span className="map-meetup-meta">{meetup.people} {meetup.people === 1 ? 'Person' : 'Personen'}</span>
+                      {meetup.contacts && <ContactSummary contacts={meetup.contacts} />}
                     </button>
                   </li>
                 )
