@@ -162,6 +162,13 @@ export async function cancelSeries(token: string, seriesId: number): Promise<{ i
 
 // "Kontakte einladen" (SCRUM-43): the number of new invitations (Contacts already in the Meetup
 // or already invited are not counted).
+// The viewer's Contacts who are already in the Meetup or already invited (SCRUM-84).
+export async function fetchInvited(token: string, meetupId: number): Promise<number[]> {
+  const response = await fetch(`/api/meetups/${meetupId}/invite`, { headers: { Authorization: `Bearer ${token}` } })
+  const body = await answer<{ user_ids: number[] }>(response, 'GET invited')
+  return body.user_ids
+}
+
 export async function inviteContacts(token: string, meetupId: number, userIds: number[]): Promise<number> {
   const response = await fetch(`/api/meetups/${meetupId}/invite`, {
     method: 'POST',

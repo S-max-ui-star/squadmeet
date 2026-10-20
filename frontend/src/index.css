@@ -1081,6 +1081,11 @@ body {
   flex: 1;
 }
 
+/* SCRUM-84: the question before "Blockieren" on its own line, the buttons below. */
+.contact-list li.confirm span {
+  flex-basis: 100%;
+}
+
 /* SCRUM-38: weekly Series. */
 
 .series-tag {
@@ -1736,6 +1741,11 @@ body {
 
 .invite-contacts p {
   margin: 0;
+}
+
+/* SCRUM-84: already in the Meetup or already invited. */
+.invite-contacts .invited {
+  color: #5e5c64;
 }
 
 .notification-list button.notification-accept {

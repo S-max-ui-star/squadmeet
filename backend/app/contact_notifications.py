@@ -63,6 +63,32 @@ def notify_new_meetup(
         notify_home_areas(session, meetup, now, skip=frozenset(notified))
 
 
+def _joined_by(session: Session, meetup: Meetup, by: int) -> set[int]:
+    """The users who joined the Meetup; refuses `by` when they are not in it."""
+    joined = set(session.exec(select(MeetupJoin.user_id).where(MeetupJoin.meetup_id == meetup.id)))
+    if by != meetup.host_id and by not in joined:
+        raise lifecycle.NotAllowed("Nur wer beim Treffen dabei ist, kann einladen")
+    return joined
+
+
+def _invited(session: Session, meetup: Meetup) -> set[int]:
+    return set(
+        session.exec(
+            select(Notification.user_id).where(
+                Notification.meetup_id == meetup.id, Notification.kind == "meetup_invitation"
+            )
+        )
+    )
+
+
+def already_in_or_invited(session: Session, meetup: Meetup, by: int) -> set[int]:
+    """The Contacts of `by` who are in the Meetup or already invited to it, for the tick in
+    "Kontakte einladen" (SCRUM-84). Only someone in the Meetup asks."""
+    joined = _joined_by(session, meetup, by)
+    in_or_invited = {meetup.host_id} | joined | _invited(session, meetup)
+    return in_or_invited & contacts_of(session, by)
+
+
 def invite(
     session: Session, meetup: Meetup, by: int, user_ids: set[int], now: datetime
 ) -> int:
@@ -70,22 +96,13 @@ def invite(
     only their own Contacts. Users already in it, already invited to it, or blocked with the
     inviter or the Host are left out without an error. The caller commits."""
     lifecycle.require_open(meetup, now)
-    joined = set(session.exec(select(MeetupJoin.user_id).where(MeetupJoin.meetup_id == meetup.id)))
-    if by != meetup.host_id and by not in joined:
-        raise lifecycle.NotAllowed("Nur wer beim Treffen dabei ist, kann einladen")
+    joined = _joined_by(session, meetup, by)
     if not user_ids <= contacts_of(session, by):
         raise lifecycle.Invalid("Du kannst nur deine Kontakte einladen")
-    invited = set(
-        session.exec(
-            select(Notification.user_id).where(
-                Notification.meetup_id == meetup.id, Notification.kind == "meetup_invitation"
-            )
-        )
-    )
     left_out = (
         {meetup.host_id}
         | joined
-        | invited
+        | _invited(session, meetup)
         | blocks_with(session, by)
         | blocks_with(session, meetup.host_id)
     )

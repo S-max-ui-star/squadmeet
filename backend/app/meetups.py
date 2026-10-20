@@ -23,7 +23,12 @@ from app import meetup_lifecycle as lifecycle
 from app.auth import bearer, current_login, current_user
 from app.blocks import blocked_by, blockers_of
 from app.db import get_session
-from app.contact_notifications import MAX_INVITES, invite, notify_new_meetup
+from app.contact_notifications import (
+    MAX_INVITES,
+    already_in_or_invited,
+    invite,
+    notify_new_meetup,
+)
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
 from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
 from app.place_status import PlaceUse, require, view_use
@@ -384,6 +389,22 @@ class InviteCreate(BaseModel):
 class InviteResult(BaseModel):
     # New invitations; Contacts already in the Meetup or already invited are not counted.
     invited: int
+
+
+class InvitedRead(BaseModel):
+    # The viewer's Contacts who are already in the Meetup or already invited.
+    user_ids: list[int]
+
+
+@router.get("/meetups/{meetup_id}/invite", response_model=InvitedRead)
+def invited_contacts(
+    meetup_id: int,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    """For the tick in "Kontakte einladen" (SCRUM-84): who cannot be invited again."""
+    meetup = get_meetup(session, meetup_id)
+    return InvitedRead(user_ids=sorted(already_in_or_invited(session, meetup, user.id)))
 
 
 @router.post("/meetups/{meetup_id}/invite", response_model=InviteResult)
