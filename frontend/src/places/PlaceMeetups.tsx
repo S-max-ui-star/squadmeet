@@ -16,10 +16,13 @@ import {
   type MeetupAction,
 } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
+import { whileVisible } from '../whileVisible'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
-import { fromInputValue, inputBounds, slot, toInputValue } from './meetupTime'
+import PartySizeStepper from './PartySizeStepper'
+import SeriesJoin from './SeriesJoin'
+import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 import { WEEKDAYS, emptySlots, groupSeries, slotsInput, type SlotFields } from './seriesGroups'
 
 type Props = {
@@ -31,7 +34,6 @@ type Props = {
 }
 
 const HOURS = [1, 2, 3, 4]
-const MAX_PARTY_SIZE = 10
 // A Meetup that ends while the panel is open leaves the list within this time.
 const REFRESH_MS = 60_000
 
@@ -57,27 +59,6 @@ function PersonButton({ label, onClick }: { label: string; onClick: () => void }
   )
 }
 
-// The Party size, the user included (1–10), for a new Meetup and for a Join.
-function PartySizeStepper({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  return (
-    <div className="stepper" role="group" aria-label="Personenzahl (mit dir)">
-      <span>Personenzahl (mit dir)</span>
-      <button type="button" aria-label="Eine Person weniger" disabled={value <= 1} onClick={() => onChange(value - 1)}>
-        −
-      </button>
-      <output>{value}</output>
-      <button
-        type="button"
-        aria-label="Eine Person mehr"
-        disabled={value >= MAX_PARTY_SIZE}
-        onClick={() => onChange(value + 1)}
-      >
-        +
-      </button>
-    </div>
-  )
-}
-
 // A Push tap carries the exact Meetup as a fragment. The list loads asynchronously, so scroll
 // only after that card exists (SCRUM-44). Keeping this effect outside PlaceMeetups also keeps the
 // already large Meetup workflow from gaining another branch.
@@ -92,16 +73,17 @@ function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
 
 // The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
 // Meetups, the "Ich bin jetzt hier" form (SCRUM-29), "Später treffen" (SCRUM-35), and
-// Loads now, every REFRESH_MS, and again on each live event for this Place (SCRUM-93).
+// Loads now, every REFRESH_MS while the page is visible, once when it comes back to the front
+// (SCRUM-78), and again on each live event for this Place (SCRUM-93).
 function useReloads(reload: () => void, placeId: number) {
   useEffect(() => {
     reload()
-    const timer = setInterval(reload, REFRESH_MS)
+    const stopTimer = whileVisible(reload, REFRESH_MS)
     const stop = onMeetupChange((changed) => {
       if (changed === placeId) reload()
     })
     return () => {
-      clearInterval(timer)
+      stopTimer()
       stop()
     }
   }, [reload, placeId])
@@ -306,13 +288,15 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
         {offer && (
           <div className="move-offer" role="group" aria-label="Neue Zeit">
             <p>
-              {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat verschoben auf {slot(offer)}.
+              {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat das Treffen auf{' '}
+              {startChoice(offer.starts_at, meetup.starts_at)} verlegt. Wann bist du dabei?
             </p>
+            {/* The times are the answers (SCRUM-79): new time = go along, old time = stay. */}
             {(
               [
-                ['go', 'Mitgehen'],
-                ['stay', 'Hierbleiben'],
-                ['leave', 'Absagen'],
+                ['go', startChoice(offer.starts_at, meetup.starts_at)],
+                ['stay', startChoice(meetup.starts_at, offer.starts_at)],
+                ['leave', 'Gar nicht'],
               ] as const
             ).map(([choice, label]) => (
               <button
@@ -414,7 +398,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
           >
             {(meetup.participants?.length ?? 0) > 0 && (
               <p className="hint">
-                Die anderen bleiben bei der alten Zeit und werden gefragt, ob sie mitgehen.
+                Die anderen werden gefragt, ob sie zur neuen oder zur alten Zeit dabei sind.
               </p>
             )}
             <label className="field">
@@ -581,6 +565,18 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
         {groupSeries(meetups).map(({ meetup, laterOfSeries }) => (
           <Fragment key={meetup.id}>
             {renderCard(meetup, laterOfSeries.length)}
+            {/* Several dates at once (SCRUM-81), for a signed-in user who is not the Host. */}
+            {expanded.has(meetup.series_id ?? -1) && user && meetup.host?.id !== user.id && (
+              <li className="series-join-item">
+                <SeriesJoin
+                  dates={[meetup, ...laterOfSeries]}
+                  onDone={() => {
+                    reload()
+                    onChanged()
+                  }}
+                />
+              </li>
+            )}
             {expanded.has(meetup.series_id ?? -1) && laterOfSeries.map((later) => renderCard(later, 0))}
           </Fragment>
         ))}

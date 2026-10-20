@@ -10,6 +10,9 @@ A Photo is pending until an Admin approves it; only approved Photos are shown, a
 uploader before. A rejected Photo is deleted with its file. Each user has at most MAX_PENDING
 pending Photos per Place, so the Admin queue stays short (Stefan, 2026-10-16). Photos follow
 the Rating rules of the Place status: none at a Place suggestion, hidden with a hidden Place.
+
+All of it is behind the switch PHOTOS_ENABLED (SCRUM-94, app.photo_storage.photos_on). Only
+GET /api/photos/config answers with the switch off, so the frontend knows to hide Photos.
 """
 
 from datetime import UTC, datetime
@@ -26,7 +29,7 @@ from app.auth import current_user, require_admin
 from app.db import get_session
 from app.meetups import viewer
 from app.models import Photo, Place, User
-from app.photo_storage import PhotoStorage, get_photo_storage
+from app.photo_storage import PhotoStorage, get_photo_storage, photos_enabled, photos_on
 from app.place_status import MAX_DB_INT, PlaceUse, allowed_in, require, view_use
 
 MAX_BYTES = 10 * 1024 * 1024
@@ -36,7 +39,18 @@ MAX_PENDING = 3
 MAX_PIXELS = 50_000_000
 FORMATS = {"JPEG", "PNG", "WEBP"}
 
-router = APIRouter(tags=["photos"])
+router = APIRouter(tags=["photos"], dependencies=[Depends(photos_on)])
+config_router = APIRouter(tags=["photos"])
+
+
+class PhotosConfig(BaseModel):
+    enabled: bool
+
+
+@config_router.get("/photos/config", response_model=PhotosConfig)
+def photos_config(enabled: bool = Depends(photos_enabled)) -> PhotosConfig:
+    """Whether Photos are on (SCRUM-94). No login needed: guests see Photos too."""
+    return PhotosConfig(enabled=enabled)
 
 
 class PhotoUploaded(BaseModel):

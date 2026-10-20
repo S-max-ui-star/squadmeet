@@ -1,9 +1,10 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { User } from '../api/auth'
 import { announceMeetupChange } from '../api/live'
 import PlaceMeetups from './PlaceMeetups'
+import { startChoice } from './meetupTime'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -48,7 +49,12 @@ const laterMeetup = {
   actions: ['cancel', 'move', 'leave'],
 }
 
+// Unmounted after each test, so an old panel does not answer the next test's events.
+const roots: Root[] = []
+
 afterEach(() => {
+  act(() => roots.splice(0).forEach((root) => root.unmount()))
+  vi.restoreAllMocks()
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
   localStorage.clear()
@@ -57,8 +63,10 @@ afterEach(() => {
 async function render(user: User | null, onLoginNeeded = () => {}) {
   const container = document.createElement('div')
   document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
   await act(async () =>
-    createRoot(container).render(
+    root.render(
       <PlaceMeetups placeId={3} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} />,
     ),
   )
@@ -78,6 +86,19 @@ describe('PlaceMeetups', () => {
     await act(async () => announceMeetupChange(4))
     expect(fetch).toHaveBeenCalledTimes(1)
     await act(async () => announceMeetupChange(3))
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads again when the page comes back to the front (SCRUM-78)', async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(Response.json([meetup])))
+    vi.stubGlobal('fetch', fetch)
+    await render(paula)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // jsdom says "prerender"; a real page in front says "visible".
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
 
     expect(fetch).toHaveBeenCalledTimes(2)
   })
@@ -229,6 +250,23 @@ describe('PlaceMeetups', () => {
     expect(JSON.parse(post[1]!.body as string)).toEqual({ party_size: 2 })
   })
 
+  it('shows the message when the user is already in 2 Meetups at that time (SCRUM-80)', async () => {
+    localStorage.setItem('squadmeet.token', 'tok')
+    const full = 'Du bist zu dieser Zeit schon bei 2 Treffen.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) =>
+        init?.method === 'POST' ? Response.json({ detail: full }, { status: 409 }) : Response.json([asOther(meetup)]),
+      ),
+    )
+    const container = await render(karl)
+
+    act(() => button(container, 'Ich komme mit')!.click())
+    await act(async () => button(container, 'Beitreten')!.click())
+
+    expect(container.querySelector('.form-error')?.textContent).toBe(full)
+  })
+
   it('shows "Verlassen" to a user who joined, and leaves', async () => {
     localStorage.setItem('squadmeet.token', 'tok')
     const withKarl = asJoined({ ...meetup, participants: [{ id: 2, nickname: 'Korb_Karl', avatar: 'bear', party_size: 1 }] })
@@ -257,7 +295,7 @@ describe('PlaceMeetups', () => {
 
     for (const text of ['Absagen', 'Verlassen', 'Zeit ändern']) expect(button(container, text)).toBeDefined()
     act(() => button(container, 'Zeit ändern')!.click())
-    expect(container.textContent).toContain('Die anderen bleiben bei der alten Zeit')
+    expect(container.textContent).toContain('Die anderen werden gefragt, ob sie zur neuen oder zur alten Zeit dabei sind.')
   })
 
   it('offers the Host of a running Meetup "Jetzt beenden" and "Verlassen", not "Absagen"', async () => {
@@ -290,8 +328,11 @@ describe('PlaceMeetups', () => {
     vi.stubGlobal('fetch', fetchMock)
     const container = await render(karl)
 
-    expect(container.textContent).toContain('Paula hat verschoben auf')
-    await act(async () => button(container, 'Hierbleiben')!.click())
+    const newStart = startChoice(offered.move_offer!.starts_at, offered.starts_at)
+    const oldStart = startChoice(offered.starts_at, offered.move_offer!.starts_at)
+    expect(container.textContent).toContain(`Paula hat das Treffen auf ${newStart} verlegt. Wann bist du dabei?`)
+    for (const text of [newStart, oldStart, 'Gar nicht']) expect(button(container, text)).toBeDefined()
+    await act(async () => button(container, oldStart)!.click())
 
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(post[0]).toBe('/api/meetups/8/move-answer')

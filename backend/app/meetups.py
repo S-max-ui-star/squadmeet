@@ -23,7 +23,14 @@ from app import meetup_lifecycle as lifecycle
 from app.auth import bearer, current_login, current_user
 from app.blocks import blocked_by, blockers_of
 from app.db import get_session
-from app.contact_notifications import MAX_INVITES, invite, notify_new_meetup
+from app.contact_notifications import (
+    MAX_INVITES,
+    already_in_or_invited,
+    blocks_with,
+    contacts_of,
+    invite,
+    notify_new_meetup,
+)
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
 from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
 from app.place_status import PlaceUse, require, view_use
@@ -146,6 +153,8 @@ class MeetupRead(BaseModel):
     people: int
     # The users who joined, the earliest first; None for a guest.
     participants: list[ParticipantRead] | None
+    # The viewer's Contacts among Host and Joins, Host first; None for a guest (SCRUM-87).
+    contacts: list[HostRead] | None
     starts_at: datetime
     ends_at: datetime
     cancelled: bool
@@ -214,9 +223,11 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
     # SCRUM-32: the viewer's blockers stay unnamed; the users the viewer blocked trigger a warning.
     hidden = blockers_of(session, user.id) if user else set()
     blocked = blocked_by(session, user.id) if user else set()
+    contact_ids = contacts_of(session, user.id) - blocks_with(session, user.id) if user else set()
     reads = []
     for meetup in meetups:
         host = hosts[meetup.host_id]
+        present = [host, *(member for _, member in joins[meetup.id])]
         members = {meetup.host_id} | {member.id for _, member in joins[meetup.id]}
         reads.append(
             MeetupRead(
@@ -239,6 +250,13 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     for join, member in joins[meetup.id]
                     if member.id not in hidden
                 ],
+                contacts=None
+                if user is None
+                else [
+                    HostRead(id=member.id, nickname=member.nickname, avatar=member.avatar)
+                    for member in present
+                    if member.id in contact_ids
+                ],
                 starts_at=meetup.starts_at,
                 ends_at=meetup.ends_at,
                 cancelled=meetup.cancelled_at is not None,
@@ -254,6 +272,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     user is not None and any(member.id == user.id for _, member in joins[meetup.id]),
                     now,
                     series.get(meetup.series_id),
+                    host_alone=not joins[meetup.id],
                 ),
             )
         )
@@ -285,6 +304,7 @@ def create_meetup(
     if body.starts_at is not None:
         lifecycle.check_start(body.starts_at, now)
         starts_at = body.starts_at
+    lifecycle.require_room(session, user.id, starts_at, starts_at + timedelta(hours=body.hours), now)
     meetup = Meetup(
         place_id=body.place_id,
         host_id=user.id,
@@ -330,7 +350,7 @@ def end_meetup_early(
 ):
     """The Host ends the Meetup now; it leaves the map at once."""
     meetup = get_meetup(session, meetup_id)
-    lifecycle.end(meetup, user.id, datetime.now(UTC))
+    lifecycle.end(session, meetup, user.id, datetime.now(UTC))
     session.commit()
     session.refresh(meetup)
     return to_read(session, meetup, user)
@@ -383,6 +403,22 @@ class InviteCreate(BaseModel):
 class InviteResult(BaseModel):
     # New invitations; Contacts already in the Meetup or already invited are not counted.
     invited: int
+
+
+class InvitedRead(BaseModel):
+    # The viewer's Contacts who are already in the Meetup or already invited.
+    user_ids: list[int]
+
+
+@router.get("/meetups/{meetup_id}/invite", response_model=InvitedRead)
+def invited_contacts(
+    meetup_id: int,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    """For the tick in "Kontakte einladen" (SCRUM-84): who cannot be invited again."""
+    meetup = get_meetup(session, meetup_id)
+    return InvitedRead(user_ids=sorted(already_in_or_invited(session, meetup, user.id)))
 
 
 @router.post("/meetups/{meetup_id}/invite", response_model=InviteResult)

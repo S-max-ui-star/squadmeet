@@ -1,12 +1,18 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Contacts } from '../api/contacts'
+import { announceTopicChange } from '../api/live'
 import ContactsDialog from './ContactsDialog'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+// Unmount, so a dialog from an earlier test does not answer live events.
+let root: Root | undefined
+
 afterEach(() => {
+  act(() => root?.unmount())
+  root = undefined
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
 })
@@ -24,8 +30,9 @@ async function render(fetchMock: ReturnType<typeof vi.fn>, onChanged = vi.fn()) 
   vi.stubGlobal('fetch', fetchMock)
   const container = document.createElement('div')
   document.body.append(container)
+  root = createRoot(container)
   await act(async () =>
-    createRoot(container).render(<ContactsDialog token="t" onChanged={onChanged} onClose={() => {}} />),
+    root!.render(<ContactsDialog token="t" onChanged={onChanged} onClose={() => {}} />),
   )
   return container
 }
@@ -86,9 +93,36 @@ describe('ContactsDialog (SCRUM-32)', () => {
     const container = await render(fetchMock)
 
     await act(async () => button(container, 'Blockieren')!.click())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Mia_Matte blockieren? Die Person wird aus deinen Kontakten gelöscht.')
+    await act(async () => button(container, 'Ja, blockieren')!.click())
 
     expect(fetchMock.mock.calls[1][0]).toBe('/api/blocks')
     expect(container.textContent).toContain('Blockiert')
     expect(button(container, 'Aufheben')).toBeDefined()
+  })
+
+  it('"Abbrechen" in the confirm step does not block (SCRUM-84)', async () => {
+    const fetchMock = vi.fn(async () => Response.json(data))
+    const container = await render(fetchMock)
+
+    await act(async () => button(container, 'Blockieren')!.click())
+    await act(async () => button(container, 'Abbrechen')!.click())
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain('blockieren?')
+    expect(button(container, 'Blockieren')).toBeDefined()
+  })
+
+  it('loads again on a live Contacts event while it is open (SCRUM-93)', async () => {
+    const fetchMock = vi.fn(async () => Response.json(data))
+    await render(fetchMock)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => announceTopicChange('notifications'))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await act(async () => announceTopicChange('contacts'))
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

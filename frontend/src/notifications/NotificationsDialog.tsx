@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
+import Dialog from '../Dialog'
+import { onTopicChange } from '../api/live'
 import { joinMeetup } from '../api/meetups'
 import {
+  deleteAllNotifications,
+  deleteNotification,
   fetchNotifications,
   markNotificationRead,
   type Notification,
-  type NotificationKind,
 } from '../api/notifications'
 
 type Props = {
@@ -20,19 +23,6 @@ const when = new Intl.DateTimeFormat('de-DE', {
   hour: '2-digit',
   minute: '2-digit',
 })
-
-// `actor`: the Contact for the SCRUM-43 kinds; null after that account was deleted.
-const messages: Record<NotificationKind, (place: string, actor: string | null) => string> = {
-  meetup_cancelled: (place) => `Das Treffen bei „${place}“ wurde abgesagt.`,
-  meetup_ended: (place) => `Das Treffen bei „${place}“ wurde wegen einer Platzsperrung beendet.`,
-  host_handover: (place) => `Du bist jetzt Gastgeber des Treffens bei „${place}“.`,
-  blocked_user_joined: (place) =>
-    `Jemand, den du blockiert hast, ist dem Treffen bei „${place}“ beigetreten.`,
-  favorite_meetup_created: (place) => `Bei deinem Favoriten „${place}“ wurde ein neues Treffen erstellt.`,
-  contact_meetup_created: (place, actor) => `${actor ?? 'Ein Kontakt'} plant ein Treffen bei „${place}“.`,
-  meetup_invitation: (place, actor) => `${actor ?? 'Ein Kontakt'} lädt dich zum Treffen bei „${place}“ ein.`,
-  home_area_meetup_created: (place) => `In deinem Heimatbereich gibt es ein neues Treffen bei „${place}“.`,
-}
 
 export default function NotificationsDialog({ token, onChanged, onOpenMeetup, onClose }: Props) {
   const [data, setData] = useState<Notification[] | null>(null)
@@ -53,8 +43,10 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     [token, onChanged],
   )
 
+  // Loads now and again on each live event while open (SCRUM-93).
   useEffect(() => {
     void reload()
+    return onTopicChange('notifications', () => void reload())
   }, [reload])
 
   async function open(notice: Notification) {
@@ -67,6 +59,37 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
       setData(updated)
       onChanged(updated)
       onOpenMeetup(notice.place_id)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(notice: Notification) {
+    if (busy || data === null) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteNotification(token, notice.id)
+      const updated = data.filter((item) => item.id !== notice.id)
+      setData(updated)
+      onChanged(updated)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeAll() {
+    if (busy || data === null || !window.confirm('Alle Benachrichtigungen löschen?')) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteAllNotifications(token)
+      setData([])
+      onChanged([])
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -92,25 +115,35 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog notifications" role="dialog" aria-label="Benachrichtigungen">
-        <h2>Benachrichtigungen</h2>
-        {error && <p className="form-error">{error}</p>}
-        {data === null && !error && <p>Lädt …</p>}
-        {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
-        {data && data.length > 0 && (
+    <Dialog title="Benachrichtigungen" className="notifications" onClose={onClose}>
+      {error && <p className="form-error">{error}</p>}
+      {data === null && !error && <p>Lädt …</p>}
+      {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
+      {data && data.length > 0 && (
+        <>
+          <button type="button" className="danger notification-delete-all" disabled={busy} onClick={removeAll}>
+            Alle löschen
+          </button>
           <ul className="notification-list">
             {data.map((notice) => (
               <li key={notice.id}>
                 <button
                   type="button"
-                  className={notice.read ? '' : 'unread'}
+                  className={`notification-open${notice.read ? '' : ' unread'}`}
                   disabled={busy}
                   onClick={() => open(notice)}
                 >
-                  <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
-                  {notice.place_address && <span>{notice.place_address}</span>}
+                  <strong>{notice.text}</strong>
                   <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
+                </button>
+                <button
+                  type="button"
+                  className="notification-delete"
+                  aria-label="Löschen"
+                  disabled={busy}
+                  onClick={() => remove(notice)}
+                >
+                  ×
                 </button>
                 {notice.kind === 'meetup_invitation' && !accepted.has(notice.id) && (
                   <button type="button" className="notification-accept" disabled={busy} onClick={() => accept(notice)}>
@@ -120,11 +153,11 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
               </li>
             ))}
           </ul>
-        )}
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
-        </button>
-      </div>
-    </div>
+        </>
+      )}
+      <button type="button" className="link" onClick={onClose}>
+        Schließen
+      </button>
+    </Dialog>
   )
 }

@@ -4,7 +4,11 @@
   stored keys) and gives the browser short-lived presigned links. The bucket is never public.
 - else PHOTO_DIR set: a folder on the disk (local development). The links are signed the same
   way, and the backend itself sends the file (GET /api/photo-files/...).
-- neither: Photos are off. Uploads answer 503, the lists are empty.
+- neither: no storage. Uploads answer 503, the lists are empty.
+
+Photos are deferred (SCRUM-94): they work only when the switch PHOTOS_ENABLED is "true". Off,
+every photo endpoint answers 404 and the frontend hides Photos (GET /api/photos/config). The
+bucket, the files and the database rows stay, so switching on again needs nothing else.
 
 Both kinds give links that stop working after LINK_SECONDS, so a pending Photo is never
 reachable by a guessed or old link. Tests replace the storage (get_photo_storage).
@@ -86,6 +90,17 @@ class LocalPhotoStorage:
         return expires >= time.time() and hmac.compare_digest(sig, self.signature(key, expires))
 
 
+def photos_enabled() -> bool:
+    """The switch PHOTOS_ENABLED (SCRUM-94). FastAPI dependency; the tests override it."""
+    return os.environ.get("PHOTOS_ENABLED", "").lower() == "true"
+
+
+def photos_on(enabled: bool = Depends(photos_enabled)) -> None:
+    """Router dependency: with the switch off, a photo endpoint does not exist."""
+    if not enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fotos sind ausgeschaltet")
+
+
 @cache
 def configured_storage() -> PhotoStorage | None:
     if bucket := os.environ.get("PHOTO_BUCKET"):
@@ -100,7 +115,7 @@ def get_photo_storage() -> PhotoStorage | None:
     return configured_storage()
 
 
-@router.get("/photo-files/{key:path}", include_in_schema=False)
+@router.get("/photo-files/{key:path}", include_in_schema=False, dependencies=[Depends(photos_on)])
 def photo_file(
     key: str,
     expires: int = Query(),

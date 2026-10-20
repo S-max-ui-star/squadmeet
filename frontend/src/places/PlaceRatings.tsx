@@ -35,14 +35,35 @@ type CityReportProps = {
 // "Meldung an die Stadt" (SCRUM-55): the city's online defect report, its phone line, and the
 // office for green spaces and playgrounds with e-mail and phone, plus the place to copy.
 // The app sends nothing; the links open the user's browser, mail or phone app.
+// A button that folds out, closed at first (SCRUM-82); it opens by itself when asked.
 function CityReportBox({ place, highlighted, asked }: CityReportProps) {
   const [copied, setCopied] = useState(false)
+  // null until the user taps: then it follows `asked`.
+  const [toggled, setToggled] = useState<boolean | null>(null)
+  const open = toggled ?? asked
   const report = findCityReport(place.lat, place.lon)
   if (!report) return null
-  const { office } = report
   return (
     <div className={highlighted ? 'city-report highlighted' : 'city-report'}>
-      {asked && <p className="city-report-question">Willst du das der Stadt melden?</p>}
+      <button type="button" className="city-report-toggle" aria-expanded={open} onClick={() => setToggled(!open)}>
+        📣 Willst du das der Stadt melden? {open ? '▴' : '▾'}
+      </button>
+      {open && <CityReportLinks report={report} place={place} copied={copied} onCopied={setCopied} />}
+    </div>
+  )
+}
+
+type LinksProps = {
+  report: NonNullable<ReturnType<typeof findCityReport>>
+  place: CityReportProps['place']
+  copied: boolean
+  onCopied: (copied: boolean) => void
+}
+
+function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
+  const { office } = report
+  return (
+    <>
       <a href={report.portal.url} target="_blank" rel="noreferrer">
         📣 Meldung an die Stadt: {report.portal.name}
       </a>
@@ -67,13 +88,13 @@ function CityReportBox({ place, highlighted, asked }: CityReportProps) {
         onClick={() =>
           navigator.clipboard
             ?.writeText(placeText(place.name, place.lat, place.lon, place.address ?? null))
-            .then(() => setCopied(true))
-            .catch(() => setCopied(false))
+            .then(() => onCopied(true))
+            .catch(() => onCopied(false))
         }
       >
         {copied ? 'Ort kopiert ✓' : 'Ort für die Meldung kopieren'}
       </button>
-    </div>
+    </>
   )
 }
 
@@ -111,8 +132,8 @@ type CheckProps = {
   onVote: (stillThere: boolean) => void
 }
 
-// "Behoben" for every issue, at any time; "Ist das noch so?" once nobody confirmed it for two
-// months.
+// "Schon behoben?" (SCRUM-82): "Ja, behoben" for every issue, at any time; "Nein, noch nicht
+// behoben" once nobody confirmed it for two months.
 function IssueCheck({ issue, voted, busy, onVote }: CheckProps) {
   return (
     <div className="issue-check">
@@ -132,15 +153,16 @@ function IssueCheck({ issue, voted, busy, onVote }: CheckProps) {
         <span className="hint">Danke für deine Antwort!</span>
       ) : (
         <span className="issue-check-buttons">
-          {issue.needs_check ? 'Ist das noch so?' : 'Schon repariert?'}
+          Schon behoben?
+          <button type="button" disabled={busy} onClick={() => onVote(false)}>
+            Ja, behoben
+          </button>
+          {/* "Still there" counts only once nobody confirmed it for two months (backend). */}
           {issue.needs_check && (
             <button type="button" disabled={busy} onClick={() => onVote(true)}>
-              Ja, noch so
+              Nein, noch nicht behoben
             </button>
           )}
-          <button type="button" disabled={busy} onClick={() => onVote(false)}>
-            Nein, behoben
-          </button>
         </span>
       )}
     </div>
@@ -318,10 +340,6 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
         ))}
       {summary && summary.top_reasons.length > 0 && <ReasonChips reasons={summary.top_reasons} />}
       {summary && <ConditionLine summary={summary} voted={voted} busy={busy} onVote={vote} />}
-      {place && (
-        <CityReportBox place={place} highlighted={summary?.condition.state === 'issues'} asked={askReport} />
-      )}
-
       {rating ? (
         <form
           className="rating-form"
@@ -363,10 +381,14 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
         </form>
       ) : (
         <button type="button" className="rate-button" onClick={startRating}>
-          {mine ? `Deine Bewertung ändern (${starText(mine.stars)})` : '⭐ Platz bewerten'}
+          {mine ? `Bewertung ändern (${starText(mine.stars)})` : '⭐ Bewertung erstellen'}
         </button>
       )}
 
+      {/* Under the rate button (SCRUM-82). */}
+      {place && (
+        <CityReportBox place={place} highlighted={summary?.condition.state === 'issues'} asked={askReport} />
+      )}
       {error && <p className="form-error">{error}</p>}
     </div>
   )

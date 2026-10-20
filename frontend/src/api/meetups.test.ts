@@ -19,6 +19,7 @@ const meetup: Meetup = {
   party_size: 2,
   people: 2,
   participants: [],
+  contacts: [],
   cancelled: false,
   move_offer: null,
   blocked_user_in: false,

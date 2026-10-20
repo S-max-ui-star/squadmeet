@@ -49,23 +49,23 @@ def test_only_the_host_cancels_and_only_before_the_start(session):
     assert lifecycle.state(m, T0) is MeetupState.CANCELLED
 
 
-def test_end_only_while_running():
+def test_end_only_while_running(session):
     m = meetup()
 
     with pytest.raises(Conflict, match="noch nicht begonnen"):
-        lifecycle.end(m, HOST, T0 - timedelta(minutes=1))
-    lifecycle.end(m, HOST, T0 + timedelta(minutes=30))
+        lifecycle.end(session, m, HOST, T0 - timedelta(minutes=1))
+    lifecycle.end(session, m, HOST, T0 + timedelta(minutes=30))
 
     assert m.ends_at == T0 + timedelta(minutes=30)
     with pytest.raises(Conflict, match="schon vorbei"):
-        lifecycle.end(m, HOST, T0 + timedelta(minutes=31))
+        lifecycle.end(session, m, HOST, T0 + timedelta(minutes=31))
 
 
 def test_call_off_cancels_upcoming_and_ends_running(session):
     upcoming, running = meetup(), meetup(starts=T0 - timedelta(hours=1))
 
-    lifecycle.call_off(session, upcoming, T0 - timedelta(minutes=1))
-    lifecycle.call_off(session, running, T0)
+    lifecycle.call_off(session, upcoming, T0 - timedelta(minutes=1), HOST)
+    lifecycle.call_off(session, running, T0, HOST)
 
     assert upcoming.cancelled_at is not None
     assert (running.cancelled_at, running.ends_at) == (None, T0)
@@ -74,7 +74,7 @@ def test_call_off_cancels_upcoming_and_ends_running(session):
 def test_call_off_for_a_series_leaves_a_running_occurrence(session):
     running = meetup(starts=T0 - timedelta(hours=1))
 
-    lifecycle.call_off(session, running, T0, end_running=False)
+    lifecycle.call_off(session, running, T0, HOST, end_running=False)
 
     assert lifecycle.state(running, T0) is MeetupState.LIVE
 
@@ -100,6 +100,17 @@ def test_a_start_must_be_in_the_future_and_at_most_30_days_ahead():
 )
 def test_actions(viewer, joined, now, expected):
     assert lifecycle.actions(meetup(), viewer, joined, now) == expected
+
+
+def test_a_host_alone_in_a_running_meetup_only_ends_it():
+    """SCRUM-79: without Joins, End and Leave do the same, so only "Jetzt beenden" shows."""
+    running = T0 + timedelta(minutes=1)
+
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=True) == ["end", "invite"]
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=False) == ["end", "leave", "invite"]
+    # Before the start the Host still may Leave (handover or Closed, SCRUM-37).
+    before = T0 - timedelta(hours=1)
+    assert "leave" in lifecycle.actions(meetup(), HOST, False, before, host_alone=True)
 
 
 def test_cancel_series_only_for_the_host_of_a_running_series():
@@ -218,3 +229,109 @@ def test_hand_over_meetups_of_a_deleted_host(stored):
     lifecycle.hand_over_meetups_of(session, paula, T0)
 
     assert (m.host_id, m.party_size) == (karl, 4)
+
+
+# At most 2 Meetups at one moment (SCRUM-80).
+
+
+def hosted(session, place_id, host, starts, hours=2, **changes) -> Meetup:
+    changes.setdefault("ends_at", starts + timedelta(hours=hours))
+    m = Meetup(place_id=place_id, host_id=host, party_size=1, starts_at=starts, **changes)
+    session.add(m)
+    session.flush()
+    return m
+
+
+def test_two_at_once_are_allowed_a_third_is_refused(stored):
+    session, m, (_, karl, mia) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+
+    with pytest.raises(Conflict, match="Du bist zu dieser Zeit schon bei 2 Treffen"):
+        lifecycle.require_room(session, karl, T0 + timedelta(minutes=90), T0 + timedelta(hours=3), now)
+    lifecycle.require_room(session, mia, T0 + timedelta(minutes=90), T0 + timedelta(hours=3), now)
+
+
+def test_a_third_that_never_meets_both_at_one_moment_is_allowed(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=3))
+
+    # 15:00–21:00 overlaps both, but they do not overlap each other; an end is not a start.
+    lifecycle.require_room(session, paula, T0 - timedelta(hours=1), T0 + timedelta(hours=5), now)
+    lifecycle.require_room(session, paula, T0 + timedelta(hours=2), T0 + timedelta(hours=3), now)
+
+
+def test_cancelled_closed_and_ended_meetups_do_not_count(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 + timedelta(minutes=30)
+    hosted(session, m.place_id, paula, T0, cancelled_at=now)
+    hosted(session, m.place_id, paula, T0, closed_at=now)
+    # Ended 10 minutes ago: it overlapped the running one, but it is over.
+    hosted(session, m.place_id, paula, T0 - timedelta(hours=1), ends_at=T0 + timedelta(minutes=20))
+
+    lifecycle.require_room(session, paula, now, now + timedelta(hours=1), now)
+
+
+def test_join_is_refused_at_the_limit(stored):
+    session, m, (_, karl, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, karl, T0)
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.join(session, m, karl, 1, now)
+
+
+def test_join_a_running_meetup_ignores_one_that_already_ended(stored):
+    session, m, (_, karl, _) = stored
+    now = T0 + timedelta(hours=1)
+    hosted(session, m.place_id, karl, T0, ends_at=T0 + timedelta(minutes=30))
+    hosted(session, m.place_id, karl, T0)
+
+    lifecycle.join(session, m, karl, 1, now)
+
+
+def test_move_counts_the_new_time_without_the_meetup_itself(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, paula, T0)
+    lifecycle.move(session, m, paula, T0 + timedelta(minutes=30), now)
+
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.move(session, m, paula, T0 + timedelta(hours=4), now)
+
+
+def test_move_with_joins_is_refused_at_the_limit(stored):
+    session, m, (paula, karl, _) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.move(session, m, paula, T0 + timedelta(hours=4), now)
+    assert m.host_id == paula and m.moved_to_id is None
+
+
+def test_go_counts_the_new_meetup_without_the_old_one(stored):
+    session, m, (paula, karl, mia) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    lifecycle.join(session, m, mia, 1, now)
+    session.flush()
+    moved = lifecycle.move(session, m, paula, T0 + timedelta(hours=1), now)
+    session.flush()
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+    hosted(session, m.place_id, mia, T0 + timedelta(hours=1))
+    hosted(session, m.place_id, mia, T0 + timedelta(hours=1))
+
+    # Karl: the new one and his own; the old one at 16:00 he leaves.
+    lifecycle.answer_move(session, m, karl, "go", now)
+    session.flush()
+    assert lifecycle.find_join(session, moved, karl) is not None
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.answer_move(session, m, mia, "go", now)

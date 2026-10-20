@@ -12,8 +12,9 @@ import {
   type User,
 } from './api/auth'
 import { fetchContacts, type Contacts } from './api/contacts'
-import { announceMeetupChange, connectLive } from './api/live'
+import { announceMeetupChange, announceTopicChange, connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
+import { fetchPhotosEnabled } from './api/photos'
 import { countFor, type RequestCount } from './auth/requestCount'
 import { fetchMapMeetups, type Meetup, type TimeSpan } from './api/meetups'
 import AccountDialog from './auth/AccountDialog'
@@ -38,6 +39,7 @@ import SuggestPlaceDialog from './places/SuggestPlaceDialog'
 import PlacePhotos from './places/PlacePhotos'
 import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
+import MapToolbar from './places/MapToolbar'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
 import NotificationsDialog from './notifications/NotificationsDialog'
@@ -46,7 +48,11 @@ import PushOnboarding from './notifications/PushOnboarding'
 import PushSettingsDialog from './notifications/PushSettingsDialog'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
+import CenterOn from './places/CenterOn'
+import { useFocusRequest } from './places/focus'
 import { groupBySpot } from './places/spots'
+import { pageVisible, whileVisible } from './whileVisible'
+import { loadMapView, saveMapView } from './places/mapView'
 
 const LEIPZIG: [number, number] = [51.3397, 12.3731]
 // Zoomed out further, an area could hold more Places than the API sends (MAX_PLACES).
@@ -74,29 +80,21 @@ function MapAreaWatcher({ onMove }: { onMove: (area: MapArea) => void }) {
   return null
 }
 
-// A tap on the map itself closes the open Place detail (SCRUM-76). Markers and popups do not
-// pass their clicks on to the map, and a pan or zoom is no click.
-function CloseOnMapTap({ onTap }: { onTap: () => void }) {
-  useMapEvents({ click: onTap })
+// Stores center and zoom after each pan or zoom, so a reload starts there (SCRUM-77).
+function RememberView() {
+  const map = useMapEvents({
+    moveend: () => {
+      const { lat, lng } = map.getCenter()
+      saveMapView({ center: [lat, lng], zoom: map.getZoom() })
+    },
+  })
   return null
 }
 
-// Moves the map so the open Place is visible and not under the detail panel: on a phone the
-// panel covers the lower 60 % of the map, on a laptop a 360 px card on the left (index.css).
-function CenterOn({ place }: { place: Place }) {
-  const map = useMap()
-  useEffect(() => {
-    const size = map.getSize()
-    const phone = size.x < 768
-    const point = map.latLngToContainerPoint([place.lat, place.lon])
-    const left = phone ? 0 : 384
-    const bottom = phone ? size.y * 0.4 : size.y
-    if (point.x >= left && point.x <= size.x && point.y >= 0 && point.y <= bottom) return
-    const inView = map.getBounds().contains([place.lat, place.lon])
-    map.setView([place.lat, place.lon], inView ? map.getZoom() : 16, { animate: false })
-    // Shift the map so the Place sits in the free part: upper fifth (phone) or right of the card.
-    map.panBy(phone ? [0, size.y * 0.3] : [-left / 2, 0], { animate: false })
-  }, [map, place])
+// A tap on the map itself closes overlays. Markers and popups do not pass their clicks on to the
+// map, and a pan or zoom is no click.
+function CloseOnMapTap({ onTap }: { onTap: () => void }) {
+  useMapEvents({ click: onTap })
   return null
 }
 
@@ -112,6 +110,9 @@ function CenterOnSearch({ target }: { target: SearchTarget | null }) {
 
 // fallow-ignore-next-line complexity -- Existing top-level composition; feature logic stays in focused modules.
 export default function App() {
+  // Where the map starts: the view before the last reload, else Leipzig (SCRUM-77). A shared
+  // /platz/<id> link still wins: CenterOn moves to that Place when it is not in view.
+  const [startView] = useState(() => loadMapView(MIN_ZOOM))
   const [places, setPlaces] = useState<Place[]>([])
   const [mapMeetups, setMapMeetups] = useState<Meetup[]>([])
   const [timeSpan, setTimeSpan] = useState<TimeSpan | null>(null)
@@ -142,14 +143,23 @@ export default function App() {
   const [chosen, setChosen] = useState<Set<ActivityType>>(() => new Set(ACTIVITY_TYPES))
   const [path, navigate] = usePath()
   const selectedId = placeIdFromPath(path)
+  // Set by a tap on a Notification: the map zooms in on that Place (SCRUM-90).
+  const [focus, focusOn] = useFocusRequest()
   const legalPage = legalPageFromPath(path)
   // The answer for the Place in the detail URL. It keeps its id, so an old answer never shows.
   const [detail, setDetail] = useState<{ id: number; place?: Place; error?: string } | null>(null)
   // Counts the tries for the open Place, so "Nochmal versuchen" or a new tap loads it again.
   const [detailTry, setDetailTry] = useState(0)
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
+  const [searchDismissRequest, setSearchDismissRequest] = useState(0)
+  // Photos are deferred (SCRUM-94): hidden until the server switch PHOTOS_ENABLED is on.
+  const [photos, setPhotos] = useState(false)
   const current = detail && detail.id === selectedId ? detail : null
   const selected = current?.place ?? null
+
+  useEffect(() => {
+    void fetchPhotosEnabled().then(setPhotos)
+  }, [])
 
   // The API, not the loaded map Places: a shared link can point outside the visible area.
   useEffect(() => {
@@ -209,12 +219,19 @@ export default function App() {
     else navigate('/')
   }
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (lastArea.current) loadPlaces(lastArea.current)
-    }, PLACES_REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [loadPlaces])
+  function closeOnMapTap() {
+    setSearchDismissRequest((request) => request + 1)
+    if (selectedId !== null) navigate('/')
+  }
+
+  // Not in the background; once when the page comes back to the front (SCRUM-78).
+  useEffect(
+    () =>
+      whileVisible(() => {
+        if (lastArea.current) loadPlaces(lastArea.current)
+      }, PLACES_REFRESH_MS),
+    [loadPlaces],
+  )
 
   // Restore the login from an earlier visit; drop the token when the server no longer knows it.
   useEffect(() => {
@@ -255,7 +272,8 @@ export default function App() {
     if (meetupEvents && lastArea.current) loadPlaces(lastArea.current)
   }, [meetupEvents, loadPlaces])
 
-  // Contact requests and Notifications load at login and again on each live event (SCRUM-93).
+  // Contact requests and Notifications load at login and again on each live event (SCRUM-93),
+  // for the counts on the buttons.
   // Notifications also every 60 s, in case the live stream does not get through.
   useEffect(() => {
     const token = loadToken()
@@ -276,14 +294,27 @@ export default function App() {
         .catch(() => {})
     void reloadContacts()
     void reloadNotifications()
-    const timer = setInterval(reloadNotifications, NOTIFICATIONS_REFRESH_MS)
+    // Not in the background (SCRUM-78); the stream opens again in front and loads them then.
+    const timer = setInterval(() => {
+      if (pageVisible()) void reloadNotifications()
+    }, NOTIFICATIONS_REFRESH_MS)
     const stopLive = connectLive(token, {
+      // Open dialogs load again too.
       onOpen: () => {
         void reloadContacts()
         void reloadNotifications()
+        announceTopicChange('contacts')
+        announceTopicChange('notifications')
       },
-      onTopic: (topic) => void (topic === 'contacts' ? reloadContacts() : reloadNotifications()),
+      // In the background nothing loads (SCRUM-78): back in front, the stream opens again
+      // (onOpen) and the map and Place panel load once (whileVisible).
+      onTopic: (topic) => {
+        if (!pageVisible()) return
+        void (topic === 'contacts' ? reloadContacts() : reloadNotifications())
+        announceTopicChange(topic)
+      },
       onMeetups: (placeId) => {
+        if (!pageVisible()) return
         setMeetupEvents((count) => count + 1)
         announceMeetupChange(placeId)
       },
@@ -358,7 +389,7 @@ export default function App() {
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
             <button type="button" onClick={() => setShowAccount(true)}>
-              Konto{incomingRequests > 0 && ` (${incomingRequests})`}
+              Konto
             </button>
             <button type="button" onClick={handleLogout}>
               Abmelden
@@ -386,6 +417,7 @@ export default function App() {
           onChanged={updateNotifications}
           onOpenMeetup={(placeId) => {
             setShowNotifications(false)
+            focusOn(placeId)
             openPlace(placeId)
           }}
           onClose={() => setShowNotifications(false)}
@@ -408,19 +440,7 @@ export default function App() {
       {showAccount && user && (
         <AccountDialog
           user={user}
-          incomingRequests={incomingRequests}
-          onContacts={() => {
-            setShowAccount(false)
-            setShowContacts(true)
-          }}
-          onFavorites={() => {
-            setShowAccount(false)
-            setShowFavorites(true)
-          }}
-          onHomeArea={() => {
-            setShowAccount(false)
-            setHomeAreaCenter(areaCenter(lastArea.current))
-          }}
+          photos={photos}
           onPush={() => {
             setShowAccount(false)
             setShowPushSettings(true)
@@ -520,7 +540,7 @@ export default function App() {
           onClose={() => setShowDelete(false)}
         />
       )}
-      {legalPage && <LegalPage kind={legalPage} navigate={navigate} />}
+      {legalPage && <LegalPage kind={legalPage} photos={photos} navigate={navigate} />}
       <LegalLinks navigate={navigate} />
       {showRecoveryCodes && user && (
         <RecoveryCodesDialog
@@ -529,7 +549,16 @@ export default function App() {
           onClose={() => setShowRecoveryCodes(false)}
         />
       )}
-      <PlaceSearch onPick={pickSearchHit} />
+      {/* Right of the search field (SCRUM-85); right before it, so the CSS can make room. */}
+      {user && (
+        <MapToolbar
+          incomingRequests={incomingRequests}
+          onContacts={() => setShowContacts(true)}
+          onFavorites={() => setShowFavorites(true)}
+          onHomeArea={() => setHomeAreaCenter(areaCenter(lastArea.current))}
+        />
+      )}
+      <PlaceSearch onPick={pickSearchHit} dismissRequest={searchDismissRequest} />
       <MeetupMap
         span={timeSpan}
         meetups={mapMeetups}
@@ -580,23 +609,33 @@ export default function App() {
             onLoginNeeded={() => setShowAuth(true)}
           />
           {/* A new key per Admin decision too: an approved Photo shows at once. */}
-          <PlacePhotos
-            key={`${selectedId}-${user?.id ?? 'guest'}-${detailTry}`}
-            placeId={selectedId}
-            user={user}
-            onLoginNeeded={() => setShowAuth(true)}
-          />
+          {photos && (
+            <PlacePhotos
+              key={`${selectedId}-${user?.id ?? 'guest'}-${detailTry}`}
+              placeId={selectedId}
+              user={user}
+              onLoginNeeded={() => setShowAuth(true)}
+            />
+          )}
         </PlaceDetail>
       )}
-      <MapContainer center={LEIPZIG} zoom={13} minZoom={MIN_ZOOM} style={{ height: '100%' }}>
+      <MapContainer
+        center={startView?.center ?? LEIPZIG}
+        zoom={startView?.zoom ?? 13}
+        minZoom={MIN_ZOOM}
+        style={{ height: '100%' }}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapAreaWatcher onMove={loadPlaces} />
+        <RememberView />
         <CenterOnSearch target={searchTarget} />
-        {selectedId !== null && <CloseOnMapTap onTap={() => navigate('/')} />}
-        {selected && <CenterOn place={selected} />}
+        <CloseOnMapTap onTap={closeOnMapTap} />
+        {selected && (
+          <CenterOn place={selected} focus={focus?.id === selected.id ? focus.request : null} />
+        )}
         {spots.map((spot) => {
           const isSelected = spot.places.some((place) => place.id === selectedId)
           if (spot.places.length === 1) {

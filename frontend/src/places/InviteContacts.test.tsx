@@ -26,6 +26,15 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status })
 }
 
+// Answers by URL: the Contacts, who is already in or invited, and the POST of the invitations.
+function server({ list = contacts, done = [] as number[], invited = 0 } = {}) {
+  return vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/contacts') return json(list)
+    if (init?.method === 'POST') return json({ invited })
+    return json({ user_ids: done })
+  })
+}
+
 async function render() {
   saveToken('t')
   const container = document.createElement('div')
@@ -49,7 +58,7 @@ describe('InviteContacts', () => {
   })
 
   it('lists the Contacts; "Einladen" waits for a choice', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(contacts)))
+    vi.stubGlobal('fetch', server())
 
     const container = await render()
 
@@ -59,7 +68,7 @@ describe('InviteContacts', () => {
   })
 
   it('invites the chosen Contacts', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(json(contacts)).mockResolvedValueOnce(json({ invited: 2 }))
+    const fetchMock = server({ invited: 2 })
     vi.stubGlobal('fetch', fetchMock)
     const container = await render()
 
@@ -68,14 +77,14 @@ describe('InviteContacts', () => {
     act(() => boxes[1].click())
     await act(async () => button(container, 'Einladen')?.click())
 
-    const [url, init] = fetchMock.mock.calls[1]
+    const [url, init] = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(url).toBe('/api/meetups/12/invite')
-    expect(JSON.parse(init.body)).toEqual({ user_ids: [2, 3] })
+    expect(JSON.parse(init!.body as string)).toEqual({ user_ids: [2, 3] })
     expect(container.textContent).toContain('2 Kontakte eingeladen.')
   })
 
   it('says so when everyone is already in or invited', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(contacts)).mockResolvedValueOnce(json({ invited: 0 })))
+    vi.stubGlobal('fetch', server({ invited: 0 }))
     const container = await render()
 
     act(() => container.querySelector<HTMLInputElement>('input[type=checkbox]')!.click())
@@ -85,11 +94,46 @@ describe('InviteContacts', () => {
   })
 
   it('says when there are no Contacts', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ ...contacts, contacts: [] })))
+    vi.stubGlobal('fetch', server({ list: { ...contacts, contacts: [] } }))
 
     const container = await render()
 
     expect(container.textContent).toContain('Du hast noch keine Kontakte.')
     expect(button(container, 'Einladen')).toBeUndefined()
+  })
+  it('ticks a Contact who is already in or invited; they cannot be picked (SCRUM-84)', async () => {
+    const fetchMock = server({ done: [2] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const container = await render()
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain('/api/meetups/12/invite')
+    const karl = [...container.querySelectorAll('li')].find((li) => li.textContent?.includes('Korb_Karl'))!
+    expect(karl.textContent).toContain('✓')
+    expect(karl.querySelector('input')).toBeNull()
+    const mia = [...container.querySelectorAll('li')].find((li) => li.textContent?.includes('Mia_Matte'))!
+    expect(mia.textContent).not.toContain('✓')
+    expect(mia.querySelector('input')).not.toBeNull()
+  })
+
+  it('ticks the Contacts just invited', async () => {
+    let done: number[] = []
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/contacts') return json(contacts)
+      if (init?.method === 'POST') {
+        done = [3]
+        return json({ invited: 1 })
+      }
+      return json({ user_ids: done })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const container = await render()
+
+    const mia = () => [...container.querySelectorAll('li')].find((li) => li.textContent?.includes('Mia_Matte'))!
+    act(() => mia().querySelector('input')!.click())
+    await act(async () => button(container, 'Einladen')?.click())
+
+    expect(mia().textContent).toContain('✓')
+    expect(mia().querySelector('input')).toBeNull()
   })
 })

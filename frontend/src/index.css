@@ -73,6 +73,10 @@ body {
   list-style: none;
 }
 
+.notification-list li {
+  position: relative;
+}
+
 .notification-list button {
   display: flex;
   flex-direction: column;
@@ -87,6 +91,31 @@ body {
   border-color: #1a5fb4;
   background: #eef5ff;
   font-weight: 600;
+}
+
+.notification-list button.notification-open {
+  padding-right: 44px;
+}
+
+.notification-list button.notification-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: block;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #505663;
+  font-size: 1.4rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.notification-list button.notification-delete:hover {
+  background: #e1e5ea;
 }
 
 .notification-list time {
@@ -188,6 +217,32 @@ body {
 
 .dialog h2 {
   margin: 0;
+}
+
+/* Title and × in one row, like the Place panel (SCRUM-76). */
+.dialog-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dialog button.dialog-close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #505663;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.dialog button.dialog-close:hover {
+  background: #eef0f3;
 }
 
 .dialog label {
@@ -393,6 +448,38 @@ body {
   top: 52px;
   left: 8px;
   right: 8px;
+}
+
+/* SCRUM-85: Contacts, Favorites, Home area as icons right of the search field. The search
+   container gets narrower to make room; the search field itself is unchanged. */
+.map-toolbar {
+  position: absolute;
+  z-index: 1200;
+  top: 52px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.map-toolbar button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.3rem;
+  background: white;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 30%);
+  cursor: pointer;
+}
+
+.map-toolbar button:hover {
+  background: #eef0f3;
+}
+
+.map-toolbar + .place-search {
+  right: 156px;
 }
 
 .place-search form {
@@ -654,11 +741,18 @@ body {
 
 /* Laptop: the detail is a card on the left, so the map stays big. */
 @media (min-width: 768px) {
-  .place-search {
+  .place-search,
+  .map-toolbar + .place-search {
     top: 8px;
     left: 56px;
     right: auto;
     width: 420px;
+  }
+
+  .map-toolbar {
+    top: 8px;
+    left: 484px;
+    right: auto;
   }
 
   .activity-filter {
@@ -682,6 +776,15 @@ body {
     width: 360px;
     max-height: calc(100% - 168px);
     border-radius: 12px;
+  }
+}
+
+/* A narrow laptop: next to the search the toolbar would meet the account bar, so it sits one
+   row lower, right of the time filter (SCRUM-85). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .map-toolbar {
+    top: 54px;
+    left: 316px;
   }
 }
 
@@ -883,6 +986,20 @@ body {
   list-style: none;
 }
 
+/* Several dates of a Series at once (SCRUM-81). */
+.series-join {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.series-join ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .meetup-card {
   display: flex;
   flex-wrap: wrap;
@@ -913,7 +1030,8 @@ body {
   font-size: 1.1rem;
 }
 
-.meetup-card button {
+.meetup-card button,
+.series-join .button-row button {
   min-height: 40px;
   padding: 0 12px;
   font-size: 0.95rem;
@@ -1055,6 +1173,11 @@ body {
   flex: 1;
 }
 
+/* SCRUM-84: the question before "Blockieren" on its own line, the buttons below. */
+.contact-list li.confirm span {
+  flex-basis: 100%;
+}
+
 /* SCRUM-38: weekly Series. */
 
 .series-tag {
@@ -1134,9 +1257,16 @@ body {
   font-weight: 600;
 }
 
-.city-report-question {
-  margin: 0;
+/* SCRUM-82: the city report folds out from this button, closed at first. */
+.city-report-toggle {
+  padding: 4px 0;
+  font: inherit;
   font-weight: 700;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 /* SCRUM-31: Ratings. Gold = stars, green = a good Reason, orange = a Reason against. */
@@ -1710,6 +1840,11 @@ body {
 
 .invite-contacts p {
   margin: 0;
+}
+
+/* SCRUM-84: already in the Meetup or already invited. */
+.invite-contacts .invited {
+  color: #5e5c64;
 }
 
 .notification-list button.notification-accept {

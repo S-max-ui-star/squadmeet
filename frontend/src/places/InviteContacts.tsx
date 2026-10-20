@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { loadToken } from '../api/auth'
 import { fetchContacts, type ContactUser } from '../api/contacts'
-import { inviteContacts, type Meetup } from '../api/meetups'
+import { fetchInvited, inviteContacts, type Meetup } from '../api/meetups'
 
 type ChooserProps = {
   meetupId: number
@@ -20,8 +20,10 @@ function toggled(chosen: Set<number>, id: number): Set<number> {
   return next
 }
 
-function ContactList({ contacts, chosen, onToggle }: {
+// A Contact already in the Meetup or already invited has a tick and no checkbox (SCRUM-84).
+function ContactList({ contacts, done, chosen, onToggle }: {
   contacts: ContactUser[]
+  done: Set<number>
   chosen: Set<number>
   onToggle: (id: number) => void
 }) {
@@ -30,10 +32,16 @@ function ContactList({ contacts, chosen, onToggle }: {
     <ul>
       {contacts.map((contact) => (
         <li key={contact.id}>
-          <label>
-            <input type="checkbox" checked={chosen.has(contact.id)} onChange={() => onToggle(contact.id)} />{' '}
-            {contact.nickname}
-          </label>
+          {done.has(contact.id) ? (
+            <span className="invited" title="Schon dabei oder eingeladen">
+              ✓ {contact.nickname}
+            </span>
+          ) : (
+            <label>
+              <input type="checkbox" checked={chosen.has(contact.id)} onChange={() => onToggle(contact.id)} />{' '}
+              {contact.nickname}
+            </label>
+          )}
         </li>
       ))}
     </ul>
@@ -61,27 +69,36 @@ function ChooserButtons({ canSend, showSend, done, onSend, onClose }: {
   )
 }
 
-/** The Contacts to choose; "Einladen" sends one invitation each. The server leaves out who is
- * already in the Meetup or already invited, and anyone blocked. */
+/** The Contacts to choose; "Einladen" sends one invitation each. Who is already in the Meetup
+ * or already invited has a tick; the server also leaves out anyone blocked. */
 function ContactChooser({ meetupId, onClose }: ChooserProps) {
   const [contacts, setContacts] = useState<ContactUser[] | null>(null)
+  const [done, setDone] = useState<Set<number>>(new Set())
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  async function loadDone() {
+    setDone(new Set(await fetchInvited(loadToken() ?? '', meetupId)))
+  }
+
   useEffect(() => {
-    fetchContacts(loadToken() ?? '')
-      .then((found) => setContacts(found.contacts))
+    Promise.all([fetchContacts(loadToken() ?? ''), fetchInvited(loadToken() ?? '', meetupId)])
+      .then(([found, invited]) => {
+        setContacts(found.contacts)
+        setDone(new Set(invited))
+      })
       .catch((err: Error) => setError(err.message))
-  }, [])
+  }, [meetupId])
 
   async function send() {
     setBusy(true)
     setError(null)
     try {
-      setDone(invitedText(await inviteContacts(loadToken() ?? '', meetupId, [...chosen])))
+      setResult(invitedText(await inviteContacts(loadToken() ?? '', meetupId, [...chosen])))
       setChosen(new Set())
+      await loadDone()
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -92,13 +109,13 @@ function ContactChooser({ meetupId, onClose }: ChooserProps) {
   return (
     <div className="invite-contacts" role="group" aria-label="Kontakte einladen">
       {contacts === null && !error && <p>Lädt …</p>}
-      {contacts && <ContactList contacts={contacts} chosen={chosen} onToggle={(id) => setChosen(toggled(chosen, id))} />}
-      {done && <p>{done}</p>}
+      {contacts && <ContactList contacts={contacts} done={done} chosen={chosen} onToggle={(id) => setChosen(toggled(chosen, id))} />}
+      {result && <p>{result}</p>}
       {error && <p className="form-error">{error}</p>}
       <ChooserButtons
         canSend={!busy && chosen.size > 0}
         showSend={!!contacts?.length}
-        done={done !== null}
+        done={result !== null}
         onSend={send}
         onClose={onClose}
       />

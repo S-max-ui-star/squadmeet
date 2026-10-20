@@ -222,6 +222,12 @@ a container, one network hop behind the host, and IMDSv2 answers only within the
 
 Without the parameter the deploy still works and Photos are off (upload answers 503).
 
+**Deferred since 2026-10-20 (`SCRUM-94`):** Photos are off with the switch `PHOTOS_ENABLED:
+"false"` in [compose.yml](compose.yml). Off, every photo endpoint answers 404 and the frontend
+hides Photos (it asks `GET /api/photos/config`). The bucket, its parameter, the files and the
+`photo` rows stay. To switch Photos on again, set `PHOTOS_ENABLED: "true"` in `compose.yml`
+(locally in `docker-compose.yml`) and deploy. No migration and no new setup run are needed.
+
 ## Web Push (VAPID)
 
 Web Push (`SCRUM-44`) uses one P-256 VAPID key pair. The public key is sent to signed-in browsers;

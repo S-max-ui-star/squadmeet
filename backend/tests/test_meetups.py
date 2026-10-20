@@ -743,3 +743,29 @@ def test_an_unknown_answer_is_rejected(client, third, moved):
     old_id, _ = moved
 
     assert answer_move(client, third[0], old_id, "maybe").status_code == 422
+
+
+def test_a_third_meetup_at_the_same_time_is_refused(client, place, host):
+    """SCRUM-80: at most 2 Meetups at one moment; a later one at another time is fine."""
+    assert create(client, host[0], place.id).status_code == 201
+    assert create(client, host[0], place.id).status_code == 201
+
+    response = create(client, host[0], place.id)
+    later = create(client, host[0], place.id, starts_at=(datetime.now(UTC) + timedelta(hours=3)).isoformat())
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Du bist zu dieser Zeit schon bei 2 Treffen."
+    assert later.status_code == 201
+
+
+def test_a_running_meetups_host_sees_leave_only_with_joins(client, place, host, guest):
+    """SCRUM-79: alone, End and Leave do the same, so the Host only gets "end"."""
+    meetup = create(client, host[0], place.id).json()
+
+    def actions():
+        found = client.get(f"/api/places/{place.id}/meetups", headers=auth_header(host[0])).json()
+        return next(m["actions"] for m in found if m["id"] == meetup["id"])
+
+    assert "end" in actions() and "leave" not in actions()
+    join(client, guest[0], meetup["id"])
+    assert "end" in actions() and "leave" in actions()

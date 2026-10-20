@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from typing import get_args
 
 from app.models import PushSubscription
-from app.notification_events import NotificationKind
-from app.push_delivery import MESSAGES, send_web_push
+from app.notification_text import NotificationKind, REASONS
+from app.push_delivery import send_web_push
 from app.vapid_keys import encoded, generate_pair
 from py_vapid import Vapid
 from sqlmodel import select
@@ -21,7 +21,7 @@ SUBSCRIPTION = {
 
 
 def test_every_notification_kind_has_a_push_message():
-    assert set(MESSAGES) == set(get_args(NotificationKind))
+    assert set(REASONS) == set(get_args(NotificationKind))
 
 
 def test_config_is_disabled_without_vapid_keys(client, guest, monkeypatch):
@@ -91,6 +91,8 @@ def test_new_notification_is_sent_to_each_subscription(client, session, place, h
             created_at=datetime.now(UTC),
         )
     )
+    place.address = "Karl-Heine-Straße 12–14, 04229 Leipzig"
+    session.add(place)
     session.commit()
     meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
     join(client, guest[0], meetup["id"])
@@ -102,7 +104,9 @@ def test_new_notification_is_sent_to_each_subscription(client, session, place, h
     assert sent[0]["subscription_info"]["endpoint"] == SUBSCRIPTION["endpoint"]
     payload = json.loads(sent[0]["data"])
     assert payload["url"] == f"/platz/{place.id}#treffen-{meetup['id']}"
-    assert "abgesagt" in payload["body"]
+    assert payload["body"] == (
+        "Pingpong_Paula hat das Treffen abgesagt: Tischtennis in der Karl-Heine-Straße"
+    )
 
 
 def test_expired_subscription_is_removed(session, guest, monkeypatch):
@@ -121,7 +125,7 @@ def test_expired_subscription_is_removed(session, guest, monkeypatch):
     session.add(subscription)
     session.commit()
 
-    send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled")
+    send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
     session.commit()
 
     assert session.exec(select(PushSubscription)).all() == []

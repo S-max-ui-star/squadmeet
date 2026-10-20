@@ -15,6 +15,7 @@ from app.meetup_lifecycle import LifecycleError
 from app.meetups import router as meetups_router
 from app.notifications import router as notifications_router
 from app.photo_storage import router as photo_files_router
+from app.photos import config_router as photos_config_router
 from app.photos import router as photos_router
 from app.place_reports import router as place_reports_router
 from app.places import router as places_router
@@ -59,5 +60,6 @@ api.include_router(admin_places_router)
 api.include_router(admin_suggestions_router)
 api.include_router(place_reports_router)
 api.include_router(photos_router)
+api.include_router(photos_config_router)
 api.include_router(photo_files_router)
 app.include_router(api)

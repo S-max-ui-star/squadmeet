@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from tests.test_auth import auth_header
 from tests.test_contacts import block
 from tests.test_meetups import create, guest, host, place, third  # noqa: F401 (fixtures)
-from tests.test_notifications import kinds
+from tests.test_notifications import kinds, notifications
 from tests.test_series import create_series, slot
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -87,7 +87,9 @@ def test_a_meetup_at_a_favorite_notifies_except_the_creator(client, place, host,
 
     create(client, host[0], place.id)
 
-    assert kinds(client, guest[0]) == ["favorite_meetup_created"]
+    [notice] = notifications(client, guest[0]).json()
+    assert notice["kind"] == "favorite_meetup_created"
+    assert notice["text"] == "Pingpong_Paula hat ein Treffen erstellt: Tischtennis"
     assert kinds(client, host[0]) == []
 
 

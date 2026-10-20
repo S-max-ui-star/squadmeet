@@ -122,7 +122,7 @@ describe('PlaceRatings', () => {
     const onLoginNeeded = vi.fn()
     const container = await render(null, onLoginNeeded)
 
-    await click(button(container, 'Platz bewerten'))
+    await click(button(container, 'Bewertung erstellen'))
 
     expect(onLoginNeeded).toHaveBeenCalledOnce()
   })
@@ -131,7 +131,7 @@ describe('PlaceRatings', () => {
     saveToken('tok')
     const fetchMock = api(empty)
     const container = await render(paula)
-    await click(button(container, 'Platz bewerten'))
+    await click(button(container, 'Bewertung erstellen'))
     const save = () => button(container, 'Bewertung speichern')!
 
     expect(save().disabled).toBe(true)
@@ -145,7 +145,7 @@ describe('PlaceRatings', () => {
 
     const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
     expect(JSON.parse(String(put[1]!.body))).toEqual({ stars: 4, reasons: ['net_missing'] })
-    expect(button(container, 'Deine Bewertung ändern')).toBeDefined()
+    expect(button(container, 'Bewertung ändern')).toBeDefined()
   })
 
   it('starts the form with the own Rating, to change it', async () => {
@@ -153,24 +153,27 @@ describe('PlaceRatings', () => {
     api(rated, { place_id: 3, stars: 2, reasons: ['net_missing'], updated_at: 'x' })
     const container = await render(paula)
 
-    await click(button(container, 'Deine Bewertung ändern'))
+    await click(button(container, 'Bewertung ändern'))
 
     expect(container.querySelector('[aria-label="2 Sterne"]')!.getAttribute('aria-pressed')).toBe('true')
     expect(button(container, 'Netz fehlt')!.getAttribute('aria-pressed')).toBe('true')
     expect(button(container, 'Platte in gutem')!.getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('asks "Ist das noch so?" only for an issue not confirmed for two months', async () => {
+  it('asks "Schon behoben?"; "noch nicht behoben" only for an issue not confirmed for two months (SCRUM-82)', async () => {
     api(rated)
     const fresh = await render(paula)
-    expect(button(fresh, 'Ja, noch so')).toBeUndefined()
     // "Behoben" is open at any time, so a repair does not wait two months.
-    expect(fresh.textContent).toContain('Schon repariert?')
-    expect(button(fresh, 'Nein, behoben')).toBeDefined()
+    expect(fresh.textContent).toContain('Schon behoben?')
+    expect(button(fresh, 'Ja, behoben')).toBeDefined()
+    expect(button(fresh, 'Nein, noch nicht behoben')).toBeUndefined()
 
     document.body.innerHTML = ''
     api(unconfirmed)
     const container = await render(paula)
+    expect(container.textContent).toContain('Schon behoben?')
+    expect(button(container, 'Ja, behoben')).toBeDefined()
+    expect(button(container, 'Nein, noch nicht behoben')).toBeDefined()
     expect(container.textContent).toContain('Seit über 2 Monaten nicht bestätigt')
     expect(container.textContent).toContain('Noch so: 1/3')
   })
@@ -180,7 +183,7 @@ describe('PlaceRatings', () => {
     const fetchMock = api(unconfirmed)
     const container = await render(paula)
 
-    await click(button(container, 'Ja, noch so'))
+    await click(button(container, 'Nein, noch nicht behoben'))
 
     const [url, init] = fetchMock.mock.calls.find(([u]) => u.endsWith('/check'))!
     expect(url).toBe('/api/places/3/condition/net_missing/check')
@@ -194,7 +197,7 @@ describe('PlaceRatings', () => {
     const onLoginNeeded = vi.fn()
     const container = await render(null, onLoginNeeded)
 
-    await click(button(container, 'Nein, behoben'))
+    await click(button(container, 'Ja, behoben'))
 
     expect(onLoginNeeded).toHaveBeenCalledOnce()
   })
@@ -205,6 +208,7 @@ describe('PlaceRatings', () => {
 
     const box = container.querySelector('.city-report')!
     expect(box.className).toContain('highlighted')
+    await click(button(container, 'Willst du das der Stadt melden?'))
     const link = box.querySelector<HTMLAnchorElement>('a[target="_blank"]')!
     expect(link.href).toBe('https://mitdenken.sachsen.de/maengelmelder-L')
     expect(link.textContent).toContain('Mängelmelder der Stadt Leipzig')
@@ -220,6 +224,24 @@ describe('PlaceRatings', () => {
     expect(container.querySelector('.city-report')!.className).not.toContain('highlighted')
   })
 
+  it('shows the rate button under the Ratings and the city report folded below it (SCRUM-82)', async () => {
+    api(rated)
+    const container = await render(paula, () => {}, leipzigPlace)
+
+    const order = [...container.querySelectorAll('.rating-average, .condition, .rate-button, .city-report')].map(
+      (element) => element.className.split(' ')[0],
+    )
+    expect(order).toEqual(['rating-average', 'condition', 'rate-button', 'city-report'])
+    const toggle = button(container, 'Willst du das der Stadt melden?')!
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(container.textContent).not.toContain('Mängelmelder')
+
+    await click(toggle)
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(container.textContent).toContain('Mängelmelder der Stadt Leipzig')
+  })
+
   it('shows no city report for a Place outside the five cities', async () => {
     api(rated)
     const container = await render(null, () => {}, { ...leipzigPlace, lat: 51.05, lon: 13.74 })
@@ -227,7 +249,7 @@ describe('PlaceRatings', () => {
     expect(container.querySelector('.city-report')).toBeNull()
   })
 
-  it('asks "Willst du das der Stadt melden?" after a Rating that names an issue', async () => {
+  it('opens the city report after a Rating that names an issue', async () => {
     saveToken('tok')
     let saved = false
     vi.stubGlobal(
@@ -243,13 +265,14 @@ describe('PlaceRatings', () => {
       }),
     )
     const container = await render(paula, () => {}, leipzigPlace)
-    expect(container.textContent).not.toContain('Willst du das der Stadt melden?')
+    expect(container.textContent).not.toContain('Mängelmelder')
 
-    await click(button(container, 'Platz bewerten'))
+    await click(button(container, 'Bewertung erstellen'))
     await click(container.querySelector<HTMLButtonElement>('[aria-label="2 Sterne"]')!)
     await click(button(container, 'Netz fehlt'))
     await click(button(container, 'Bewertung speichern'))
 
-    expect(container.textContent).toContain('Willst du das der Stadt melden?')
+    // The city report opens by itself after a Rating that names something to fix.
+    expect(container.textContent).toContain('Mängelmelder der Stadt Leipzig')
   })
 })

@@ -36,11 +36,11 @@ class LockedPlaceRead(BaseModel):
     locked_at: datetime
 
 
-def call_off_meetups(session: Session, place: Place, now: datetime) -> None:
+def call_off_meetups(session: Session, place: Place, now: datetime, actor_id: int) -> None:
     """Cancel the Meetups that have not started, end the running ones (the shared transition
     call_off, SCRUM-61). The caller commits."""
     for meetup in session.exec(select(Meetup).where(Meetup.place_id == place.id)).all():
-        call_off(session, meetup, now)
+        call_off(session, meetup, now, actor_id)
 
 
 @router.get("/locked", response_model=list[LockedPlaceRead])
@@ -60,7 +60,7 @@ def list_locked_places(
 @router.post("/{place_id}/lock", response_model=LockedPlaceRead)
 def lock_place(
     place_id: int,
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     """Sperren: the Place leaves the map and search; its Meetups are called off."""
@@ -69,7 +69,7 @@ def lock_place(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Der Platz ist schon gesperrt")
     now = datetime.now(UTC)
     place.locked_at = now
-    call_off_meetups(session, place, now)
+    call_off_meetups(session, place, now, admin.id)
     close_reports(session, place_id, now)
     session.commit()
     session.refresh(place)
@@ -94,14 +94,14 @@ def unlock_place(
 @router.delete("/{place_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_place(
     place_id: int,
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
     """Löschen: like lock, but for good. A locked Place can be deleted too."""
     place = require(session, place_id, PlaceUse.ADMIN)
     now = datetime.now(UTC)
     place.deleted_at = now
-    call_off_meetups(session, place, now)
+    call_off_meetups(session, place, now, admin.id)
     close_reports(session, place_id, now)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

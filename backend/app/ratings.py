@@ -262,7 +262,7 @@ def rate_place(
 
 
 class ConditionVoteInput(BaseModel):
-    # True = "Ja, ist noch so"; False = "Nein, behoben".
+    # True = "Nein, noch nicht behoben"; False = "Ja, behoben" (words: SCRUM-82).
     still_there: bool
 
 

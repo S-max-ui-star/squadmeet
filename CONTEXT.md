@@ -120,6 +120,11 @@ _Avoid_: instance
 A user's statement that they will come to one Occurrence or Meetup, with a Party size.
 _Avoid_: RSVP, attendance, registration
 
+**Overlap limit** (höchstens 2 gleichzeitig):
+A user is in at most 2 Meetups at one moment, as Host or with a Join. Cancelled, ended and Closed
+Meetups do not count. Each Occurrence of a Series counts on its own.
+_Avoid_: double booking, conflict
+
 **Party size** (Personenzahl):
 The number of people a user brings, including themselves (1–10). Extra people need no account.
 _Avoid_: group, guests
@@ -151,6 +156,7 @@ _Avoid_: complaint, ticket, Place report
 A picture of a Place uploaded by a user. It is visible only after an Admin approves it; a
 rejected Photo is deleted. Stored as a smaller JPEG without EXIF (no location). At most 3 pending
 per user and Place; none at a Place suggestion. After an account delete it stays without a name.
+Deferred since 2026-10-20: Photos are off until the switch `PHOTOS_ENABLED` is on (`SCRUM-94`).
 _Avoid_: image, upload
 
 ## People

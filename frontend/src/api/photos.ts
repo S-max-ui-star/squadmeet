@@ -26,6 +26,16 @@ function auth(token: string | null | undefined): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+// The switch PHOTOS_ENABLED (SCRUM-94): Photos are deferred. Without a clear "on", they stay hidden.
+export async function fetchPhotosEnabled(): Promise<boolean> {
+  try {
+    const config = await answer<{ enabled: boolean }>(await fetch('/api/photos/config'), 'GET photos config')
+    return config.enabled === true
+  } catch {
+    return false
+  }
+}
+
 export async function fetchPhotos(placeId: number, token?: string | null): Promise<Photo[]> {
   return answer(await fetch(`/api/places/${placeId}/photos`, { headers: auth(token) }), 'GET photos')
 }
