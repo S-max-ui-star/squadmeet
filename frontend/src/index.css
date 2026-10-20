@@ -190,6 +190,32 @@ body {
   margin: 0;
 }
 
+/* Title and × in one row, like the Place panel (SCRUM-76). */
+.dialog-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dialog button.dialog-close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #505663;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.dialog button.dialog-close:hover {
+  background: #eef0f3;
+}
+
 .dialog label {
   display: flex;
   flex-direction: column;

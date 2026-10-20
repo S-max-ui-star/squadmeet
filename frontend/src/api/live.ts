@@ -92,17 +92,27 @@ export function connectLive(token: string, { onOpen, onTopic, onMeetups }: Handl
   }
 }
 
-// Meetup changes inside the page: App passes each live event on, and the open Place panel
-// listens, so the panel needs no extra prop.
-const meetupChanges = new EventTarget()
+// Changes inside the page: App passes each live event on, and the open parts (the Place panel,
+// the Notifications and Contacts dialogs) listen, so they need no extra prop.
+const changes = new EventTarget()
 
 export function announceMeetupChange(placeId: number) {
-  meetupChanges.dispatchEvent(new CustomEvent<number>('change', { detail: placeId }))
+  changes.dispatchEvent(new CustomEvent<number>('meetups', { detail: placeId }))
 }
 
 // Returns the function that stops listening.
 export function onMeetupChange(listener: (placeId: number) => void): () => void {
   const handle = (event: Event) => listener((event as CustomEvent<number>).detail)
-  meetupChanges.addEventListener('change', handle)
-  return () => meetupChanges.removeEventListener('change', handle)
+  changes.addEventListener('meetups', handle)
+  return () => changes.removeEventListener('meetups', handle)
+}
+
+export function announceTopicChange(topic: LiveTopic) {
+  changes.dispatchEvent(new Event(topic))
+}
+
+// Returns the function that stops listening.
+export function onTopicChange(topic: LiveTopic, listener: () => void): () => void {
+  changes.addEventListener(topic, listener)
+  return () => changes.removeEventListener(topic, listener)
 }

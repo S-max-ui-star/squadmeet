@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Dialog from '../Dialog'
 import {
   acceptRequest,
   askForContact,
@@ -11,6 +12,7 @@ import {
   type ContactUser,
   type Contacts,
 } from '../api/contacts'
+import { onTopicChange } from '../api/live'
 import { AVATARS } from './avatars'
 
 type Props = {
@@ -44,8 +46,10 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
     [token, onChanged],
   )
 
+  // Loads now and again on each live event while open (SCRUM-93).
   useEffect(() => {
     void reload()
+    return onTopicChange('contacts', () => void reload())
   }, [reload])
 
   async function run(action: () => Promise<unknown>, done?: string) {
@@ -64,114 +68,111 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog contacts" role="dialog" aria-label="Kontakte">
-        <h2>Kontakte</h2>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            const asked = nickname.trim()
-            run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then(() => setNickname(''))
-          }}
-        >
-          <label>
-            Kontakt hinzufügen (genauer Nickname)
-            <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
-          </label>
-          <button type="submit" disabled={busy || nickname.trim() === ''}>
-            Anfragen
-          </button>
-        </form>
-        {notice && <p className="hint">{notice}</p>}
-        {error && <p className="form-error">{error}</p>}
-        {data === null && !error && <p>Lädt …</p>}
-
-        {data && data.incoming.length > 0 && (
-          <section>
-            <h3>Anfragen an dich</h3>
-            <ul className="contact-list">
-              {data.incoming.map((request) => (
-                <li key={request.id}>
-                  <span>{name(request.user)}</span>
-                  <button type="button" disabled={busy} onClick={() => run(() => acceptRequest(token, request.id))}>
-                    Annehmen
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => run(() => declineRequest(token, request.id))}>
-                    Ablehnen
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {data && (
-          <section>
-            <h3>Deine Kontakte</h3>
-            {data.contacts.length === 0 && <p className="hint">Noch keine Kontakte.</p>}
-            <ul className="contact-list">
-              {data.contacts.map((contact) => (
-                <li key={contact.id}>
-                  <span>{name(contact)}</span>
-                  <button type="button" disabled={busy} onClick={() => run(() => removeContact(token, contact.id))}>
-                    Entfernen
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => run(() => blockUser(token, contact.nickname))}>
-                    Blockieren
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {data && data.outgoing.length > 0 && (
-          <section>
-            <h3>Deine Anfragen</h3>
-            <ul className="contact-list">
-              {data.outgoing.map((request) => (
-                <li key={request.id}>
-                  <span>
-                    {name(request.user)} <small>{request.status === 'declined' ? 'abgelehnt' : 'wartet'}</small>
-                  </span>
-                  {request.status === 'declined' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => run(() => askForContact(token, request.user.nickname), 'Neu angefragt')}
-                    >
-                      Neu anfragen
-                    </button>
-                  )}
-                  <button type="button" disabled={busy} onClick={() => run(() => withdrawRequest(token, request.id))}>
-                    {request.status === 'declined' ? 'Ausblenden' : 'Zurückziehen'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {data && data.blocked.length > 0 && (
-          <section>
-            <h3>Blockiert</h3>
-            <ul className="contact-list">
-              {data.blocked.map((blocked) => (
-                <li key={blocked.id}>
-                  <span>{name(blocked)}</span>
-                  <button type="button" disabled={busy} onClick={() => run(() => unblockUser(token, blocked.id))}>
-                    Aufheben
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
+    <Dialog title="Kontakte" className="contacts" onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const asked = nickname.trim()
+          run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then(() => setNickname(''))
+        }}
+      >
+        <label>
+          Kontakt hinzufügen (genauer Nickname)
+          <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
+        </label>
+        <button type="submit" disabled={busy || nickname.trim() === ''}>
+          Anfragen
         </button>
-      </div>
-    </div>
+      </form>
+      {notice && <p className="hint">{notice}</p>}
+      {error && <p className="form-error">{error}</p>}
+      {data === null && !error && <p>Lädt …</p>}
+
+      {data && data.incoming.length > 0 && (
+        <section>
+          <h3>Anfragen an dich</h3>
+          <ul className="contact-list">
+            {data.incoming.map((request) => (
+              <li key={request.id}>
+                <span>{name(request.user)}</span>
+                <button type="button" disabled={busy} onClick={() => run(() => acceptRequest(token, request.id))}>
+                  Annehmen
+                </button>
+                <button type="button" disabled={busy} onClick={() => run(() => declineRequest(token, request.id))}>
+                  Ablehnen
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data && (
+        <section>
+          <h3>Deine Kontakte</h3>
+          {data.contacts.length === 0 && <p className="hint">Noch keine Kontakte.</p>}
+          <ul className="contact-list">
+            {data.contacts.map((contact) => (
+              <li key={contact.id}>
+                <span>{name(contact)}</span>
+                <button type="button" disabled={busy} onClick={() => run(() => removeContact(token, contact.id))}>
+                  Entfernen
+                </button>
+                <button type="button" disabled={busy} onClick={() => run(() => blockUser(token, contact.nickname))}>
+                  Blockieren
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data && data.outgoing.length > 0 && (
+        <section>
+          <h3>Deine Anfragen</h3>
+          <ul className="contact-list">
+            {data.outgoing.map((request) => (
+              <li key={request.id}>
+                <span>
+                  {name(request.user)} <small>{request.status === 'declined' ? 'abgelehnt' : 'wartet'}</small>
+                </span>
+                {request.status === 'declined' && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => askForContact(token, request.user.nickname), 'Neu angefragt')}
+                  >
+                    Neu anfragen
+                  </button>
+                )}
+                <button type="button" disabled={busy} onClick={() => run(() => withdrawRequest(token, request.id))}>
+                  {request.status === 'declined' ? 'Ausblenden' : 'Zurückziehen'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data && data.blocked.length > 0 && (
+        <section>
+          <h3>Blockiert</h3>
+          <ul className="contact-list">
+            {data.blocked.map((blocked) => (
+              <li key={blocked.id}>
+                <span>{name(blocked)}</span>
+                <button type="button" disabled={busy} onClick={() => run(() => unblockUser(token, blocked.id))}>
+                  Aufheben
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <button type="button" className="link" onClick={onClose}>
+        Schließen
+      </button>
+    </Dialog>
   )
 }

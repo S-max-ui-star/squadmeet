@@ -12,7 +12,7 @@ import {
   type User,
 } from './api/auth'
 import { fetchContacts, type Contacts } from './api/contacts'
-import { announceMeetupChange, connectLive } from './api/live'
+import { announceMeetupChange, announceTopicChange, connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
 import { countFor, type RequestCount } from './auth/requestCount'
 import { fetchMapMeetups, type Meetup, type TimeSpan } from './api/meetups'
@@ -255,7 +255,8 @@ export default function App() {
     if (meetupEvents && lastArea.current) loadPlaces(lastArea.current)
   }, [meetupEvents, loadPlaces])
 
-  // Contact requests and Notifications load at login and again on each live event (SCRUM-93).
+  // Contact requests and Notifications load at login and again on each live event (SCRUM-93),
+  // for the counts on the buttons.
   // Notifications also every 60 s, in case the live stream does not get through.
   useEffect(() => {
     const token = loadToken()
@@ -278,11 +279,17 @@ export default function App() {
     void reloadNotifications()
     const timer = setInterval(reloadNotifications, NOTIFICATIONS_REFRESH_MS)
     const stopLive = connectLive(token, {
+      // Open dialogs load again too.
       onOpen: () => {
         void reloadContacts()
         void reloadNotifications()
+        announceTopicChange('contacts')
+        announceTopicChange('notifications')
       },
-      onTopic: (topic) => void (topic === 'contacts' ? reloadContacts() : reloadNotifications()),
+      onTopic: (topic) => {
+        void (topic === 'contacts' ? reloadContacts() : reloadNotifications())
+        announceTopicChange(topic)
+      },
       onMeetups: (placeId) => {
         setMeetupEvents((count) => count + 1)
         announceMeetupChange(placeId)
