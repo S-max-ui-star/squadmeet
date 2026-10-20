@@ -8,7 +8,6 @@ import {
   fetchNotifications,
   markNotificationRead,
   type Notification,
-  type NotificationKind,
 } from '../api/notifications'
 
 type Props = {
@@ -24,19 +23,6 @@ const when = new Intl.DateTimeFormat('de-DE', {
   hour: '2-digit',
   minute: '2-digit',
 })
-
-// `actor`: the Contact for the SCRUM-43 kinds; null after that account was deleted.
-const messages: Record<NotificationKind, (place: string, actor: string | null) => string> = {
-  meetup_cancelled: (place) => `Das Treffen bei „${place}“ wurde abgesagt.`,
-  meetup_ended: (place) => `Das Treffen bei „${place}“ wurde wegen einer Platzsperrung beendet.`,
-  host_handover: (place) => `Du bist jetzt Gastgeber des Treffens bei „${place}“.`,
-  blocked_user_joined: (place) =>
-    `Jemand, den du blockiert hast, ist dem Treffen bei „${place}“ beigetreten.`,
-  favorite_meetup_created: (place) => `Bei deinem Favoriten „${place}“ wurde ein neues Treffen erstellt.`,
-  contact_meetup_created: (place, actor) => `${actor ?? 'Ein Kontakt'} plant ein Treffen bei „${place}“.`,
-  meetup_invitation: (place, actor) => `${actor ?? 'Ein Kontakt'} lädt dich zum Treffen bei „${place}“ ein.`,
-  home_area_meetup_created: (place) => `In deinem Heimatbereich gibt es ein neues Treffen bei „${place}“.`,
-}
 
 export default function NotificationsDialog({ token, onChanged, onOpenMeetup, onClose }: Props) {
   const [data, setData] = useState<Notification[] | null>(null)
@@ -147,8 +133,7 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
                   disabled={busy}
                   onClick={() => open(notice)}
                 >
-                  <strong>{messages[notice.kind](notice.place_name, notice.actor_nickname ?? null)}</strong>
-                  {notice.place_address && <span>{notice.place_address}</span>}
+                  <strong>{notice.text}</strong>
                   <time dateTime={notice.created_at}>{when.format(new Date(notice.created_at))} Uhr</time>
                 </button>
                 <button

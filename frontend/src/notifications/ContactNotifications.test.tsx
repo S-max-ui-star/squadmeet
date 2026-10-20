@@ -16,8 +16,20 @@ const base = {
   read: false,
 }
 
-const invitation: Notification = { ...base, id: 2, kind: 'meetup_invitation', actor_nickname: 'Pingpong_Paula' }
-const created: Notification = { ...base, id: 1, kind: 'contact_meetup_created', actor_nickname: 'Pingpong_Paula' }
+const invitation: Notification = {
+  ...base,
+  id: 2,
+  kind: 'meetup_invitation',
+  actor_nickname: 'Pingpong_Paula',
+  text: 'Pingpong_Paula hat dich eingeladen: Basketball',
+}
+const created: Notification = {
+  ...base,
+  id: 1,
+  kind: 'contact_meetup_created',
+  actor_nickname: 'Pingpong_Paula',
+  text: 'Pingpong_Paula hat ein Treffen erstellt: Basketball',
+}
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -49,14 +61,17 @@ describe('Contact Notifications', () => {
 
     const text = (await render()).textContent
 
-    expect(text).toContain('Pingpong_Paula lädt dich zum Treffen bei „Korbanlage“ ein.')
-    expect(text).toContain('Pingpong_Paula plant ein Treffen bei „Korbanlage“.')
+    expect(text).toContain(invitation.text)
+    expect(text).toContain(created.text)
   })
 
   it('says "Ein Kontakt" after the account was deleted', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([{ ...created, actor_nickname: null }])))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(json([{ ...created, actor_nickname: null, text: 'Jemand hat ein Treffen erstellt: Basketball' }])),
+    )
 
-    expect((await render()).textContent).toContain('Ein Kontakt plant ein Treffen')
+    expect((await render()).textContent).toContain('Jemand hat ein Treffen erstellt: Basketball')
   })
 
   it('offers "Ich komme mit" only on an invitation', async () => {
