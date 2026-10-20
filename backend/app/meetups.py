@@ -272,6 +272,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     user is not None and any(member.id == user.id for _, member in joins[meetup.id]),
                     now,
                     series.get(meetup.series_id),
+                    host_alone=not joins[meetup.id],
                 ),
             )
         )

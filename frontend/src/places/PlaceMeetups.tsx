@@ -20,7 +20,7 @@ import { whileVisible } from '../whileVisible'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
-import { fromInputValue, inputBounds, slot, toInputValue } from './meetupTime'
+import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 import { WEEKDAYS, emptySlots, groupSeries, slotsInput, type SlotFields } from './seriesGroups'
 
 type Props = {
@@ -308,13 +308,15 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
         {offer && (
           <div className="move-offer" role="group" aria-label="Neue Zeit">
             <p>
-              {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat verschoben auf {slot(offer)}.
+              {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat das Treffen auf{' '}
+              {startChoice(offer.starts_at, meetup.starts_at)} verlegt. Wann bist du dabei?
             </p>
+            {/* The times are the answers (SCRUM-79): new time = go along, old time = stay. */}
             {(
               [
-                ['go', 'Mitgehen'],
-                ['stay', 'Hierbleiben'],
-                ['leave', 'Absagen'],
+                ['go', startChoice(offer.starts_at, meetup.starts_at)],
+                ['stay', startChoice(meetup.starts_at, offer.starts_at)],
+                ['leave', 'Gar nicht'],
               ] as const
             ).map(([choice, label]) => (
               <button
@@ -416,7 +418,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
           >
             {(meetup.participants?.length ?? 0) > 0 && (
               <p className="hint">
-                Die anderen bleiben bei der alten Zeit und werden gefragt, ob sie mitgehen.
+                Die anderen werden gefragt, ob sie zur neuen oder zur alten Zeit dabei sind.
               </p>
             )}
             <label className="field">
