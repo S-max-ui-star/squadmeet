@@ -938,6 +938,20 @@ body {
   list-style: none;
 }
 
+/* Several dates of a Series at once (SCRUM-81). */
+.series-join {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.series-join ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .meetup-card {
   display: flex;
   flex-wrap: wrap;
@@ -968,7 +982,8 @@ body {
   font-size: 1.1rem;
 }
 
-.meetup-card button {
+.meetup-card button,
+.series-join .button-row button {
   min-height: 40px;
   padding: 0 12px;
   font-size: 0.95rem;

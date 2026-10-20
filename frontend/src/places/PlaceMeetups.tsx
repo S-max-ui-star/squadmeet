@@ -20,6 +20,8 @@ import { whileVisible } from '../whileVisible'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
+import PartySizeStepper from './PartySizeStepper'
+import SeriesJoin from './SeriesJoin'
 import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 import { WEEKDAYS, emptySlots, groupSeries, slotsInput, type SlotFields } from './seriesGroups'
 
@@ -32,7 +34,6 @@ type Props = {
 }
 
 const HOURS = [1, 2, 3, 4]
-const MAX_PARTY_SIZE = 10
 // A Meetup that ends while the panel is open leaves the list within this time.
 const REFRESH_MS = 60_000
 
@@ -55,27 +56,6 @@ function PersonButton({ label, onClick }: { label: string; onClick: () => void }
     <button type="button" className="person-button" onClick={onClick}>
       {label}
     </button>
-  )
-}
-
-// The Party size, the user included (1–10), for a new Meetup and for a Join.
-function PartySizeStepper({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  return (
-    <div className="stepper" role="group" aria-label="Personenzahl (mit dir)">
-      <span>Personenzahl (mit dir)</span>
-      <button type="button" aria-label="Eine Person weniger" disabled={value <= 1} onClick={() => onChange(value - 1)}>
-        −
-      </button>
-      <output>{value}</output>
-      <button
-        type="button"
-        aria-label="Eine Person mehr"
-        disabled={value >= MAX_PARTY_SIZE}
-        onClick={() => onChange(value + 1)}
-      >
-        +
-      </button>
-    </div>
   )
 }
 
@@ -585,6 +565,18 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
         {groupSeries(meetups).map(({ meetup, laterOfSeries }) => (
           <Fragment key={meetup.id}>
             {renderCard(meetup, laterOfSeries.length)}
+            {/* Several dates at once (SCRUM-81), for a signed-in user who is not the Host. */}
+            {expanded.has(meetup.series_id ?? -1) && user && meetup.host?.id !== user.id && (
+              <li className="series-join-item">
+                <SeriesJoin
+                  dates={[meetup, ...laterOfSeries]}
+                  onDone={() => {
+                    reload()
+                    onChanged()
+                  }}
+                />
+              </li>
+            )}
             {expanded.has(meetup.series_id ?? -1) && laterOfSeries.map((later) => renderCard(later, 0))}
           </Fragment>
         ))}
