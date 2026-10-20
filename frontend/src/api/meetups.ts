@@ -25,6 +25,8 @@ export type Meetup = {
   people: number
   // The users who joined, the earliest first; null for a guest.
   participants: Participant[] | null
+  // The viewer's Contacts among Host and participants, Host first; null for a guest.
+  contacts: MeetupHost[] | null
   // ISO 8601 with time zone, e.g. "2026-10-12T09:00:00Z".
   starts_at: string
   ends_at: string
