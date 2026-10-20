@@ -1194,9 +1194,16 @@ body {
   font-weight: 600;
 }
 
-.city-report-question {
-  margin: 0;
+/* SCRUM-82: the city report folds out from this button, closed at first. */
+.city-report-toggle {
+  padding: 4px 0;
+  font: inherit;
   font-weight: 700;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 /* SCRUM-31: Ratings. Gold = stars, green = a good Reason, orange = a Reason against. */
