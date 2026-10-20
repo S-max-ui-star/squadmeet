@@ -218,3 +218,109 @@ def test_hand_over_meetups_of_a_deleted_host(stored):
     lifecycle.hand_over_meetups_of(session, paula, T0)
 
     assert (m.host_id, m.party_size) == (karl, 4)
+
+
+# At most 2 Meetups at one moment (SCRUM-80).
+
+
+def hosted(session, place_id, host, starts, hours=2, **changes) -> Meetup:
+    changes.setdefault("ends_at", starts + timedelta(hours=hours))
+    m = Meetup(place_id=place_id, host_id=host, party_size=1, starts_at=starts, **changes)
+    session.add(m)
+    session.flush()
+    return m
+
+
+def test_two_at_once_are_allowed_a_third_is_refused(stored):
+    session, m, (_, karl, mia) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+
+    with pytest.raises(Conflict, match="Du bist zu dieser Zeit schon bei 2 Treffen"):
+        lifecycle.require_room(session, karl, T0 + timedelta(minutes=90), T0 + timedelta(hours=3), now)
+    lifecycle.require_room(session, mia, T0 + timedelta(minutes=90), T0 + timedelta(hours=3), now)
+
+
+def test_a_third_that_never_meets_both_at_one_moment_is_allowed(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=3))
+
+    # 15:00–21:00 overlaps both, but they do not overlap each other; an end is not a start.
+    lifecycle.require_room(session, paula, T0 - timedelta(hours=1), T0 + timedelta(hours=5), now)
+    lifecycle.require_room(session, paula, T0 + timedelta(hours=2), T0 + timedelta(hours=3), now)
+
+
+def test_cancelled_closed_and_ended_meetups_do_not_count(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 + timedelta(minutes=30)
+    hosted(session, m.place_id, paula, T0, cancelled_at=now)
+    hosted(session, m.place_id, paula, T0, closed_at=now)
+    # Ended 10 minutes ago: it overlapped the running one, but it is over.
+    hosted(session, m.place_id, paula, T0 - timedelta(hours=1), ends_at=T0 + timedelta(minutes=20))
+
+    lifecycle.require_room(session, paula, now, now + timedelta(hours=1), now)
+
+
+def test_join_is_refused_at_the_limit(stored):
+    session, m, (_, karl, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, karl, T0)
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.join(session, m, karl, 1, now)
+
+
+def test_join_a_running_meetup_ignores_one_that_already_ended(stored):
+    session, m, (_, karl, _) = stored
+    now = T0 + timedelta(hours=1)
+    hosted(session, m.place_id, karl, T0, ends_at=T0 + timedelta(minutes=30))
+    hosted(session, m.place_id, karl, T0)
+
+    lifecycle.join(session, m, karl, 1, now)
+
+
+def test_move_counts_the_new_time_without_the_meetup_itself(stored):
+    session, m, (paula, _, _) = stored
+    now = T0 - timedelta(days=1)
+    hosted(session, m.place_id, paula, T0)
+    lifecycle.move(session, m, paula, T0 + timedelta(minutes=30), now)
+
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.move(session, m, paula, T0 + timedelta(hours=4), now)
+
+
+def test_move_with_joins_is_refused_at_the_limit(stored):
+    session, m, (paula, karl, _) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+    hosted(session, m.place_id, paula, T0 + timedelta(hours=4))
+
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.move(session, m, paula, T0 + timedelta(hours=4), now)
+    assert m.host_id == paula and m.moved_to_id is None
+
+
+def test_go_counts_the_new_meetup_without_the_old_one(stored):
+    session, m, (paula, karl, mia) = stored
+    now = T0 - timedelta(days=1)
+    lifecycle.join(session, m, karl, 1, now)
+    lifecycle.join(session, m, mia, 1, now)
+    session.flush()
+    moved = lifecycle.move(session, m, paula, T0 + timedelta(hours=1), now)
+    session.flush()
+    hosted(session, m.place_id, karl, T0 + timedelta(hours=1))
+    hosted(session, m.place_id, mia, T0 + timedelta(hours=1))
+    hosted(session, m.place_id, mia, T0 + timedelta(hours=1))
+
+    # Karl: the new one and his own; the old one at 16:00 he leaves.
+    lifecycle.answer_move(session, m, karl, "go", now)
+    session.flush()
+    assert lifecycle.find_join(session, moved, karl) is not None
+    with pytest.raises(Conflict, match="schon bei 2 Treffen"):
+        lifecycle.answer_move(session, m, mia, "go", now)

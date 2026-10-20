@@ -229,6 +229,23 @@ describe('PlaceMeetups', () => {
     expect(JSON.parse(post[1]!.body as string)).toEqual({ party_size: 2 })
   })
 
+  it('shows the message when the user is already in 2 Meetups at that time (SCRUM-80)', async () => {
+    localStorage.setItem('squadmeet.token', 'tok')
+    const full = 'Du bist zu dieser Zeit schon bei 2 Treffen.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) =>
+        init?.method === 'POST' ? Response.json({ detail: full }, { status: 409 }) : Response.json([asOther(meetup)]),
+      ),
+    )
+    const container = await render(karl)
+
+    act(() => button(container, 'Ich komme mit')!.click())
+    await act(async () => button(container, 'Beitreten')!.click())
+
+    expect(container.querySelector('.form-error')?.textContent).toBe(full)
+  })
+
   it('shows "Verlassen" to a user who joined, and leaves', async () => {
     localStorage.setItem('squadmeet.token', 'tok')
     const withKarl = asJoined({ ...meetup, participants: [{ id: 2, nickname: 'Korb_Karl', avatar: 'bear', party_size: 1 }] })
