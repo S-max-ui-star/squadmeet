@@ -500,7 +500,7 @@ class Notification(SQLModel, table=True):
     __tablename__ = "notification"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('meetup_cancelled', 'meetup_ended', 'host_handover', "
+            "kind IN ('meetup_cancelled', 'meetup_ended', 'meetup_moved', 'host_handover', "
             "'blocked_user_joined', 'favorite_meetup_created', 'contact_meetup_created', "
             "'meetup_invitation', 'home_area_meetup_created')",
             name="ck_notification_kind",
@@ -516,8 +516,7 @@ class Notification(SQLModel, table=True):
         sa_column=Column(ForeignKey("meetup.id", ondelete="CASCADE"), nullable=False, index=True)
     )
     kind: str
-    # SCRUM-43: the Contact who made the Meetup or sent the invitation; empty after the account
-    # delete, and for the other kinds.
+    # The person who caused the event; empty after that account is deleted.
     actor_id: int | None = Field(
         default=None,
         sa_column=Column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),

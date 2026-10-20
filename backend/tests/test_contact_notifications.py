@@ -62,6 +62,7 @@ def test_a_now_meetup_notifies_the_contacts_with_the_hosts_nickname(
     assert notice["kind"] == "contact_meetup_created"
     assert notice["meetup_id"] == meetup["id"]
     assert notice["actor_nickname"] == "Pingpong_Paula"
+    assert notice["text"] == "Pingpong_Paula hat ein Treffen erstellt: Tischtennis"
     # Not a Contact, and not the Host.
     assert kinds(client, third[0]) == []
     assert kinds(client, host[0]) == []

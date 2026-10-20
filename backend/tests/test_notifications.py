@@ -9,6 +9,7 @@ from tests.test_auth import auth_header
 from tests.test_contacts import block
 from tests.test_meetups import (  # noqa: F401 (fixtures)
     cancel,
+    change_time,
     create,
     guest,
     host,
@@ -29,8 +30,11 @@ def kinds(client, token):
 
 
 def test_cancel_notifies_current_participants_but_not_the_host_or_someone_who_left(
-    client, place, host, guest, third
+    client, session, place, host, guest, third
 ):
+    place.address = "Karl-Heine-Straße 12–14, 04229 Leipzig, Ortsteil Plagwitz"
+    session.add(place)
+    session.commit()
     meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
     join(client, guest[0], meetup["id"])
     join(client, third[0], meetup["id"])
@@ -40,6 +44,9 @@ def test_cancel_notifies_current_participants_but_not_the_host_or_someone_who_le
 
     [notice] = notifications(client, guest[0]).json()
     assert notice["kind"] == "meetup_cancelled"
+    assert notice["text"] == (
+        "Pingpong_Paula hat das Treffen abgesagt: Tischtennis in der Karl-Heine-Straße"
+    )
     assert (
         notice["meetup_id"],
         notice["place_id"],
@@ -57,13 +64,41 @@ def test_cancel_notifies_current_participants_but_not_the_host_or_someone_who_le
     assert notifications(client, third[0]).json() == []
 
 
+def test_time_change_notifies_everyone_who_was_in_the_meetup(client, place, host, guest, third):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    join(client, guest[0], meetup["id"])
+    join(client, third[0], meetup["id"])
+    moved_to = datetime.fromisoformat(meetup["starts_at"]) + timedelta(hours=1)
+
+    assert change_time(client, host[0], meetup["id"], moved_to.isoformat()).status_code == 200
+
+    for token in (guest[0], third[0]):
+        moved = next(n for n in notifications(client, token).json() if n["kind"] == "meetup_moved")
+        assert moved["text"] == "Pingpong_Paula hat die Zeit geändert: Tischtennis"
+
+
 def test_handover_notifies_the_new_host(client, place, host, guest):
     meetup = create(client, host[0], place.id).json()
     join(client, guest[0], meetup["id"])
 
     leave(client, host[0], meetup["id"])
 
-    assert kinds(client, guest[0]) == ["host_handover"]
+    [notice] = notifications(client, guest[0]).json()
+    assert notice["kind"] == "host_handover"
+    assert notice["text"] == (
+        "Pingpong_Paula hat dir die Gastgeberrolle übergeben: Tischtennis"
+    )
+
+
+def test_ending_a_running_meetup_notifies_the_participants(client, place, host, guest):
+    meetup = create(client, host[0], place.id).json()
+    join(client, guest[0], meetup["id"])
+
+    response = client.post(f"/api/meetups/{meetup['id']}/end", headers=auth_header(host[0]))
+
+    assert response.status_code == 200
+    [notice] = notifications(client, guest[0]).json()
+    assert notice["text"] == "Pingpong_Paula hat das Treffen beendet: Tischtennis"
 
 
 def test_locking_a_place_notifies_participants_of_called_off_meetups(
@@ -86,7 +121,9 @@ def test_a_blocker_in_the_meetup_is_notified_when_the_blocked_user_joins(
 
     assert join(client, third[0], meetup["id"]).status_code == 201
 
-    assert kinds(client, guest[0]) == ["blocked_user_joined"]
+    [notice] = notifications(client, guest[0]).json()
+    assert notice["kind"] == "blocked_user_joined"
+    assert notice["text"] == "Mia_Matte ist dem Treffen beigetreten: Tischtennis"
     assert notifications(client, host[0]).json() == []
     assert notifications(client, third[0]).json() == []
 

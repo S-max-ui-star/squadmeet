@@ -3,44 +3,22 @@
 import json
 import logging
 import os
-from typing import Literal
 
 from pywebpush import webpush
 from sqlmodel import Session, select
 
 from app.models import PushSubscription
+from app.notification_text import NotificationKind
 
 logger = logging.getLogger(__name__)
-
-PushKind = Literal[
-    "meetup_cancelled",
-    "meetup_ended",
-    "host_handover",
-    "blocked_user_joined",
-    "favorite_meetup_created",
-    "contact_meetup_created",
-    "meetup_invitation",
-    "home_area_meetup_created",
-]
-
-MESSAGES: dict[PushKind, str] = {
-    "meetup_cancelled": "Ein Treffen wurde abgesagt.",
-    "meetup_ended": "Ein Treffen wurde beendet.",
-    "host_handover": "Du bist jetzt Gastgeber eines Treffens.",
-    "blocked_user_joined": "Eine blockierte Person ist einem deiner Treffen beigetreten.",
-    "favorite_meetup_created": "An einem deiner Favoriten wurde ein neues Treffen erstellt.",
-    "contact_meetup_created": "Ein Kontakt hat ein neues Treffen erstellt.",
-    "meetup_invitation": "Du wurdest zu einem Treffen eingeladen.",
-    "home_area_meetup_created": "In deinem Heimatbereich wurde ein neues Treffen erstellt.",
-}
-
 
 def send_web_push(
     session: Session,
     user_ids: set[int],
     meetup_id: int,
     place_id: int,
-    kind: PushKind,
+    kind: NotificationKind,
+    body: str,
 ) -> None:
     """Send immediately, but never let a Push provider break the app transaction."""
     private_key = os.environ.get("VAPID_PRIVATE_KEY")
@@ -53,7 +31,7 @@ def send_web_push(
     payload = json.dumps(
         {
             "title": "SquadMeet",
-            "body": MESSAGES[kind],
+            "body": body,
             "url": f"/platz/{place_id}#treffen-{meetup_id}",
             "tag": f"meetup-{meetup_id}-{kind}",
         }

@@ -41,4 +41,11 @@ def notify_home_areas(
         )
     )
     blocked = blockers_of(session, meetup.host_id) | blocked_by(session, meetup.host_id)
-    notify_users(session, users - skip - blocked, meetup, "home_area_meetup_created", now)
+    notify_users(
+        session,
+        users - skip - blocked,
+        meetup,
+        "home_area_meetup_created",
+        now,
+        actor_id=meetup.host_id,
+    )
