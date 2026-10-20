@@ -16,6 +16,14 @@ export function slot(meetup: Span): string {
   return `${day.format(start).replace(',', '')}, ${clock.format(start)}–${clock.format(new Date(meetup.ends_at))} Uhr`
 }
 
+// A start on a move answer button (SCRUM-79): "18:00", or "Mi. 21.10., 18:00" when the other
+// start is on another day, so the two buttons can always be told apart.
+export function startChoice(start: string, other: string): string {
+  const a = new Date(start)
+  const sameDay = a.toDateString() === new Date(other).toDateString()
+  return sameDay ? clock.format(a) : `${day.format(a).replace(',', '')}, ${clock.format(a)}`
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
 
 // The value of an <input type="datetime-local">: local time, to the minute.

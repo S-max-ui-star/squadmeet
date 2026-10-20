@@ -347,9 +347,11 @@ def actions(
     joined: bool,
     now: datetime,
     series: MeetupSeries | None = None,
+    host_alone: bool = False,
 ) -> list[Action]:
     """What the viewer may do with this Meetup now, so the UI shows only these buttons. A
-    guest sees "join", which asks them to log in."""
+    guest sees "join", which asks them to log in. host_alone: nobody has joined; then a running
+    Meetup's Host only ends it, because Leave would do the same (SCRUM-79)."""
     current = state(meetup, now)
     if current not in (MeetupState.UPCOMING, MeetupState.LIVE):
         return []
@@ -358,10 +360,11 @@ def actions(
         allowed.append("join")
     elif meetup.host_id == viewer:
         if current is MeetupState.UPCOMING:
-            allowed += ["cancel", "move"]
+            allowed += ["cancel", "move", "leave"]
         else:
             allowed.append("end")
-        allowed.append("leave")
+            if not host_alone:
+                allowed.append("leave")
     elif joined:
         allowed.append("leave")
     else:

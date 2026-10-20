@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { User } from '../api/auth'
 import { announceMeetupChange } from '../api/live'
 import PlaceMeetups from './PlaceMeetups'
+import { startChoice } from './meetupTime'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -274,7 +275,7 @@ describe('PlaceMeetups', () => {
 
     for (const text of ['Absagen', 'Verlassen', 'Zeit ändern']) expect(button(container, text)).toBeDefined()
     act(() => button(container, 'Zeit ändern')!.click())
-    expect(container.textContent).toContain('Die anderen bleiben bei der alten Zeit')
+    expect(container.textContent).toContain('Die anderen werden gefragt, ob sie zur neuen oder zur alten Zeit dabei sind.')
   })
 
   it('offers the Host of a running Meetup "Jetzt beenden" and "Verlassen", not "Absagen"', async () => {
@@ -307,8 +308,11 @@ describe('PlaceMeetups', () => {
     vi.stubGlobal('fetch', fetchMock)
     const container = await render(karl)
 
-    expect(container.textContent).toContain('Paula hat verschoben auf')
-    await act(async () => button(container, 'Hierbleiben')!.click())
+    const newStart = startChoice(offered.move_offer!.starts_at, offered.starts_at)
+    const oldStart = startChoice(offered.starts_at, offered.move_offer!.starts_at)
+    expect(container.textContent).toContain(`Paula hat das Treffen auf ${newStart} verlegt. Wann bist du dabei?`)
+    for (const text of [newStart, oldStart, 'Gar nicht']) expect(button(container, text)).toBeDefined()
+    await act(async () => button(container, oldStart)!.click())
 
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(post[0]).toBe('/api/meetups/8/move-answer')
