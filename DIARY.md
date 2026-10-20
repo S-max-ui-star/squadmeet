@@ -13,6 +13,10 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ---
 
+## Di 20.10.2026 — Tag 10
+
+- **Dominik:** `SCRUM-86` Suchergebnisse schließen jetzt beim Kartenklick und nach dem Leeren des Suchfelds; test-first umgesetzt und automatisiert geprüft.
+
 ## Mo 19.10.2026 — Tag 9
 
 - **Steven:** `SCRUM-68` Backend-Review (Login, MFA, Captcha, Limits): 5 Funde test-first behoben, MFA einschalten braucht jetzt das Passwort (PR #81). `SCRUM-91` Safari-AutoFill füllt das Passwort in den Konto-Dialogen (PR #84); Release-PR #85 als Entwurf. `SCRUM-93` Live-Daten ohne Neuladen per Server-Sent Events: Kontaktanfragen, Benachrichtigungen und Treffen erscheinen sofort (PR #86).

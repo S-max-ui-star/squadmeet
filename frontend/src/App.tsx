@@ -74,8 +74,8 @@ function MapAreaWatcher({ onMove }: { onMove: (area: MapArea) => void }) {
   return null
 }
 
-// A tap on the map itself closes the open Place detail (SCRUM-76). Markers and popups do not
-// pass their clicks on to the map, and a pan or zoom is no click.
+// A tap on the map itself closes overlays. Markers and popups do not pass their clicks on to the
+// map, and a pan or zoom is no click.
 function CloseOnMapTap({ onTap }: { onTap: () => void }) {
   useMapEvents({ click: onTap })
   return null
@@ -85,6 +85,7 @@ function CloseOnMapTap({ onTap }: { onTap: () => void }) {
 // panel covers the lower 60 % of the map, on a laptop a 360 px card on the left (index.css).
 function CenterOn({ place }: { place: Place }) {
   const map = useMap()
+  // fallow-ignore-next-line complexity -- Existing viewport positioning; SCRUM-86 only wires the map tap.
   useEffect(() => {
     const size = map.getSize()
     const phone = size.x < 768
@@ -148,6 +149,7 @@ export default function App() {
   // Counts the tries for the open Place, so "Nochmal versuchen" or a new tap loads it again.
   const [detailTry, setDetailTry] = useState(0)
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
+  const [searchDismissRequest, setSearchDismissRequest] = useState(0)
   const current = detail && detail.id === selectedId ? detail : null
   const selected = current?.place ?? null
 
@@ -207,6 +209,11 @@ export default function App() {
     setSearchTarget({ lat: hit.lat, lon: hit.lon, request: Date.now() })
     if (hit.kind === 'place' && hit.place_id !== null) navigate(placePath(hit.place_id))
     else navigate('/')
+  }
+
+  function closeOnMapTap() {
+    setSearchDismissRequest((request) => request + 1)
+    if (selectedId !== null) navigate('/')
   }
 
   useEffect(() => {
@@ -536,7 +543,7 @@ export default function App() {
           onClose={() => setShowRecoveryCodes(false)}
         />
       )}
-      <PlaceSearch onPick={pickSearchHit} />
+      <PlaceSearch onPick={pickSearchHit} dismissRequest={searchDismissRequest} />
       <MeetupMap
         span={timeSpan}
         meetups={mapMeetups}
@@ -602,7 +609,7 @@ export default function App() {
         />
         <MapAreaWatcher onMove={loadPlaces} />
         <CenterOnSearch target={searchTarget} />
-        {selectedId !== null && <CloseOnMapTap onTap={() => navigate('/')} />}
+        <CloseOnMapTap onTap={closeOnMapTap} />
         {selected && <CenterOn place={selected} />}
         {spots.map((spot) => {
           const isSelected = spot.places.some((place) => place.id === selectedId)
