@@ -220,6 +220,11 @@ function Privacy() {
         Nr. 2 TDDDG). Beim Abmelden löschen wir ihn.
       </p>
       <p>
+        Damit die Karte nach dem Neuladen dort bleibt, wo du warst, merkt sich dein Browser die
+        Mitte und den Zoom der Karte (localStorage). Das bleibt nur in deinem Browser, wir bekommen
+        es nicht. Du kannst es über die Website-Daten deines Browsers löschen.
+      </p>
+      <p>
         Push-Benachrichtigungen sind freiwillig. Erst nach deiner Zustimmung richtet dein Browser
         ein Push-Abo bei seinem Anbieter ein (zum Beispiel Apple, Google oder Mozilla). Dieser
         Anbieter verarbeitet für die Zustellung deine IP-Adresse und Zustellungsdaten; der Inhalt
