@@ -39,6 +39,7 @@ import SuggestPlaceDialog from './places/SuggestPlaceDialog'
 import PlacePhotos from './places/PlacePhotos'
 import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
+import MapToolbar from './places/MapToolbar'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
 import NotificationsDialog from './notifications/NotificationsDialog'
@@ -388,7 +389,7 @@ export default function App() {
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
             <button type="button" onClick={() => setShowAccount(true)}>
-              Konto{incomingRequests > 0 && ` (${incomingRequests})`}
+              Konto
             </button>
             <button type="button" onClick={handleLogout}>
               Abmelden
@@ -439,20 +440,7 @@ export default function App() {
       {showAccount && user && (
         <AccountDialog
           user={user}
-          incomingRequests={incomingRequests}
           photos={photos}
-          onContacts={() => {
-            setShowAccount(false)
-            setShowContacts(true)
-          }}
-          onFavorites={() => {
-            setShowAccount(false)
-            setShowFavorites(true)
-          }}
-          onHomeArea={() => {
-            setShowAccount(false)
-            setHomeAreaCenter(areaCenter(lastArea.current))
-          }}
           onPush={() => {
             setShowAccount(false)
             setShowPushSettings(true)
@@ -559,6 +547,15 @@ export default function App() {
           token={loadToken() ?? ''}
           user={user}
           onClose={() => setShowRecoveryCodes(false)}
+        />
+      )}
+      {/* Right of the search field (SCRUM-85); right before it, so the CSS can make room. */}
+      {user && (
+        <MapToolbar
+          incomingRequests={incomingRequests}
+          onContacts={() => setShowContacts(true)}
+          onFavorites={() => setShowFavorites(true)}
+          onHomeArea={() => setHomeAreaCenter(areaCenter(lastArea.current))}
         />
       )}
       <PlaceSearch onPick={pickSearchHit} dismissRequest={searchDismissRequest} />
