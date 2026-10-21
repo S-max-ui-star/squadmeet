@@ -5,6 +5,7 @@ import {
   type OsmHint,
   type WaitingSuggestion,
 } from '../api/admin'
+import Dialog from '../Dialog'
 import { activityOf } from '../places/activities'
 import { useAdminList } from './useAdminList'
 
@@ -47,68 +48,65 @@ export default function SuggestionApprovalDialog({ token, onChanged, onOpenPlace
   } = useAdminList<WaitingSuggestion>(token, fetchWaitingSuggestions, onChanged)
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-label="Platzvorschläge freigeben">
-        <h2>Platzvorschläge freigeben</h2>
-        {suggestions === null && !error && <p>Lädt … (OSM wird geprüft)</p>}
-        {suggestions?.length === 0 && <p>Kein Platzvorschlag wartet auf eine Freigabe.</p>}
-        {suggestions && suggestions.length > 0 && (
-          <ul className="waiting-suggestions">
-            {suggestions.map((item) => (
-              <li key={item.id}>
-                <span>
-                  {activityOf(item.activity_type).emoji} {item.name}
-                  <small>
-                    {item.address ?? `${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}`} · {item.confirmations}{' '}
-                    Bestätigungen · vorgeschlagen {dateTime(item.suggested_at)}
-                  </small>
-                  <small className={item.osm_hints?.length ? 'osm-hint-found' : undefined}>
-                    OSM-Hinweis: {hintText(item.osm_hints)}
-                  </small>
-                </span>
-                <div className="waiting-suggestion-actions">
-                  <button type="button" className="link" onClick={() => onOpenPlace(item.id)}>
-                    Auf der Karte
-                  </button>
-                  {rejectingId === item.id ? (
-                    <>
-                      <button
-                        type="button"
-                        className="danger"
-                        disabled={busyId !== null}
-                        onClick={() => decide(item.id, rejectSuggestion)}
-                      >
-                        Ja, ablehnen
-                      </button>
-                      <button type="button" className="link" onClick={() => setRejectingId(null)}>
-                        Abbrechen
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busyId !== null || !item.approvable}
-                        onClick={() => decide(item.id, approveSuggestion)}
-                      >
-                        Freigeben
-                      </button>
-                      <button type="button" disabled={busyId !== null} onClick={() => setRejectingId(item.id)}>
-                        Ablehnen
-                      </button>
-                    </>
-                  )}
-                  {!item.approvable && <small>Freigabe ab {dateTime(item.approvable_from)}</small>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        {error && <p className="form-error">{error}</p>}
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
-        </button>
-      </div>
-    </div>
+    <Dialog title="Platzvorschläge freigeben" onClose={onClose}>
+      {suggestions === null && !error && <p>Lädt … (OSM wird geprüft)</p>}
+      {suggestions?.length === 0 && <p>Kein Platzvorschlag wartet auf eine Freigabe.</p>}
+      {suggestions && suggestions.length > 0 && (
+        <ul className="waiting-suggestions">
+          {suggestions.map((item) => (
+            <li key={item.id}>
+              <span>
+                {activityOf(item.activity_type).emoji} {item.name}
+                <small>
+                  {item.address ?? `${item.lat.toFixed(5)}, ${item.lon.toFixed(5)}`} · {item.confirmations}{' '}
+                  Bestätigungen · vorgeschlagen {dateTime(item.suggested_at)}
+                </small>
+                <small className={item.osm_hints?.length ? 'osm-hint-found' : undefined}>
+                  OSM-Hinweis: {hintText(item.osm_hints)}
+                </small>
+              </span>
+              <div className="waiting-suggestion-actions">
+                <button type="button" className="link" onClick={() => onOpenPlace(item.id)}>
+                  Auf der Karte
+                </button>
+                {rejectingId === item.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={busyId !== null}
+                      onClick={() => decide(item.id, rejectSuggestion)}
+                    >
+                      Ja, ablehnen
+                    </button>
+                    <button type="button" className="link" onClick={() => setRejectingId(null)}>
+                      Abbrechen
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busyId !== null || !item.approvable}
+                      onClick={() => decide(item.id, approveSuggestion)}
+                    >
+                      Freigeben
+                    </button>
+                    <button type="button" disabled={busyId !== null} onClick={() => setRejectingId(item.id)}>
+                      Ablehnen
+                    </button>
+                  </>
+                )}
+                {!item.approvable && <small>Freigabe ab {dateTime(item.approvable_from)}</small>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="form-error">{error}</p>}
+      <button type="button" className="link" onClick={onClose}>
+        Schließen
+      </button>
+    </Dialog>
   )
 }
