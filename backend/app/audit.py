@@ -6,7 +6,7 @@ without one is a system change (seed, OSM import, `python -m app.admin`).
 
 Not logged, because they skip the ORM:
 - bulk `update(...)` / `delete(...)` / `insert(...)` statements. A caller logs them with
-  `record` (Place reports, OSM import), or uses ORM operations instead (the Block in
+  `record` or `write` (Place reports, OSM import), or uses ORM operations instead (the Block in
   app/contacts.py). The bulk statements in app/auth.py change only excluded tables and fields;
 - rows that the database deletes with ON DELETE CASCADE (for example the Meetups of a
   deleted account);
@@ -44,6 +44,10 @@ EXCLUDED_TABLES = {
 }
 # Secrets. failed_logins is not one, but each login changes it; it is not domain data.
 EXCLUDED_FIELDS = {"app_user": {"password_hash", "mfa_secret", "mfa_last_step", "failed_logins"}}
+# Excluded fields whose change is still logged, under this name and as "changed" without the
+# value: a new password shows after an account take-over (SCRUM-69).
+MARKED_FIELDS = {"app_user": {"password_hash": "password"}}
+CHANGED = "changed"
 
 ACTOR = "audit_actor"
 TIME = "audit_time"
@@ -155,6 +159,9 @@ def entry_of(obj: Any, action: Action) -> tuple[str, int, Action, dict[str, Any]
             new = plain(history.added[0])
             if old != new:
                 changes[key] = [old, new]
+        for key, name in MARKED_FIELDS.get(table, {}).items():
+            if state.attrs[key].history.added:
+                changes[name] = CHANGED
         if not changes:
             return None
     else:

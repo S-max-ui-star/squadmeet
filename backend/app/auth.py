@@ -24,7 +24,7 @@ from sqlalchemy import delete, func, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.audit import forget_user, set_actor
+from app.audit import CHANGED, forget_user, record, set_actor
 from app.db import get_session
 from app.meetup_lifecycle import hand_over_meetups_of
 from app.models import LoginSession, RecoveryCode, User
@@ -399,6 +399,8 @@ def password_reset(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Nickname oder Code falsch"
         )
+    # Nobody is logged in here; the user who knows the code made the change.
+    set_actor(session, user, "user")
     user.password_hash = password_hash.hash(body.new_password)
     user.failed_logins = 0
     session.exec(delete(LoginSession).where(LoginSession.user_id == user.id))
@@ -436,6 +438,8 @@ def new_recovery_codes(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Code falsch")
     session.exec(delete(RecoveryCode).where(RecoveryCode.user_id == user.id))
     codes = add_recovery_codes(session, user)
+    # recovery_code is not in the audit log (it holds hashes); the user row shows the event.
+    record(session, "app_user", user.id, "update", {"recovery_codes": CHANGED})
     session.commit()
     return RecoveryCodesResponse(recovery_codes=codes)
 

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import and_, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth import current_user
@@ -139,7 +140,15 @@ def ask_for_contact(
         row.requester_id, row.addressee_id = user.id, other.id
         row.status = "pending"
         row.updated_at = now
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        # The other user asked at the same moment; the database keeps one row per pair.
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ihr habt euch gleichzeitig angefragt. Bitte lade die Kontakte neu.",
+        )
     session.refresh(row)
     return RequestRead(id=row.id, user=brief(other), status=row.status)
 
