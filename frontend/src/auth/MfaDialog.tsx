@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import Dialog from '../Dialog'
 import { mfaDisable, mfaEnable, mfaSetup, type MfaSetup, type User } from '../api/auth'
 import LegalLinks from '../legal/LegalLinks'
 import UsernameField from './UsernameField'
@@ -19,16 +20,28 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const requestRef = useRef(0)
+  const mountedRef = useRef(true)
 
-  async function run(action: () => Promise<void>) {
+  useEffect(
+    () => () => {
+      mountedRef.current = false
+      requestRef.current += 1
+    },
+    [],
+  )
+
+  async function run<T>(action: () => Promise<T>, apply: (result: T) => void) {
     setError(null)
     setBusy(true)
+    const request = ++requestRef.current
     try {
-      await action()
+      const result = await action()
+      if (mountedRef.current && request === requestRef.current) apply(result)
     } catch (err) {
-      setError((err as Error).message)
+      if (mountedRef.current && request === requestRef.current) setError((err as Error).message)
     } finally {
-      setBusy(false)
+      if (mountedRef.current && request === requestRef.current) setBusy(false)
     }
   }
 
@@ -36,20 +49,27 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
     event.preventDefault()
     if (!user.mfa_enabled && !setup) {
       // The password is asked again, so a stolen session token alone cannot turn MFA on.
-      run(async () => {
-        setSetup(await mfaSetup(token, password))
+      run(() => mfaSetup(token, password), (result) => {
+        setSetup(result)
         setPassword('')
       })
       return
     }
-    run(async () => {
-      onChanged(
-        await (user.mfa_enabled ? mfaDisable(token, password, code) : mfaEnable(token, code)),
-      )
-      setSetup(null)
-      setCode('')
-      setPassword('')
-    })
+    run(
+      () => (user.mfa_enabled ? mfaDisable(token, password, code) : mfaEnable(token, code)),
+      (result) => {
+        onChanged(result)
+        setSetup(null)
+        setCode('')
+        setPassword('')
+      },
+    )
+  }
+
+  function close() {
+    if (busy) return
+    requestRef.current += 1
+    onClose()
   }
 
   const passwordField = (
@@ -84,62 +104,59 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
   )
 
   return (
-    <div className="dialog-backdrop">
-      <form className="dialog" onSubmit={submit}>
-        <h2>Zwei-Faktor-Anmeldung</h2>
+    <Dialog title="Zwei-Faktor-Anmeldung" onSubmit={submit} onClose={close} dismissible={!busy}>
+      {user.mfa_enabled ? (
+        <>
+          <p>
+            Die Zwei-Faktor-Anmeldung ist <strong>an</strong>. Beim Anmelden fragen wir nach dem Code
+            aus deiner Authenticator-App.
+          </p>
+          {passwordField}
+          {codeField}
+          <button type="submit" disabled={busy}>
+            Ausschalten
+          </button>
+        </>
+      ) : setup ? (
+        <>
+          <p>
+            Nach dem Einschalten melden wir deine anderen Geräte ab. Dort meldest du dich dann mit
+            Passwort und Code wieder an.
+          </p>
+          <p>Scanne den QR-Code mit deiner Authenticator-App (z. B. Google Authenticator).</p>
+          <img className="mfa-qr" src={setup.qr_code} alt="QR-Code für die Authenticator-App" />
+          <p>
+            Oder gib diesen Schlüssel von Hand ein:{' '}
+            <code className="mfa-secret">{setup.secret}</code>
+          </p>
+          {codeField}
+          <button type="submit" disabled={busy}>
+            Bestätigen und einschalten
+          </button>
+        </>
+      ) : (
+        <>
+          <p>
+            Mit der Zwei-Faktor-Anmeldung brauchst du beim Anmelden dein Passwort und einen Code
+            aus einer Authenticator-App.
+            {user.is_admin && ' Als Admin brauchst du sie für die Admin-Funktionen.'}
+          </p>
+          {passwordField}
+          <button type="submit" disabled={busy}>
+            Einschalten
+          </button>
+        </>
+      )}
 
-        {user.mfa_enabled ? (
-          <>
-            <p>
-              Die Zwei-Faktor-Anmeldung ist <strong>an</strong>. Beim Anmelden fragen wir nach dem
-              Code aus deiner Authenticator-App.
-            </p>
-            {passwordField}
-            {codeField}
-            <button type="submit" disabled={busy}>
-              Ausschalten
-            </button>
-          </>
-        ) : setup ? (
-          <>
-            <p>
-              Nach dem Einschalten melden wir deine anderen Geräte ab. Dort meldest du dich dann
-              mit Passwort und Code wieder an.
-            </p>
-            <p>Scanne den QR-Code mit deiner Authenticator-App (z. B. Google Authenticator).</p>
-            <img className="mfa-qr" src={setup.qr_code} alt="QR-Code für die Authenticator-App" />
-            <p>
-              Oder gib diesen Schlüssel von Hand ein: <code className="mfa-secret">{setup.secret}</code>
-            </p>
-            {codeField}
-            <button type="submit" disabled={busy}>
-              Bestätigen und einschalten
-            </button>
-          </>
-        ) : (
-          <>
-            <p>
-              Mit der Zwei-Faktor-Anmeldung brauchst du beim Anmelden dein Passwort und einen Code
-              aus einer Authenticator-App.
-              {user.is_admin && ' Als Admin brauchst du sie für die Admin-Funktionen.'}
-            </p>
-            {passwordField}
-            <button type="submit" disabled={busy}>
-              Einschalten
-            </button>
-          </>
-        )}
+      {error && <p className="form-error">{error}</p>}
 
-        {error && <p className="form-error">{error}</p>}
-
-        <button type="button" className="link" onClick={onNewRecoveryCodes}>
-          Neue Wiederherstellungscodes erstellen
-        </button>
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
-        </button>
-        <LegalLinks className="legal-links-inline" />
-      </form>
-    </div>
+      <button type="button" className="link" disabled={busy} onClick={onNewRecoveryCodes}>
+        Neue Wiederherstellungscodes erstellen
+      </button>
+      <button type="button" className="link" disabled={busy} onClick={close}>
+        Schließen
+      </button>
+      <LegalLinks className="legal-links-inline" />
+    </Dialog>
   )
 }

@@ -93,7 +93,6 @@ ACTIVITY_REASONS: dict[ActivityType, tuple[Reason, ...]] = {
 }
 
 
-
 def reasons_for(activity_type: str) -> tuple[Reason, ...]:
     """The Reasons a Rating of a Place with this Activity type can pick: its own, then the
     general ones."""

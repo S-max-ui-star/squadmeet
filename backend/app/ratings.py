@@ -31,10 +31,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import literal_column
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
 from app import live
+from app.audit import record
 from app.auth import current_user
 from app.db import get_session
 from app.models import ConditionVote, Place, Rating, User
@@ -309,13 +311,27 @@ def rate_place(
         "reasons": list(dict.fromkeys(body.reasons)),
         "updated_at": now,
     }
+    # The old values for the audit log; the lock keeps them true until the upsert.
+    old = session.exec(
+        select(Rating.stars, Rating.reasons, Rating.updated_at)
+        .where(Rating.place_id == place_id, Rating.user_id == user.id)
+        .with_for_update()
+    ).first()
+    new = {"place_id": place_id, "user_id": user.id, "created_at": now, **values}
     # One statement, so two requests at the same moment cannot make two Ratings.
-    session.exec(
+    saved = session.exec(
         insert(Rating)
-        .values(place_id=place_id, user_id=user.id, created_at=now, **values)
+        .values(**new)
         .on_conflict_do_update(constraint="uq_rating_place_user", set_=values)
-    )
-    # The upsert is no ORM change, so the open pages hear of it here (SCRUM-98).
+        # xmax is 0 only in a row that this statement inserted.
+        .returning(Rating.id, literal_column("xmax = 0").label("inserted"))
+    ).one()
+    # The upsert is no ORM change, so the audit log (SCRUM-115) and the open pages (SCRUM-98)
+    # hear of it here.
+    if saved.inserted:
+        record(session, "rating", saved.id, "insert", new)
+    else:
+        record(session, "rating", saved.id, "update", changed(old, values))
     live.note(session, None, f"ratings:{place_id}")
     session.commit()
     rating = session.exec(
@@ -323,6 +339,15 @@ def rate_place(
     ).one()
     session.refresh(rating)
     return RatingRead.model_validate(rating, from_attributes=True)
+
+
+def changed(old, values: dict) -> dict:
+    """[old, new] for each value that the update changed. Without a row read before (a second
+    request inserted it at the same moment), the old values are unknown."""
+    before = old._asdict() if old else {}
+    return {
+        key: [before.get(key), value] for key, value in values.items() if before.get(key) != value
+    }
 
 
 class ConditionVoteInput(BaseModel):

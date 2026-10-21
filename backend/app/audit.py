@@ -6,8 +6,9 @@ without one is a system change (seed, OSM import, `python -m app.admin`).
 
 Not logged, because they skip the ORM:
 - bulk `update(...)` / `delete(...)` / `insert(...)` statements. A caller logs them with
-  `record` or `write` (Place reports, OSM import), or uses ORM operations instead (the Block in
-  app/contacts.py). The bulk statements in app/auth.py change only excluded tables and fields;
+  `record` or `write` (Place reports, Ratings, Place Confirmations, OSM import), or uses ORM
+  operations instead (the Block in app/contacts.py). The bulk statements in app/auth.py change
+  only excluded tables and fields;
 - rows that the database deletes with ON DELETE CASCADE (for example the Meetups of a
   deleted account);
 - manual edits in psql.
@@ -15,13 +16,15 @@ Not logged, because they skip the ORM:
 
 import struct
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 
 from fastapi import Depends
 from geoalchemy2 import WKBElement, WKTElement
-from sqlalchemy import delete, event, inspect, insert
-from sqlmodel import Session
+from sqlalchemy import ARRAY, Text, cast, delete, event, func, inspect, insert, literal, update
+from sqlalchemy.dialects.postgresql import JSONB, array
+from sqlmodel import Session, SQLModel
 from sqlmodel.main import default_registry
 
 from app.db import get_session
@@ -49,6 +52,22 @@ EXCLUDED_FIELDS = {"app_user": {"password_hash", "mfa_secret", "mfa_last_step", 
 MARKED_FIELDS = {"app_user": {"password_hash": "password"}}
 CHANGED = "changed"
 
+
+def user_columns(table) -> list[str]:
+    return [
+        column.key
+        for column in table.columns
+        if any(key.column.table.name == "app_user" for key in column.foreign_keys)
+    ]
+
+
+# The fields that name a user, per logged table: every foreign key to app_user (SCRUM-114).
+PERSON_FIELDS = {
+    table.name: user_columns(table)
+    for table in SQLModel.metadata.sorted_tables
+    if table.name not in EXCLUDED_TABLES and user_columns(table)
+}
+
 ACTOR = "audit_actor"
 TIME = "audit_time"
 
@@ -57,6 +76,18 @@ def set_actor(session: Session, user: User | int, kind: ActorKind) -> None:
     """The user who makes the changes of this request. A User object may be new: its id is read
     when the rows are written (register)."""
     session.info[ACTOR] = (user, kind)
+
+
+@contextmanager
+def as_system(session: Session) -> Iterator[None]:
+    """Changes the app makes by itself inside a user's request are system changes. The Place
+    address that the first open stores (SCRUM-70) must not show who opened the Place."""
+    actor = session.info.pop(ACTOR, None)
+    try:
+        yield
+    finally:
+        if actor is not None:
+            session.info[ACTOR] = actor
 
 
 def audit_request(session: Session = Depends(get_session)) -> Iterator[None]:
@@ -78,8 +109,24 @@ def record(
 
 def forget_user(session: Session, user_id: int) -> None:
     """Account delete (SCRUM-28): the user's own rows hold the old Nickname. Call it after the
-    flush that deleted the user; the database sets actor_id to NULL in the other rows."""
+    flush that deleted the user; the database sets actor_id to NULL in the other rows.
+
+    SCRUM-114: the other rows also hold the old id in their person fields (host_id, user_id, ...).
+    It would group all rows of the deleted person, so it becomes null; the other values stay."""
     session.exec(delete(AuditLog).where(AuditLog.entity == "app_user", AuditLog.entity_id == user_id))
+    old_id = literal(user_id, JSONB)
+    # JSON null: a SQL NULL would make jsonb_set return NULL for the whole changes.
+    null = literal(JSONB.NULL, JSONB)
+    for table, fields in PERSON_FIELDS.items():
+        for field in fields:
+            # The value, or the old or the new half of an [old, new] pair.
+            for keys in ([field], [field, "0"], [field, "1"]):
+                path = cast(array(keys), ARRAY(Text))
+                session.exec(
+                    update(AuditLog)
+                    .where(AuditLog.entity == table, AuditLog.changes.op("#>")(path) == old_id)
+                    .values(changes=func.jsonb_set(AuditLog.changes, path, null))
+                )
 
 
 def write(session: Session, entries: list[tuple[str, int, Action, dict[str, Any]]]) -> None:

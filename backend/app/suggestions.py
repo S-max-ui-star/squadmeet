@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
 from app.activities import LABELS, ActivityType
+from app.audit import record
 from app.auth import current_user
 from app.db import get_session
 from app.models import Place, PlaceConfirmation, PlaceRead, User
@@ -151,9 +152,10 @@ def confirm_place(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Du musst am Platz sein (höchstens {CONFIRM_RADIUS_M} m entfernt), um ihn zu bestätigen.",
         )
+    values = {"place_id": place_id, "user_id": user.id, "created_at": now}
     inserted = session.exec(
         insert(PlaceConfirmation)
-        .values(place_id=place_id, user_id=user.id, created_at=now)
+        .values(**values)
         .on_conflict_do_nothing(constraint="uq_place_confirmation_place_user")
         .returning(PlaceConfirmation.id)
     ).first()
@@ -162,6 +164,8 @@ def confirm_place(
             status_code=status.HTTP_409_CONFLICT,
             detail="Du hast diesen Platzvorschlag schon bestätigt.",
         )
+    # The insert is no ORM change, so the audit log hears of it here (SCRUM-115).
+    record(session, "place_confirmation", inserted.id, "insert", values)
     total = session.exec(
         select(func.count()).where(PlaceConfirmation.place_id == place_id)
     ).one()
