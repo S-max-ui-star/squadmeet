@@ -150,14 +150,19 @@ export default function App() {
   const [focus, focusOn] = useFocusRequest()
   const legalPage = legalPageFromPath(path)
   // The answer for the Place in the detail URL. It keeps its id, so an old answer never shows.
-  const [detail, setDetail] = useState<{ id: number; place?: Place; error?: string } | null>(null)
+  const [detail, setDetail] = useState<{
+    id: number
+    viewerId: number | null
+    place?: Place
+    error?: string
+  } | null>(null)
   // Counts the tries for the open Place, so "Nochmal versuchen" or a new tap loads it again.
   const [detailTry, setDetailTry] = useState(0)
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
   const [searchDismissRequest, setSearchDismissRequest] = useState(0)
   // Photos are deferred (SCRUM-94): hidden until the server switch PHOTOS_ENABLED is on.
   const [photos, setPhotos] = useState(false)
-  const current = detail && detail.id === selectedId ? detail : null
+  const current = detail && detail.id === selectedId && detail.viewerId === (user?.id ?? null) ? detail : null
   const selected = current?.place ?? null
 
   useEffect(() => {
@@ -168,13 +173,14 @@ export default function App() {
   useEffect(() => {
     if (selectedId === null) return
     let stillWanted = true
-    fetchPlace(selectedId, loadToken())
-      .then((place) => stillWanted && setDetail({ id: selectedId, place }))
-      .catch((err: Error) => stillWanted && setDetail({ id: selectedId, error: err.message }))
+    const viewerId = user?.id ?? null
+    fetchPlace(selectedId, user ? loadToken() : null)
+      .then((place) => stillWanted && setDetail({ id: selectedId, viewerId, place }))
+      .catch((err: Error) => stillWanted && setDetail({ id: selectedId, viewerId, error: err.message }))
     return () => {
       stillWanted = false
     }
-  }, [selectedId, detailTry])
+  }, [selectedId, detailTry, user])
 
   // A tap on the open Place loads it again (helps after a network error); otherwise it opens it.
   function openPlace(id: number) {
@@ -208,6 +214,7 @@ export default function App() {
         }))
     answer
       .then((answer) => {
+        if (request.signal.aborted || placesRequest.current !== request) return
         setPlaces(answer.places)
         setTruncated(answer.truncated)
         setMapMeetups(answer.meetups)
@@ -220,7 +227,7 @@ export default function App() {
           setMapLoading(false)
         }
       })
-  }, [timeSpan])
+  }, [timeSpan, user])
 
   function reloadPlaces() {
     if (lastArea.current) loadPlaces(lastArea.current)
@@ -354,6 +361,13 @@ export default function App() {
 
   function handleLoggedIn(result: LoginResult) {
     saveToken(result.token)
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setDetail(null)
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
     setUser(result.user)
     setShowAuth(false)
   }
@@ -386,6 +400,13 @@ export default function App() {
     setHomeAreaCenter(null)
     setRequests(null)
     setNotificationState(null)
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setDetail(null)
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
   }
 
   async function handleLogout() {
@@ -401,7 +422,6 @@ export default function App() {
     clearToken()
     setUser(null)
     resetUserUi()
-    reloadPlaces()
   }
 
   return (
@@ -626,7 +646,7 @@ export default function App() {
           user={user}
           onLoginNeeded={() => setShowAuth(true)}
           onConfirmed={(updated) => {
-            setDetail({ id: updated.id, place: updated })
+            setDetail({ id: updated.id, viewerId: user?.id ?? null, place: updated })
             reloadPlaces()
           }}
           onRemoved={() => {
