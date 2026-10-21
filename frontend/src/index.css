@@ -1324,6 +1324,20 @@ body {
   font-weight: 600;
 }
 
+/* SCRUM-163: when copying is not possible, the text to copy by hand. */
+.city-report-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.city-report-copy textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
 /* SCRUM-82: the city report folds out from this button, closed at first. */
 .city-report-toggle,
 .rating-list-toggle {
