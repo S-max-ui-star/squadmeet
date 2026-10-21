@@ -59,3 +59,20 @@ export async function deleteAllNotifications(token: string): Promise<void> {
   })
   if (!response.ok) await answer(response, 'DELETE notifications')
 }
+
+// SCRUM-101: "Alle gelesen" marks all; "Gelesene löschen" deletes only the read ones.
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  const response = await fetch('/api/notifications/read', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) await answer(response, 'POST notifications read')
+}
+
+export async function deleteReadNotifications(token: string): Promise<void> {
+  const response = await fetch('/api/notifications/read', {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) await answer(response, 'DELETE read notifications')
+}

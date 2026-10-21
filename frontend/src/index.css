@@ -93,6 +93,12 @@ body {
   font-weight: 600;
 }
 
+.notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .notification-list button.notification-open {
   padding-right: 44px;
 }

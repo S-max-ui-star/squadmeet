@@ -97,7 +97,7 @@ Rules. Keep them short so everybody follows them.
 
 - **Sprint 1** ("SCRUM Sprint 1", sprint ID 1) — Wed 07.10. – Fri 09.10.: walking skeleton, `SCRUM-16` – `SCRUM-25`.
   **Done on 2026-10-08:** all tickets Done, the app deploys automatically from `main`. Sprint completed in Jira.
-- **Sprint 3** ("SCRUM Sprint 3", sprint ID 67) — Mon 19.10. – Fri 23.10. Tickets from the test run: Stefan `SCRUM-76` – `SCRUM-79`, `SCRUM-81`, `SCRUM-82`, `SCRUM-85`; Dominik `SCRUM-86` – `SCRUM-90`; Steven `SCRUM-80`, `SCRUM-83`, `SCRUM-84`, `SCRUM-91`, `SCRUM-92` (80/83/84 moved from Stefan the same day to balance: 8/8/7 open); plus the backend reviews `SCRUM-68` – `SCRUM-75` (Steven). An agent moves a ticket in with `customfield_10020: 67`.
+- **Sprint 3** ("SCRUM Sprint 3", sprint ID 67) — Mon 19.10. – Fri 23.10. Tickets from the test run: Stefan `SCRUM-76` – `SCRUM-79`, `SCRUM-81`, `SCRUM-82`, `SCRUM-85`; Dominik `SCRUM-86` – `SCRUM-90`; Steven `SCRUM-80`, `SCRUM-83`, `SCRUM-84`, `SCRUM-91`, `SCRUM-92` (80/83/84 moved from Stefan the same day to balance: 8/8/7 open); plus the backend reviews `SCRUM-68` – `SCRUM-75` (Steven). New on 2026-10-20 from the test run, not assigned yet: `SCRUM-95` – `SCRUM-102` (share button, Host cannot Cancel with others, move-answer buttons, live Ratings, fixed Reason crossed out, single Ratings with date, "Alle gelesen"/"Gelesene löschen", "Meine Treffen"). An agent moves a ticket in with `customfield_10020: 67`.
 - **Sprint 2** ("SCRUM Sprint 2", sprint ID 34) — created 2026-10-08 (Sprint 1 finished early), ends
   Wed 21.10. (feature freeze; extended from Fri 16.10. on 2026-10-12, `SCRUM-51` — **the end date
   must still be changed in the Jira UI**). Tickets: `SCRUM-26` – `SCRUM-45`, `SCRUM-47`, `SCRUM-49` –
