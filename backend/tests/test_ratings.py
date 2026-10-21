@@ -338,6 +338,44 @@ def test_a_new_rating_brings_a_fixed_issue_back(client, session, place, paula, k
     assert chips == {True: 1, False: 1}
 
 
+def test_saving_the_rating_again_with_the_reason_keeps_the_vote_round(client, place, paula):
+    rate(client, paula[0], place.id, stars=2, reasons=["net_missing"])
+    tokens = voters(client, VOTES_NEEDED)
+    for token in tokens[:-1]:
+        vote(client, token, place.id, still_there=False)
+
+    rate(client, paula[0], place.id, stars=1, reasons=["net_missing", "table_good"])
+
+    assert the_issue(client, place.id)["fixed_votes"] == VOTES_NEEDED - 1
+    vote(client, tokens[-1], place.id, still_there=False)
+    assert the_issue(client, place.id) is None
+
+
+def test_saving_the_rating_again_with_the_reason_keeps_the_issue_fixed(client, place, paula):
+    rate(client, paula[0], place.id, stars=2, reasons=["net_missing"])
+    for token in voters(client, VOTES_NEEDED):
+        vote(client, token, place.id, still_there=False)
+
+    rate(client, paula[0], place.id, stars=3, reasons=["net_missing"])
+
+    result = summary(client, place.id)
+    assert result["condition"]["issues"] == []
+    [chip] = result["top_reasons"]
+    assert chip["fixed_at"] is not None
+
+
+def test_adding_the_reason_to_a_rating_again_is_a_new_report(client, place, paula):
+    rate(client, paula[0], place.id, stars=2, reasons=["net_missing"])
+    for token in voters(client, VOTES_NEEDED):
+        vote(client, token, place.id, still_there=False)
+    rate(client, paula[0], place.id, stars=4, reasons=["table_good"])
+
+    rate(client, paula[0], place.id, stars=2, reasons=["net_missing"])
+
+    issue = the_issue(client, place.id)
+    assert (issue["key"], issue["fixed_votes"]) == ("net_missing", 0)
+
+
 def test_voting_needs_a_login(client, place, paula):
     rate(client, paula[0], place.id, reasons=["net_missing"])
 

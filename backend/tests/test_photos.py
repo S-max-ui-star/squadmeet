@@ -1,7 +1,9 @@
 """Photos (SCRUM-42): a user uploads a Photo of a Place, an Admin approves or rejects it. Only
 approved Photos are visible; the server stores them as JPEG without EXIF."""
 
+import struct
 import time
+import zlib
 from datetime import UTC, datetime
 from io import BytesIO
 from urllib.parse import parse_qs, urlsplit
@@ -217,6 +219,30 @@ def test_a_file_over_the_limit_answers_413(client, storage, place, host):
     assert storage.files == {}
 
 
+def png_with_size(width, height):
+    """A tiny PNG file whose header claims this size."""
+
+    def chunk(kind, data):
+        crc = struct.pack(">I", zlib.crc32(kind + data))
+        return struct.pack(">I", len(data)) + kind + data + crc
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(b"\0"))
+        + chunk(b"IEND", b"")
+    )
+
+
+def test_a_header_above_the_pillow_limit_answers_413(client, storage, place, host):
+    # Pillow itself refuses this size already when it opens the file (decompression bomb).
+    data = png_with_size(20_000, 20_000)
+
+    assert upload(client, host[0], place.id, data, "a.png", "image/png").status_code == 413
+    assert storage.files == {}
+
+
 def test_at_most_three_pending_per_user_and_place(client, storage, place, host, admin):
     ids = [upload(client, host[0], place.id).json()["id"] for _ in range(MAX_PENDING)]
 
@@ -325,6 +351,16 @@ def test_a_changed_or_old_local_link_answers_404(client, local, place, host, mon
     later = time.time() + LINK_SECONDS + 1
     monkeypatch.setattr("app.photo_storage.time.time", lambda: later)
     assert client.get(url).status_code == 404
+
+
+def test_switched_off_a_signed_local_link_answers_404(client, local, place, host, admin):
+    photo_id = upload(client, host[0], place.id).json()["id"]
+    approve(client, admin, photo_id)
+    [shown] = public_list(client, place.id).json()
+
+    app.dependency_overrides[photos_enabled] = lambda: False
+
+    assert client.get(shown["url"]).status_code == 404
 
 
 def test_the_database_has_no_file_data(client, session, storage, place, host):

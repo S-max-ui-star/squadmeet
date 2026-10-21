@@ -7,17 +7,18 @@ Final project of the Syntax course, Modul 4 (Fullstack, Backend & DevOps). Team 
 Work ends **Fri 23.10.2026**; presentation with live demo: **Mon 26.10.2026**.
 
 > **State:** live at https://squadmeet.duckdns.org (`SCRUM-20`, AWS host). A merge into `main`
-> deploys automatically (`SCRUM-23`). Sprint 1 (walking skeleton) is done. Sprint 2 (features)
-> runs until the feature freeze on **Wed 21.10.** evening; Thu–Fri 22.–23.10. are for fixes,
-> the manual test (`SCRUM-50`), the review (`SCRUM-49`), docs and the presentation.
+> deploys automatically (`SCRUM-23`). Sprints 1 (walking skeleton) and 2 (features) are done.
+> Sprint 3 (fixes from the test run) runs until Fri 23.10.; the feature freeze is on
+> **Wed 21.10.** evening, then Thu–Fri are for fixes, the manual test (`SCRUM-50`), the review
+> (`SCRUM-49`), docs and the presentation.
 
 ## Team
 
 | Person | Area |
 |--------|------|
 | Steven Tanu | DevOps (Docker, CI/CD, AWS, HTTPS), login and MFA, Admin, Place suggestions |
-| Stefan Kallinich | Product owner, Meetup workflow, privacy, ratings, photos, contacts |
-| Dominik Fischer | Finding (search, addresses, Meetup list), Home area, notifications, manual test |
+| Stefan Kallinich | Product owner, Meetup workflow, privacy, ratings, photos, contacts, Home area; owns the repo and the AWS host since 2026-10-15 |
+| Dominik Fischer | Finding (search, addresses, Meetup list), notifications, manual test |
 
 Dominik joined on 2026-10-12 (`SCRUM-51`). David Ludwig-Erbs left the project on 2026-10-08
 (`SCRUM-46`). Who does what is in [TICKETS.md](TICKETS.md).
@@ -135,7 +136,10 @@ cd frontend && npm install && npm test    # frontend (Vitest)
 
 The backend tests need the running, migrated database. Each test runs in one transaction that
 is rolled back at the end, so the tests leave no data behind
-([backend/tests/conftest.py](backend/tests/conftest.py)).
+([backend/tests/conftest.py](backend/tests/conftest.py)). Some tests (`test_auth`, `test_mfa`,
+`test_password_reset`, `test_audit_log`) expect an empty user table: on a local database with
+your own accounts they fail. CI starts with an empty database. After new migrations on `dev`, run
+`docker compose exec backend alembic upgrade head` first, or many tests fail.
 
 ### Database schema changes (Alembic)
 

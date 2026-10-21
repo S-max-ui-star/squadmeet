@@ -33,7 +33,7 @@ from app.contact_notifications import (
 )
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
 from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
-from app.place_status import PlaceUse, require, view_use
+from app.place_status import PlaceUse, in_db, require, view_use
 from app.series import fill_open_series
 
 MIN_HOURS = 1
@@ -177,8 +177,12 @@ class MoveOfferRead(BaseModel):
 
 
 def move_offer(session: Session, meetup: Meetup, user: User | None, joins, now: datetime):
-    """The offer "go along / stay / leave" for `user`, while the old time has not started."""
-    if user is None or meetup.moved_to_id is None or meetup.starts_at <= now:
+    """The offer "go along / stay / leave" for `user`, while the old Meetup is upcoming."""
+    if (
+        user is None
+        or meetup.moved_to_id is None
+        or lifecycle.state(meetup, now) is not MeetupState.UPCOMING
+    ):
         return None
     if meetup.host_id == user.id:
         pending = meetup.host_move_pending
@@ -284,7 +288,7 @@ def to_read(session: Session, meetup: Meetup, user: User | None) -> MeetupRead:
 
 
 def get_meetup(session: Session, meetup_id: int) -> Meetup:
-    meetup = session.get(Meetup, meetup_id)
+    meetup = session.get(Meetup, meetup_id) if in_db(meetup_id) else None
     if meetup is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meetup not found")
     return meetup
@@ -331,7 +335,7 @@ def list_meetups(
     require(session, place_id, view_use(user))
     now = datetime.now(UTC)
     # The Occurrences of the next 30 days of this Place's Series (SCRUM-38).
-    fill_open_series(session, now, place_id)
+    fill_open_series(session, now, MeetupSeries.place_id == place_id)
     query = (
         select(Meetup)
         .where(Meetup.place_id == place_id, lifecycle.is_listed(now))
@@ -359,8 +363,9 @@ def my_meetups(user: User = Depends(current_user), session: Session = Depends(ge
     """"Meine Treffen" (SCRUM-102): the user's upcoming, live and cancelled Meetups, as Host and
     as Join, with their Place. By start time, as in the Place detail."""
     now = datetime.now(UTC)
-    # The Occurrences of the next 30 days of the user's Series (SCRUM-38).
-    fill_open_series(session, now)
+    # The Occurrences of the next 30 days of the user's Series (SCRUM-38). A joined
+    # Occurrence exists already.
+    fill_open_series(session, now, MeetupSeries.host_id == user.id)
     joined = select(MeetupJoin.meetup_id).where(MeetupJoin.user_id == user.id)
     rows = session.exec(
         select(Meetup, Place)
@@ -403,6 +408,8 @@ def move_meetup_start(
     """The Host moves the start of an upcoming Meetup. The answer is the Host's Meetup (a new
     one when others had joined, see lifecycle.move)."""
     meetup = get_meetup(session, meetup_id)
+    # SCRUM-72: the Meetups of a hidden (reported) Place stay, but none moves or comes new.
+    require(session, meetup.place_id, PlaceUse.MEETUP)
     hosts = lifecycle.move(session, meetup, user.id, body.starts_at, datetime.now(UTC))
     session.commit()
     session.refresh(hosts)
@@ -420,6 +427,8 @@ def join_meetup(
 ):
     """"Ich komme mit": the user joins an upcoming or live Meetup with their Party size."""
     meetup = get_meetup(session, meetup_id)
+    # SCRUM-72: no new Join at a hidden (reported) Place.
+    require(session, meetup.place_id, PlaceUse.MEETUP)
     lifecycle.join(session, meetup, user.id, body.party_size, datetime.now(UTC))
     try:
         session.commit()
@@ -465,8 +474,10 @@ def invite_contacts(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ):
-    """Kontakte einladen (SCRUM-43): the chosen Contacts get an invitation Notification."""
+    """Kontakte einladen (SCRUM-43): the chosen Contacts get an invitation Notification. Not at
+    a hidden Place, as for Join (SCRUM-74)."""
     meetup = get_meetup(session, meetup_id)
+    require(session, meetup.place_id, PlaceUse.MEETUP)
     count = invite(session, meetup, user.id, set(body.user_ids), datetime.now(UTC))
     session.commit()
     return InviteResult(invited=count)
@@ -509,6 +520,9 @@ def answer_move(
 ):
     """Go along / stay / leave after the Host moved the Meetup. The answer is the old Meetup."""
     meetup = get_meetup(session, meetup_id)
+    if body.answer == "go":
+        # "go" is a Join of the new Meetup: none at a hidden (reported) Place.
+        require(session, meetup.place_id, PlaceUse.MEETUP)
     lifecycle.answer_move(session, meetup, user.id, body.answer, datetime.now(UTC))
     session.commit()
     session.refresh(meetup)

@@ -1,9 +1,7 @@
 """Browser Push subscriptions and Web Push delivery (SCRUM-44)."""
 
 import os
-from ipaddress import ip_address
 from datetime import UTC, datetime
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field as PydanticField, field_validator
@@ -13,9 +11,12 @@ from sqlmodel import Session, select
 from app.auth import current_user
 from app.db import get_session
 from app.models import PushSubscription, User
-from app.push_delivery import send_web_push
+from app.push_delivery import is_push_service
 
 router = APIRouter(prefix="/push", tags=["push"])
+
+# Browsers per user; each Notification is sent to each of them, inside the request that made it.
+MAX_SUBSCRIPTIONS = 5
 
 
 class PushConfig(BaseModel):
@@ -35,17 +36,8 @@ class SubscriptionWrite(BaseModel):
     @field_validator("endpoint")
     @classmethod
     def secure_push_endpoint(cls, value: str) -> str:
-        parsed = urlsplit(value)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-            raise ValueError("Push endpoint must be an HTTPS URL")
-        try:
-            address = ip_address(parsed.hostname)
-        except ValueError:
-            if parsed.hostname == "localhost" or "." not in parsed.hostname:
-                raise ValueError("Push endpoint must be public")
-        else:
-            if not address.is_global:
-                raise ValueError("Push endpoint must be public")
+        if not is_push_service(value):
+            raise ValueError("Push endpoint must be an HTTPS URL of a browser push service")
         return value
 
 
@@ -66,10 +58,19 @@ def save_subscription(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ):
-    """Upsert by endpoint: a browser reused after login belongs only to its current user."""
+    """Upsert by endpoint: a browser reused after login belongs only to its current user. A new
+    browser over MAX_SUBSCRIPTIONS replaces the user's oldest one."""
     subscription = session.exec(
         select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
     ).first()
+    if subscription is None or subscription.user_id != user.id:
+        for old in session.exec(
+            select(PushSubscription)
+            .where(PushSubscription.user_id == user.id)
+            .order_by(PushSubscription.created_at.desc(), PushSubscription.id.desc())
+            .offset(MAX_SUBSCRIPTIONS - 1)
+        ):
+            session.delete(old)
     if subscription is None:
         subscription = PushSubscription(
             user_id=user.id,

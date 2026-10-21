@@ -15,7 +15,8 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Mi 21.10.2026 — Tag 11
 
-- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails; `SCRUM-100` ergänzt die anonyme Liste einzelner Bewertungen. Mit `SCRUM-104` und `SCRUM-105` die ersten beiden Teile des Frontend-Reviews abgeschlossen; die Befunde `SCRUM-111`, `SCRUM-112` und `SCRUM-116`–`SCRUM-122` test-first behoben.
+- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails; `SCRUM-100` ergänzt die anonyme Liste einzelner Bewertungen. Mit `SCRUM-104`, `SCRUM-105` und `SCRUM-110` die ersten drei Teile des Frontend-Reviews abgeschlossen; die Befunde einschließlich `SCRUM-126`–`SCRUM-131` test-first behoben.
+- **Steven:** Backend-Review Teil 2–7 (`SCRUM-69` – `SCRUM-74`) abgeschlossen: Funde als Jira-Kommentare, test-first behoben (PRs #113, #117, #118, #121, #125, #129), z. B. Upload-Limit 12 MB, Push nur an Browser-Dienste, Block blendet alte Benachrichtigungen aus; Folgetickets `SCRUM-114`, `SCRUM-115`, `SCRUM-138` behoben, `SCRUM-123` – `SCRUM-125` und `SCRUM-139` – `SCRUM-141` offen. Gebaut: `SCRUM-101` „Alle gelesen“/„Gelesene löschen“, `SCRUM-102` „Meine Treffen“, `SCRUM-98` Bewertungen live, `SCRUM-97` Antwort-Buttons beim Verschieben. `SCRUM-137` Pillow 13 (8 Sicherheitslücken).
 
 ## Di 20.10.2026 — Tag 10
 

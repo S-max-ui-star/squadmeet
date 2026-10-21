@@ -89,12 +89,14 @@ def storage_on(storage: PhotoStorage | None) -> PhotoStorage:
 def to_jpeg(data: bytes) -> tuple[bytes, int, int]:
     """The picture as a new JPEG without EXIF, turned upright and made smaller; its size."""
     try:
-        image = Image.open(BytesIO(data))
+        # Only these parsers: Pillow does not try its other formats on an upload.
+        image = Image.open(BytesIO(data), formats=sorted(FORMATS))
     except UnidentifiedImageError:
-        raise refuse(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Das ist kein Foto (JPEG, PNG, WebP)")
-    if image.format not in FORMATS:
         raise refuse(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Nur JPEG, PNG oder WebP")
-    if image.width * image.height > MAX_PIXELS:
+    except Image.DecompressionBombError:
+        # Pillow refuses a very large size already when it reads the header.
+        image = None
+    if image is None or image.width * image.height > MAX_PIXELS:
         raise refuse(status.HTTP_413_CONTENT_TOO_LARGE, "Das Foto hat zu viele Pixel")
     try:
         image = ImageOps.exif_transpose(image)

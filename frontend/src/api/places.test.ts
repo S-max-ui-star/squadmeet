@@ -64,6 +64,32 @@ describe('clampArea', () => {
     })
   })
 
+  it('normalizes positive and negative Leaflet world copies', () => {
+    expect(clampArea({ west: 190, south: 10, east: 200, north: 20 })).toEqual({
+      west: -170,
+      south: 10,
+      east: -160,
+      north: 20,
+    })
+    expect(clampArea({ west: -200, south: 10, east: -190, north: 20 })).toEqual({
+      west: 160,
+      south: 10,
+      east: 170,
+      north: 20,
+    })
+  })
+
+  it('returns a valid area at the antimeridian and for invalid bounds', () => {
+    const crossing = clampArea({ west: 170, south: 10, east: 190, north: 20 })
+    expect(crossing.west).toBeLessThan(crossing.east)
+    expect(clampArea({ west: 20, south: 30, east: 10, north: 20 })).toEqual({
+      west: -180,
+      south: -90,
+      east: 180,
+      north: 90,
+    })
+  })
+
   it('leaves a normal area as it is', () => {
     expect(clampArea(leipzig)).toEqual(leipzig)
   })
@@ -92,6 +118,16 @@ describe('searchPlaces', () => {
 
     await expect(searchPlaces('Karl-Liebknecht-Str. 20')).resolves.toEqual([])
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Karl-Liebknecht-Str.%2020')
+    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Karl-Liebknecht-Str.%2020', { signal: undefined })
+  })
+
+  it('passes an abort signal to search', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json([]))
+    vi.stubGlobal('fetch', fetchMock)
+    const request = new AbortController()
+
+    await searchPlaces('Park', request.signal)
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Park', { signal: request.signal })
   })
 })

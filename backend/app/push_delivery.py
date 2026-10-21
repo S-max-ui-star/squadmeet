@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from urllib.parse import urlsplit
 
 from pywebpush import webpush
 from sqlmodel import Session, select
@@ -11,6 +12,23 @@ from app.models import PushSubscription
 from app.notification_text import NotificationKind
 
 logger = logging.getLogger(__name__)
+
+# The push services of Chrome (also Edge on Android, Opera, Samsung), Firefox, Safari and Edge on
+# Windows. The server sends only there, so a user cannot make it call a host of their choice.
+PUSH_SERVICES = ("fcm.googleapis.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com")
+
+
+def is_push_service(endpoint: str) -> bool:
+    """An HTTPS URL on one of the PUSH_SERVICES or a subdomain of one."""
+    parts = urlsplit(endpoint)
+    host = (parts.hostname or "").lower()
+    return (
+        parts.scheme == "https"
+        and not parts.username
+        and not parts.password
+        and any(host == service or host.endswith(f".{service}") for service in PUSH_SERVICES)
+    )
+
 
 def send_web_push(
     session: Session,
@@ -37,6 +55,9 @@ def send_web_push(
         }
     )
     for subscription in subscriptions:
+        if not is_push_service(subscription.endpoint):
+            # Stored before the host check (SCRUM-74); the browser subscribes again.
+            continue
         try:
             webpush(
                 subscription_info={

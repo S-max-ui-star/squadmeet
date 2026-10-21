@@ -2,7 +2,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { fetchMe } from './api/auth'
+import { fetchMe, type User } from './api/auth'
+import { fetchMapMeetups, type MapMeetups, type Meetup } from './api/meetups'
+import { fetchPlace, type Place } from './api/places'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -40,6 +42,10 @@ vi.mock('./api/contacts', async (importOriginal) => ({
 vi.mock('./api/notifications', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api/notifications')>()),
   fetchNotifications: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('./api/meetups', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api/meetups')>()),
+  fetchMapMeetups: vi.fn().mockResolvedValue({ places: [], meetups: [], truncated: false }),
 }))
 vi.mock('./api/photos', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api/photos')>()),
@@ -79,8 +85,28 @@ vi.mock('./places/MapToolbar', () => ({
   ),
 }))
 vi.mock('./places/PlaceSearch', () => ({ default: () => null }))
-vi.mock('./places/MeetupMap', () => ({ default: () => null }))
+vi.mock('./places/MeetupMap', () => ({
+  default: ({
+    meetups,
+    loading,
+    onSpanChange,
+  }: {
+    meetups: Meetup[]
+    loading: boolean
+    onSpanChange: (span: 'now') => void
+  }) => (
+    <div>
+      <button type="button" onClick={() => onSpanChange('now')}>Jetzt filtern</button>
+      <span data-testid="map-loading">{String(loading)}</span>
+      <span data-testid="map-contacts">{meetups.flatMap((meetup) => meetup.contacts ?? []).map((item) => item.nickname).join(',')}</span>
+    </div>
+  ),
+}))
 vi.mock('./places/ActivityFilter', () => ({ default: () => null }))
+vi.mock('./places/CenterOn', () => ({ default: () => null }))
+vi.mock('./places/PlaceDetail', () => ({
+  default: ({ place }: { place: Place | null }) => <div data-testid="place-detail">{place?.name ?? 'Lädt'}</div>,
+}))
 
 let root: Root | null = null
 
@@ -100,6 +126,7 @@ afterEach(async () => {
   if (root) await act(async () => root?.unmount())
   root = null
   document.body.innerHTML = ''
+  window.history.replaceState(null, '', '/')
   vi.clearAllMocks()
 })
 
@@ -128,5 +155,85 @@ describe('App account changes', () => {
     await click(button('Als Zweiter anmelden'))
 
     expect(document.querySelector('[data-testid="contacts-dialog"]')).toBeNull()
+  })
+
+  it('does not apply viewer-specific map data after logout or to the next account', async () => {
+    localStorage.setItem('squadmeet.token', 'first-token')
+    let finishFirst!: (answer: MapMeetups) => void
+    vi.mocked(fetchMapMeetups)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve }))
+      .mockResolvedValue({ places: [], meetups: [], truncated: false })
+    const container = document.querySelector('#root')!
+    root = createRoot(container)
+    await act(async () => root?.render(<App />))
+
+    await click(button('Jetzt filtern'))
+    expect(vi.mocked(fetchMapMeetups).mock.calls[0][3]).toBe('first-token')
+    expect(document.querySelector('[data-testid="map-loading"]')?.textContent).toBe('true')
+
+    await click(button('Abmelden'))
+    await act(async () => finishFirst({
+      places: [],
+      truncated: false,
+      meetups: [{
+        id: 7,
+        place_id: 3,
+        host: null,
+        party_size: 1,
+        people: 1,
+        participants: null,
+        contacts: [{ id: 1, nickname: 'NurErster', avatar: 'fox' }],
+        starts_at: '2026-10-21T10:00:00Z',
+        ends_at: '2026-10-21T11:00:00Z',
+        cancelled: false,
+        move_offer: null,
+        blocked_user_in: false,
+        series_id: null,
+        state: 'live',
+        actions: [],
+      }],
+    }))
+    expect(document.querySelector('[data-testid="map-contacts"]')?.textContent).toBe('')
+
+    await click(button('Anmelden'))
+    await click(button('Als Zweiter anmelden'))
+    expect(vi.mocked(fetchMapMeetups).mock.calls.at(-1)?.[3]).toBe('second-token')
+    expect(document.querySelector('[data-testid="map-contacts"]')?.textContent).toBe('')
+  })
+
+  it('refreshes an open Place for the restored viewer and ignores the old response', async () => {
+    localStorage.setItem('squadmeet.token', 'first-token')
+    window.history.replaceState(null, '', '/platz/7')
+    let restoreUser!: (user: User) => void
+    vi.mocked(fetchMe).mockImplementation(() => new Promise((resolve) => { restoreUser = resolve }))
+    let finishGuest!: (place: Place) => void
+    const basePlace: Place = {
+      id: 7,
+      name: 'Gastansicht',
+      activity_type: 'table_tennis',
+      lat: 51.3,
+      lon: 12.3,
+      people_now: 2,
+      is_suggestion: false,
+      confirmations: 0,
+    }
+    vi.mocked(fetchPlace)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishGuest = resolve }))
+      .mockResolvedValueOnce({ ...basePlace, name: 'Ansicht für Erster', people_now: 1 })
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+
+    await act(async () => restoreUser({
+      id: 1,
+      nickname: 'Erster',
+      avatar: 'fox',
+      mfa_enabled: false,
+      is_admin: false,
+    }))
+    expect(vi.mocked(fetchPlace)).toHaveBeenLastCalledWith(7, 'first-token')
+    expect(document.querySelector('[data-testid="place-detail"]')?.textContent).toBe('Ansicht für Erster')
+
+    await act(async () => finishGuest(basePlace))
+    expect(document.querySelector('[data-testid="place-detail"]')?.textContent).toBe('Ansicht für Erster')
   })
 })

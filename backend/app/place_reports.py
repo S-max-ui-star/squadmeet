@@ -1,7 +1,8 @@
 """Place report (SCRUM-57, see CONTEXT.md "Place report").
 
-A logged-in user reports a Place with one fixed reason (no free text, ADR-0004). Each user has at
-most one open report per Place. From the first open report the Place detail shows the most common
+A logged-in user reports a Place with one fixed reason (no free text, ADR-0004). The account
+must be at least 7 days old (app.account_age), and a user reports at most 10 Places per hour, so
+a few new accounts cannot hide Places. Each user has at most one open report per Place. From the first open report the Place detail shows the most common
 reason; from REPORTS_TO_HIDE users the Place status is "reported" (app.place_status): off the map
 and hidden from users until an Admin decides. Its Meetups stay.
 
@@ -18,15 +19,20 @@ from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
+from app.account_age import require_account_age
 from app.audit import record
 from app.auth import current_user, require_admin
 from app.db import get_session
 from app.models import Place, PlaceReport, PlaceReportReason, User
-from app.place_status import OPEN_REPORTS, REPORTS_TO_HIDE, PlaceUse, allowed_in, require
+from app.place_status import OPEN_REPORTS, STATUS, PlaceStatus, PlaceUse, allowed_in, require
+from app.rate_limit import RateLimit
 
 router = APIRouter(tags=["place reports"])
 
 IS_OPEN = PlaceReport.closed_at.is_(None)
+
+# A user reports a Place they stand at or know; more than a few per hour is an attack on the map.
+report_per_user = RateLimit(limit=10, window_seconds=60 * 60)
 
 # The most common reason of the open reports; a tie goes to the reason reported first.
 REPORT_REASON = (
@@ -53,7 +59,7 @@ class ReportedPlace(BaseModel):
     # The number of open reports per reason.
     reasons: dict[str, int]
     first_reported_at: datetime
-    # Off the map, because REPORTS_TO_HIDE users reported it.
+    # Off the map: the status is "reported". A Place suggestion stays on the map (app.place_status).
     hidden: bool
 
 
@@ -79,12 +85,15 @@ def report_place(
 ):
     """Melden. A second open report of the same user answers 409 and changes nothing."""
     require(session, place_id, PlaceUse.REPORT)
+    now = datetime.now(UTC)
+    require_account_age(user, now)
+    report_per_user.hit(user.id)
     # One statement, so two requests at the same moment cannot make two open reports.
     values = {
         "place_id": place_id,
         "user_id": user.id,
         "reason": body.reason,
-        "created_at": datetime.now(UTC),
+        "created_at": now,
     }
     inserted = session.exec(
         insert(PlaceReport)
@@ -116,7 +125,7 @@ def list_reported_places(
             func.ST_Y(Place.location).label("lat"),
             func.ST_X(Place.location).label("lon"),
             Place.address,
-            OPEN_REPORTS.label("open_reports"),
+            STATUS.label("status"),
         ).where(OPEN_REPORTS > 0, allowed_in(PlaceUse.REVIEW))
     ).all()
     reports = session.exec(
@@ -135,7 +144,7 @@ def list_reported_places(
                 address=place.address,
                 reasons=dict(Counter(r.reason for r in own).most_common()),
                 first_reported_at=min(r.created_at for r in own),
-                hidden=place.open_reports >= REPORTS_TO_HIDE,
+                hidden=place.status == PlaceStatus.REPORTED.value,
             )
         )
     result.sort(key=lambda p: (not p.hidden, -sum(p.reasons.values()), p.first_reported_at))

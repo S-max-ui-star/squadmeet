@@ -1,0 +1,22 @@
+# Dependabot (SCRUM-49 review) keeps the pinned versions fresh: the base image digests in the
+# Dockerfiles and the commit SHAs of the GitHub Actions. Monthly, so it does not flood the team
+# with PRs; each update is a PR into dev that runs the normal CI.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories: ["/backend", "/frontend", "/db"]
+    target-branch: dev
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    # CI tests the frontend on Node 24 (ci.yml). A new Node major changes the Dockerfile and
+    # ci.yml together, so it is done by hand, not by Dependabot.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

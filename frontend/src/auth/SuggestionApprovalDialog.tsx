@@ -30,13 +30,19 @@ function hintText(hints: OsmHint[] | null): string {
   return hints.map((hint) => HINT_LABELS[hint]).join(', ')
 }
 
+function reportsText(count: number): string {
+  const noun = count === 1 ? 'offene Meldung' : 'offene Meldungen'
+  return `${count} ${noun} (Freigeben oder Ablehnen schließt sie)`
+}
+
 function dateTime(value: string): string {
   return new Date(value).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 /** "Platzvorschläge freigeben" for Admins (SCRUM-56): a suggestion with 3 Confirmations becomes
  * a Place only with an approval, at least 24 h after it was suggested. The OSM hint only helps
- * the Admin decide; it never blocks. */
+ * the Admin decide; it never blocks. Open Place reports are shown, because the decision closes
+ * them (SCRUM-71). */
 export default function SuggestionApprovalDialog({ token, onChanged, onOpenPlace, onClose }: Props) {
   const {
     items: suggestions,
@@ -64,6 +70,9 @@ export default function SuggestionApprovalDialog({ token, onChanged, onOpenPlace
                 <small className={item.osm_hints?.length ? 'osm-hint-found' : undefined}>
                   OSM-Hinweis: {hintText(item.osm_hints)}
                 </small>
+                {item.open_reports > 0 && (
+                  <small className="osm-hint-found">{reportsText(item.open_reports)}</small>
+                )}
               </span>
               <div className="waiting-suggestion-actions">
                 <button type="button" className="link" onClick={() => onOpenPlace(item.id)}>

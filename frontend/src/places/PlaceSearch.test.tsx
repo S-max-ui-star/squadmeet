@@ -6,7 +6,11 @@ import PlaceSearch from './PlaceSearch'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+const roots = new Set<ReturnType<typeof createRoot>>()
+
 afterEach(() => {
+  for (const root of roots) act(() => root.unmount())
+  roots.clear()
   document.body.innerHTML = ''
   vi.restoreAllMocks()
 })
@@ -15,6 +19,7 @@ function render(onPick = vi.fn(), dismissRequest = 0) {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
+  roots.add(root)
   act(() => root.render(<PlaceSearch onPick={onPick} dismissRequest={dismissRequest} />))
   return {
     container,
@@ -49,8 +54,33 @@ describe('PlaceSearch', () => {
     expect(request).not.toHaveBeenCalled()
     await search(container, 'Unbekannt')
 
-    expect(request).toHaveBeenCalledWith('Unbekannt')
+    expect(request).toHaveBeenCalledWith('Unbekannt', expect.any(AbortSignal))
     expect(container.textContent).toContain('Keine Treffer')
+  })
+
+  it('allows only one request while a search is pending', async () => {
+    let finish!: (hits: placesApi.PlaceSearchHit[]) => void
+    const request = vi.spyOn(placesApi, 'searchPlaces').mockImplementation(
+      () => new Promise((resolve) => { finish = resolve }),
+    )
+    const { container } = render()
+    enter(container, 'Park')
+    const form = container.querySelector('form')!
+
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(form.getAttribute('aria-busy')).toBe('true')
+    await act(async () => finish([]))
+    expect(form.getAttribute('aria-busy')).toBe('false')
+
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    expect(request).toHaveBeenCalledTimes(2)
   })
 
   it('passes a picked Place hit to the map', async () => {

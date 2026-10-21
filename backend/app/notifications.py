@@ -3,12 +3,15 @@
 from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.auth import current_user
+from app.blocks import blockers_of
 from app.db import get_session
 from app.models import Meetup, Notification, Place, User
 from app.notification_text import NotificationKind, notification_text
+from app.place_status import in_db
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -28,12 +31,12 @@ class NotificationRead(BaseModel):
 
 
 def own_notification(session: Session, notification_id: int, user_id: int) -> Notification:
-    notice = session.exec(
+    notice = in_db(notification_id) and session.exec(
         select(Notification).where(
             Notification.id == notification_id, Notification.user_id == user_id
         )
     ).first()
-    if notice is None:
+    if not notice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     return notice
 
@@ -42,7 +45,10 @@ def own_notification(session: Session, notification_id: int, user_id: int) -> No
 def list_notifications(
     user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    """Newest first; a Notification stays until the account or Meetup is deleted."""
+    """Newest first; a Notification stays until the account or Meetup is deleted. Notices of
+    users who blocked the viewer, as actor or as Host, are left out while the Block lasts
+    (SCRUM-32: the blocked user sees neither their Meetups nor their Nickname)."""
+    blockers = blockers_of(session, user.id)
     rows = session.exec(
         select(
             Notification,
@@ -55,7 +61,12 @@ def list_notifications(
         .join(Meetup, Meetup.id == Notification.meetup_id)
         .join(Place, Place.id == Meetup.place_id)
         .outerjoin(User, User.id == Notification.actor_id)
-        .where(Notification.user_id == user.id)
+        .where(
+            Notification.user_id == user.id,
+            Meetup.host_id.not_in(blockers),
+            # NOT IN drops a NULL actor (deleted account), so keep those explicitly.
+            or_(Notification.actor_id.is_(None), Notification.actor_id.not_in(blockers)),
+        )
         .order_by(Notification.created_at.desc(), Notification.id.desc())
     ).all()
     return [

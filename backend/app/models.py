@@ -366,6 +366,18 @@ class Rating(SQLModel, table=True):
     created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     # Set again when the user changes the Rating; the Condition counts only recent ones.
     updated_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    # Reason key → ISO time when the Reason came into the Rating (SCRUM-138). A save that keeps
+    # a Reason keeps its time, so it is no new report of the issue. A key that is missing
+    # counts from `updated_at`.
+    reasons_added_at: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+
+    def added_at(self, key: str) -> datetime:
+        """When `key` came into this Rating."""
+        at = self.reasons_added_at.get(key)
+        return datetime.fromisoformat(at) if at else self.updated_at
 
 
 class ConditionVote(SQLModel, table=True):

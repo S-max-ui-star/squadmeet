@@ -264,10 +264,10 @@ def hand_over(session: Session, meetup: Meetup, now: datetime) -> None:
 
 
 def leave(session: Session, meetup: Meetup, by: int, now: datetime) -> None:
-    """The user Leaves, as Host (hand over) or with a Join. The caller commits."""
+    """The user Leaves an upcoming or live Meetup, as Host (hand over) or with a Join. The
+    caller commits."""
+    require_open(meetup, now)
     if meetup.host_id == by:
-        if state(meetup, now) is MeetupState.CLOSED:
-            raise Conflict("Das Treffen ist schon vorbei")
         hand_over(session, meetup, now)
         return
     found = find_join(session, meetup, by)
@@ -330,7 +330,8 @@ def answer_move(
     is_host = meetup.host_id == by
     pending = meetup.host_move_pending if is_host else found is not None and found.move_pending
     target = session.get(Meetup, meetup.moved_to_id) if meetup.moved_to_id else None
-    if not pending or target is None or meetup.starts_at <= now:
+    # Only while the old Meetup is upcoming: after its start or its Cancel there is no choice.
+    if not pending or target is None or state(meetup, now) is not MeetupState.UPCOMING:
         raise Conflict("Hier gibt es nichts zu beantworten")
     party_size = meetup.party_size if is_host else found.party_size
     if answer == "stay":

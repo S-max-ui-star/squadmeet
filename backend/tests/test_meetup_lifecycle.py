@@ -194,6 +194,31 @@ def test_hand_over_to_the_earliest_join_then_closed(stored):
         lifecycle.leave(session, m, karl, T0)
 
 
+@pytest.mark.parametrize("who", [0, 1], ids=["host", "join"])
+def test_no_leave_after_the_end(stored, who):
+    # SCRUM-72: a Host Leave would hand over a Meetup that is over.
+    session, m, users = stored
+    lifecycle.join(session, m, users[1], 1, T0 - timedelta(hours=1))
+    session.flush()
+
+    with pytest.raises(Conflict, match="schon vorbei"):
+        lifecycle.leave(session, m, users[who], T0 + timedelta(hours=2))
+    assert m.host_id == users[0]
+
+
+@pytest.mark.parametrize("who", [0, 1], ids=["host", "join"])
+def test_no_leave_of_a_cancelled_meetup(stored, who):
+    session, m, users = stored
+    before = T0 - timedelta(hours=1)
+    lifecycle.join(session, m, users[1], 1, before)
+    lifecycle.cancel(session, m, users[0], before)
+    session.flush()
+
+    with pytest.raises(Conflict, match="abgesagt"):
+        lifecycle.leave(session, m, users[who], before)
+    assert m.host_id == users[0]
+
+
 def test_move_without_joins_moves_the_meetup(stored):
     session, m, (paula, _, _) = stored
     now = T0 - timedelta(days=1)
