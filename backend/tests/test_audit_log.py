@@ -240,6 +240,52 @@ def test_delete_account_keeps_the_log_without_the_user(client, session, place): 
     assert audit_rows(session, "app_user", user_id) == []
 
 
+# The fields in `changes` that name a user (SCRUM-114).
+PERSON_FIELDS = {
+    "meetup": {"host_id"},
+    "meetup_join": {"user_id"},
+    "contact_request": {"requester_id", "addressee_id"},
+    "user_block": {"blocker_id", "blocked_id"},
+}
+
+
+def test_delete_account_removes_the_old_id_from_other_rows(client, session, place):  # noqa: F811
+    paula_token, paula_id = user(client, "Pingpong_Paula")
+    karl_token, karl_id = user(client, "Korb_Karl")
+    mia_token, mia_id = user(client, "Mia_Matte")
+    request_id = ask(client, karl_token, "Pingpong_Paula").json()["id"]
+    answer(client, paula_token, request_id, "accept")
+    karls_meetup = create(client, karl_token, place.id).json()["id"]
+    join(client, paula_token, karls_meetup)
+    paulas_meetup = create(client, paula_token, place.id).json()["id"]
+    join(client, karl_token, paulas_meetup)
+    block(client, mia_token, "Korb_Karl")
+
+    assert delete_account(client, karl_token).status_code == 204
+
+    session.expire_all()
+    # The rows of one deleted person cannot be grouped by the old id any more.
+    for entry in audit_rows(session):
+        for field in PERSON_FIELDS.get(entry.entity, ()):
+            value = entry.changes.get(field)
+            assert value != karl_id and karl_id not in (value if isinstance(value, list) else [])
+    # The other values stay, so the history still makes sense.
+    [hosted] = audit_rows(session, "meetup", karls_meetup, "insert")
+    assert (hosted.changes["host_id"], hosted.changes["place_id"]) == (None, place.id)
+    [handover] = audit_rows(session, "meetup", karls_meetup, "update")
+    assert handover.changes["host_id"] == [None, paula_id]
+    [request] = audit_rows(session, "contact_request", request_id, "insert")
+    assert (request.changes["requester_id"], request.changes["addressee_id"]) == (None, paula_id)
+    [blocked] = audit_rows(session, "user_block", action="insert")
+    assert (blocked.changes["blocker_id"], blocked.changes["blocked_id"]) == (mia_id, None)
+    karls_join = next(
+        r
+        for r in audit_rows(session, "meetup_join", action="insert")
+        if r.changes["meetup_id"] == paulas_meetup and r.changes["user_id"] is None
+    )
+    assert karls_join.actor_id is None
+
+
 def test_the_osm_import_is_a_system_change(session, tmp_path):
     load(session, [snapshot(tmp_path, row("test/1", name="Alt"), row("test/2"))])
     place_id = session.exec(select(Place.id).where(Place.osm_id == "test/1")).one()
