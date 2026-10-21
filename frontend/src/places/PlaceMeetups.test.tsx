@@ -339,6 +339,35 @@ describe('PlaceMeetups', () => {
     expect(JSON.parse(post[1]!.body as string)).toEqual({ answer: 'stay' })
   })
 
+  it('hides "Verlassen" and the new Meetup\'s "Ich komme mit" while the move answer is open (SCRUM-97)', async () => {
+    localStorage.setItem('squadmeet.token', 'tok')
+    const moved = asOther({ ...laterMeetup, id: 9, starts_at: hoursFromNow(25), ends_at: hoursFromNow(27) })
+    const offered = asJoined({
+      ...laterMeetup,
+      move_offer: { meetup_id: 9, host: { id: 1, nickname: 'Paula', avatar: 'fox' }, starts_at: moved.starts_at, ends_at: moved.ends_at },
+    })
+    let answered = false
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        answered = true
+        return Response.json(laterMeetup)
+      }
+      return Response.json(answered ? [asJoined(laterMeetup), moved] : [offered, moved])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const container = await render(karl)
+    const card = (id: number) => container.querySelector<HTMLElement>(`#treffen-${id}`)!
+
+    expect(button(card(8), 'Gar nicht')).toBeDefined()
+    expect(button(card(8), 'Verlassen')).toBeUndefined()
+    expect(button(card(9), 'Ich komme mit')).toBeUndefined()
+
+    await act(async () => button(card(8), 'Gar nicht')!.click())
+
+    expect(button(card(8), 'Verlassen')).toBeDefined()
+    expect(button(card(9), 'Ich komme mit')).toBeDefined()
+  })
+
   it('asks a participant as a Contact after a tap on the Nickname (SCRUM-32)', async () => {
     localStorage.setItem('squadmeet.token', 'tok')
     const withMia = asOther({ ...meetup, participants: [{ id: 3, nickname: 'Mia_Matte', avatar: 'fox', party_size: 1 }] })

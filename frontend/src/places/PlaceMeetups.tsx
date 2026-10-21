@@ -14,6 +14,7 @@ import {
   moveMeetupStart,
   type Meetup,
   type MeetupAction,
+  type MoveAnswer,
 } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
 import { askForContact, blockUser } from '../api/contacts'
@@ -67,6 +68,58 @@ function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
     requestAnimationFrame(() => document.getElementById(`treffen-${match[1]}`)?.scrollIntoView({ block: 'center' }))
   }, [meetups])
   return null
+}
+
+type AnswerProps = {
+  meetup: Meetup
+  // Another Meetup's open move answer points here; that answer is the Join.
+  offered: boolean
+  // The Party size form for this Meetup is open.
+  joining: boolean
+  busy: boolean
+  onAnswer: (choice: MoveAnswer) => void
+  onJoin: () => void
+  onLeave: () => void
+}
+
+// The move answer (SCRUM-37, SCRUM-79), "Ich komme mit" and "Verlassen" (SCRUM-34). While a move
+// answer is open, its buttons replace "Verlassen" here and "Ich komme mit" on the new Meetup (SCRUM-97).
+function MeetupAnswers({ meetup, offered, joining, busy, onAnswer, onJoin, onLeave }: AnswerProps) {
+  const offer = meetup.move_offer
+  return (
+    <>
+      {offer && (
+        <div className="move-offer" role="group" aria-label="Neue Zeit">
+          <p>
+            {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat das Treffen auf{' '}
+            {startChoice(offer.starts_at, meetup.starts_at)} verlegt. Wann bist du dabei?
+          </p>
+          {/* The times are the answers (SCRUM-79): new time = go along, old time = stay. */}
+          {(
+            [
+              ['go', startChoice(offer.starts_at, meetup.starts_at)],
+              ['stay', startChoice(meetup.starts_at, offer.starts_at)],
+              ['leave', 'Gar nicht'],
+            ] as const
+          ).map(([choice, label]) => (
+            <button key={choice} type="button" disabled={busy} onClick={() => onAnswer(choice)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {meetup.actions.includes('join') && !joining && !offered && (
+        <button type="button" disabled={busy} onClick={onJoin}>
+          Ich komme mit
+        </button>
+      )}
+      {meetup.actions.includes('leave') && !offer && (
+        <button type="button" disabled={busy} onClick={onLeave}>
+          Verlassen
+        </button>
+      )}
+    </>
+  )
 }
 
 // The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
@@ -160,6 +213,8 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
   // The form makes a weekly Series; at least one weekday must be on.
   const series = creating === 'later' && repeat
   const noWeekday = series && slotFields.every((f) => !f.on)
+  // The new Meetups that an open move answer points to: the answer is their Join (SCRUM-97).
+  const offeredIds = new Set(meetups.map((m) => m.move_offer?.meetup_id))
 
   // One Meetup in the list. `laterCount` > 0: the next Occurrence of a Series, with the
   // overview of its other dates (SCRUM-38).
@@ -169,7 +224,6 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
     const live = meetup.state === 'live'
     // Only for the label "(du, Gastgeber)", not for a rule.
     const isHost = user !== null && user.id === meetup.host?.id
-    const offer = meetup.move_offer
     return (
       <li id={`treffen-${meetup.id}`} key={meetup.id} className={live ? 'meetup-card' : meetup.state === 'cancelled' ? 'meetup-card cancelled' : 'meetup-card later'}>
         <div>
@@ -267,45 +321,15 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
           </div>
         )}
         <strong className="meetup-people">{people(meetup.people)}</strong>
-        {offer && (
-          <div className="move-offer" role="group" aria-label="Neue Zeit">
-            <p>
-              {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat das Treffen auf{' '}
-              {startChoice(offer.starts_at, meetup.starts_at)} verlegt. Wann bist du dabei?
-            </p>
-            {/* The times are the answers (SCRUM-79): new time = go along, old time = stay. */}
-            {(
-              [
-                ['go', startChoice(offer.starts_at, meetup.starts_at)],
-                ['stay', startChoice(meetup.starts_at, offer.starts_at)],
-                ['leave', 'Gar nicht'],
-              ] as const
-            ).map(([choice, label]) => (
-              <button
-                key={choice}
-                type="button"
-                disabled={busy}
-                onClick={() => run((token) => answerMove(token, meetup.id, choice))}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {can('join') && joining?.id !== meetup.id && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => (user ? setJoining({ id: meetup.id, partySize: 1 }) : onLoginNeeded())}
-          >
-            Ich komme mit
-          </button>
-        )}
-        {can('leave') && (
-          <button type="button" disabled={busy} onClick={() => run((token) => leaveMeetup(token, meetup.id))}>
-            Verlassen
-          </button>
-        )}
+        <MeetupAnswers
+          meetup={meetup}
+          offered={offeredIds.has(meetup.id)}
+          joining={joining?.id === meetup.id}
+          busy={busy}
+          onAnswer={(choice) => run((token) => answerMove(token, meetup.id, choice))}
+          onJoin={() => (user ? setJoining({ id: meetup.id, partySize: 1 }) : onLoginNeeded())}
+          onLeave={() => run((token) => leaveMeetup(token, meetup.id))}
+        />
         <InviteContacts meetup={meetup} />
         {joining?.id === meetup.id && (
           <form
