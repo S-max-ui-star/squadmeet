@@ -22,6 +22,9 @@ function supportPush(subscription: PushSubscription | null = null) {
   vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn() })
 }
 
+const byText = (container: HTMLElement, text: string) =>
+  [...container.querySelectorAll('button')].find((b) => b.textContent === text)!
+
 async function renderOnboarding(fetchMock: ReturnType<typeof vi.fn>, onConfigure = vi.fn()) {
   vi.stubGlobal('fetch', fetchMock)
   const container = document.createElement('div')
@@ -51,7 +54,7 @@ describe('PushOnboarding (SCRUM-44)', () => {
       vi.fn(async () => Response.json({ enabled: true, public_key: 'AQID' })),
     )
 
-    act(() => (container.querySelector('button') as HTMLButtonElement).click())
+    act(() => byText(container, 'Push einrichten').click())
 
     expect(onConfigure).toHaveBeenCalledOnce()
     expect(localStorage.getItem('squadmeet.push-onboarding.7')).toBe('configure')
@@ -63,7 +66,7 @@ describe('PushOnboarding (SCRUM-44)', () => {
       vi.fn(async () => Response.json({ enabled: true, public_key: 'AQID' })),
     )
 
-    act(() => (container.querySelectorAll('button')[1] as HTMLButtonElement).click())
+    act(() => byText(container, 'Später').click())
 
     expect(container.textContent).toBe('')
     expect(onConfigure).not.toHaveBeenCalled()
@@ -77,5 +80,20 @@ describe('PushOnboarding (SCRUM-44)', () => {
     )
 
     expect(container.textContent).toBe('')
+  })
+
+  // SCRUM-147: the shared Dialog; Escape means "Später".
+  it('is a modal dialog, and Escape means "Später"', async () => {
+    supportPush()
+    const { container, onConfigure } = await renderOnboarding(
+      vi.fn(async () => Response.json({ enabled: true, public_key: 'AQID' })),
+    )
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-modal')).toBe('true')
+
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+
+    expect(container.textContent).toBe('')
+    expect(onConfigure).not.toHaveBeenCalled()
+    expect(localStorage.getItem('squadmeet.push-onboarding.7')).toBe('later')
   })
 })

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchPushConfig, savePushSubscription } from '../api/push'
 import { needsIosHomeScreen, pushSupported, runsStandalone } from './push'
+import Dialog from '../Dialog'
 
 type Props = {
   userId: number
@@ -48,29 +49,23 @@ export default function PushOnboarding({ userId, token, onConfigure }: Props) {
 
   if (!visible) return null
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-label="Push-Benachrichtigungen einrichten">
-        <h2>Push-Benachrichtigungen?</h2>
-        <p>
-          Möchtest du neue Benachrichtigungen auch erhalten, wenn SquadMeet gerade geschlossen ist?
-        </p>
-        {iosNeedsInstall && (
-          <p>Auf dem iPhone musst du SquadMeet dafür zuerst zum Home-Bildschirm hinzufügen.</p>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            choose('configure')
-            onConfigure()
-          }}
-        >
-          Push einrichten
-        </button>
-        <button type="button" className="link" onClick={() => choose('later')}>
-          Später
-        </button>
-        <p className="hint">Du kannst Push jederzeit unter Konto → Push-Benachrichtigungen einschalten.</p>
-      </div>
-    </div>
+    // Escape and × mean "Später" (SCRUM-147).
+    <Dialog title="Push-Benachrichtigungen?" onClose={() => choose('later')}>
+      <p>Möchtest du neue Benachrichtigungen auch erhalten, wenn SquadMeet gerade geschlossen ist?</p>
+      {iosNeedsInstall && <p>Auf dem iPhone musst du SquadMeet dafür zuerst zum Home-Bildschirm hinzufügen.</p>}
+      <button
+        type="button"
+        onClick={() => {
+          choose('configure')
+          onConfigure()
+        }}
+      >
+        Push einrichten
+      </button>
+      <button type="button" className="link" onClick={() => choose('later')}>
+        Später
+      </button>
+      <p className="hint">Du kannst Push jederzeit unter Konto → Push-Benachrichtigungen einschalten.</p>
+    </Dialog>
   )
 }
