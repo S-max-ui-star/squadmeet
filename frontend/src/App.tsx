@@ -47,6 +47,7 @@ import NotificationsDialog from './notifications/NotificationsDialog'
 import HomeAreaDialog from './notifications/HomeAreaDialog'
 import PushOnboarding from './notifications/PushOnboarding'
 import PushSettingsDialog from './notifications/PushSettingsDialog'
+import { dropPushSubscription } from './notifications/push'
 import { notificationsFor, type NotificationState } from './notifications/notificationState'
 import { placeIdFromPath, placePath, usePath } from './places/route'
 import CenterOn from './places/CenterOn'
@@ -414,7 +415,10 @@ export default function App() {
     clearToken()
     setUser(null)
     resetUserUi()
-    if (token) await logout(token).catch(() => {})
+    if (!token) return
+    // First, while the token still works: no more Push messages of this account here (SCRUM-146).
+    await dropPushSubscription(token)
+    await logout(token).catch(() => {})
   }
 
   // The server already ended all sessions of the account; only the browser is left.
