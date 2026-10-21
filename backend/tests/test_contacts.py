@@ -5,9 +5,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import false
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
 
 from app import contacts as contacts_module
-from app.models import ContactRequest, Meetup
+from app.models import ContactRequest, Meetup, UserBlock
 from tests.test_auth import auth_header, register
 from tests.test_meetups import (  # noqa: F401
     create,
@@ -346,6 +347,17 @@ def test_two_requests_at_the_same_moment_answer_409(client, paula, karl, monkeyp
 
     assert response.status_code == 409
     assert len(contacts(client, paula[0])["outgoing"]) == 1
+
+
+def test_two_blocks_at_the_same_moment_give_one_block(client, session, paula, karl, monkeypatch):
+    block(client, paula[0], "Korb_Karl")
+    # The second Block does not see the first row, as if both were sent at the same moment.
+    monkeypatch.setattr(contacts_module, "blocked_by", lambda session, user_id: set())
+
+    response = block(client, paula[0], "Korb_Karl")
+
+    assert response.status_code == 201
+    assert len(session.exec(select(UserBlock).where(UserBlock.blocker_id == paula[1])).all()) == 1
 
 
 def test_too_big_ids_are_not_found(client, paula):
