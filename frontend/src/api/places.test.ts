@@ -64,6 +64,32 @@ describe('clampArea', () => {
     })
   })
 
+  it('normalizes positive and negative Leaflet world copies', () => {
+    expect(clampArea({ west: 190, south: 10, east: 200, north: 20 })).toEqual({
+      west: -170,
+      south: 10,
+      east: -160,
+      north: 20,
+    })
+    expect(clampArea({ west: -200, south: 10, east: -190, north: 20 })).toEqual({
+      west: 160,
+      south: 10,
+      east: 170,
+      north: 20,
+    })
+  })
+
+  it('returns a valid area at the antimeridian and for invalid bounds', () => {
+    const crossing = clampArea({ west: 170, south: 10, east: 190, north: 20 })
+    expect(crossing.west).toBeLessThan(crossing.east)
+    expect(clampArea({ west: 20, south: 30, east: 10, north: 20 })).toEqual({
+      west: -180,
+      south: -90,
+      east: 180,
+      north: 90,
+    })
+  })
+
   it('leaves a normal area as it is', () => {
     expect(clampArea(leipzig)).toEqual(leipzig)
   })

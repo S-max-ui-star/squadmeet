@@ -60,11 +60,41 @@ export type PlaceSearchHit = {
 // Leaflet reports longitudes beyond ±180 when the map shows the world more than once; the API
 // accepts only real coordinates.
 export function clampArea(area: MapArea): MapArea {
+  const longitudeSpan = area.east - area.west
+  let west = area.west
+  let east = area.east
+
+  if (longitudeSpan >= 360 || longitudeSpan <= 0) {
+    west = -180
+    east = 180
+  } else {
+    const worldCopies = Math.floor((west + 180) / 360)
+    west -= worldCopies * 360
+    east -= worldCopies * 360
+    if (east > 180) {
+      west -= 360
+      east -= 360
+    }
+    west = Math.max(-180, Math.min(180, west))
+    east = Math.max(-180, Math.min(180, east))
+    if (west >= east) {
+      west = -180
+      east = 180
+    }
+  }
+
+  let south = Math.max(-90, Math.min(90, area.south))
+  let north = Math.max(-90, Math.min(90, area.north))
+  if (south >= north) {
+    south = -90
+    north = 90
+  }
+
   return {
-    west: Math.max(-180, area.west),
-    south: Math.max(-90, area.south),
-    east: Math.min(180, area.east),
-    north: Math.min(90, area.north),
+    west,
+    south,
+    east,
+    north,
   }
 }
 

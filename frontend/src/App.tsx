@@ -648,6 +648,9 @@ export default function App() {
         center={startView?.center ?? LEIPZIG}
         zoom={startView?.zoom ?? 13}
         minZoom={MIN_ZOOM}
+        maxBounds={[[-90, -180], [90, 180]]}
+        maxBoundsViscosity={1}
+        worldCopyJump
         style={{ height: '100%' }}
       >
         <TileLayer
