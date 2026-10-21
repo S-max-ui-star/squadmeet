@@ -385,6 +385,12 @@ def actions(
     # Everyone in it may invite their Contacts (SCRUM-43).
     if viewer is not None and (meetup.host_id == viewer or joined):
         allowed.append("invite")
-    if viewer is not None and series is not None and series.host_id == viewer and series.cancelled_at is None:
+    # Only on an Occurrence the Series Host still hosts: a handover gave the others away (SCRUM-125).
+    if (
+        viewer is not None
+        and series is not None
+        and series.host_id == viewer == meetup.host_id
+        and series.cancelled_at is None
+    ):
         allowed.append("cancel_series")
     return allowed

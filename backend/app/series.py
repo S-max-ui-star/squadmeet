@@ -214,7 +214,8 @@ def cancel_series(
     session: Session = Depends(get_session),
 ):
     """The Host of the Series cancels it: every Occurrence that has not started is cancelled,
-    and no new ones are made. A running Occurrence goes on (it can be ended)."""
+    and no new ones are made. A running Occurrence goes on (it can be ended). An Occurrence
+    that a handover gave to another Host stays as it is (SCRUM-125)."""
     series = session.get(MeetupSeries, series_id)
     if series is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Serie nicht gefunden")
@@ -226,7 +227,9 @@ def cancel_series(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Die Serie ist schon abgesagt")
     now = datetime.now(UTC)
     series.cancelled_at = now
-    for meetup in session.exec(select(Meetup).where(Meetup.series_id == series.id)):
+    for meetup in session.exec(
+        select(Meetup).where(Meetup.series_id == series.id, Meetup.host_id == series.host_id)
+    ):
         # Upcoming ones are cancelled, a running one goes on (SCRUM-61: one transition).
         call_off(session, meetup, now, user.id, end_running=False)
     session.commit()
