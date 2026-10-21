@@ -55,57 +55,37 @@ function PersonButton({ label, onClick }: { label: string; onClick: () => void }
   )
 }
 
-function MeetupIdentity({
-  meetup,
-  user,
-  onPerson,
-}: {
-  meetup: Meetup
-  user: User | null
-  onPerson: (person: Person) => void
-}) {
+function MeetupStateLabel({ meetup }: { meetup: Meetup }) {
   const live = meetup.state === 'live'
-  const isHost = user !== null && user.id === meetup.host?.id
   return (
-    <div>
+    <>
       {meetup.state === 'cancelled' && <><span className="cancelled-tag">Abgesagt</span>{' '}</>}
       {meetup.series_id !== null && <><span className="series-tag" title="Termin einer wöchentlichen Serie">🔁</span>{' '}</>}
       {live ? <><span className="live">LIVE</span> bis {time.format(new Date(meetup.ends_at))} Uhr</> : slot(meetup)}
-      {meetup.host && (
-        <>
-          <br />
-          {isHost ? (
-            `${AVATARS[meetup.host.avatar]?.emoji ?? ''} ${meetup.host.nickname} (du, Gastgeber)`
-          ) : (
-            <PersonButton
-              label={`${AVATARS[meetup.host.avatar]?.emoji ?? ''} ${meetup.host.nickname}`}
-              onClick={() => onPerson({ meetupId: meetup.id, nickname: meetup.host!.nickname })}
-            />
-          )}
-        </>
-      )}
-      {meetup.participants && meetup.participants.length > 0 && (
-        <>
-          <br />
-          <span className="participants">
-            Dabei:{' '}
-            {meetup.participants.map((participant, index) => {
-              const label = `${AVATARS[participant.avatar]?.emoji ?? ''} ${participant.nickname}${participant.party_size > 1 ? ` (${participant.party_size})` : ''}`
-              return (
-                <span key={participant.id}>
-                  {index > 0 && ', '}
-                  {participant.id === user?.id ? label : (
-                    <PersonButton
-                      label={label}
-                      onClick={() => onPerson({ meetupId: meetup.id, nickname: participant.nickname })}
-                    />
-                  )}
-                </span>
-              )
-            })}
-          </span>
-        </>
-      )}
+    </>
+  )
+}
+
+function MeetupHost({ meetup, user, onPerson }: { meetup: Meetup; user: User | null; onPerson: (person: Person) => void }) {
+  if (!meetup.host) return null
+  if (user?.id === meetup.host.id) return <><br />{AVATARS[meetup.host.avatar]?.emoji ?? ''} {meetup.host.nickname} (du, Gastgeber)</>
+  return <><br /><PersonButton label={`${AVATARS[meetup.host.avatar]?.emoji ?? ''} ${meetup.host.nickname}`} onClick={() => onPerson({ meetupId: meetup.id, nickname: meetup.host!.nickname })} /></>
+}
+
+function MeetupParticipants({ meetup, user, onPerson }: { meetup: Meetup; user: User | null; onPerson: (person: Person) => void }) {
+  if (!meetup.participants?.length) return null
+  return <><br /><span className="participants">Dabei:{' '}{meetup.participants.map((participant, index) => {
+    const label = `${AVATARS[participant.avatar]?.emoji ?? ''} ${participant.nickname}${participant.party_size > 1 ? ` (${participant.party_size})` : ''}`
+    return <span key={participant.id}>{index > 0 && ', '}{participant.id === user?.id ? label : <PersonButton label={label} onClick={() => onPerson({ meetupId: meetup.id, nickname: participant.nickname })} />}</span>
+  })}</span></>
+}
+
+function MeetupIdentity({ meetup, user, onPerson }: { meetup: Meetup; user: User | null; onPerson: (person: Person) => void }) {
+  return (
+    <div>
+      <MeetupStateLabel meetup={meetup} />
+      <MeetupHost meetup={meetup} user={user} onPerson={onPerson} />
+      <MeetupParticipants meetup={meetup} user={user} onPerson={onPerson} />
       {meetup.blocked_user_in && <><br /><span className="blocked-warning">⚠️ Jemand, den du blockiert hast, ist dabei</span></>}
     </div>
   )
@@ -206,16 +186,77 @@ function MoveForm({ meetup, moving, busy, now, setMoving, run }: {
   )
 }
 
+function SelectedPersonActions({ meetupId, person, busy, run, setPerson, setNotice }: {
+  meetupId: number
+  person: Person | null
+  busy: boolean
+  run: Run
+  setPerson: Dispatch<SetStateAction<Person | null>>
+  setNotice: Dispatch<SetStateAction<string | null>>
+}) {
+  if (!person || person.meetupId !== meetupId) return null
+  return <PersonActions person={person} busy={busy} run={run} onClose={() => setPerson(null)} setNotice={setNotice} />
+}
+
+function SelectedJoinForm({ meetup, joining, busy, setJoining, run }: {
+  meetup: Meetup
+  joining: Joining | null
+  busy: boolean
+  setJoining: Dispatch<SetStateAction<Joining | null>>
+  run: Run
+}) {
+  if (!joining || joining.id !== meetup.id) return null
+  return <JoinForm meetup={meetup} joining={joining} busy={busy} setJoining={setJoining} run={run} />
+}
+
+function SeriesControls({ meetup, laterCount, expanded, cancellableSeriesId, busy, onToggleExpanded, run }: {
+  meetup: Meetup
+  laterCount: number
+  expanded: boolean
+  cancellableSeriesId: number | null
+  busy: boolean
+  onToggleExpanded: () => void
+  run: Run
+}) {
+  if (laterCount === 0 || meetup.series_id === null) return null
+  return (
+    <>
+      <button type="button" className="link-button" aria-expanded={expanded} onClick={onToggleExpanded}>
+        Alle Termine ({laterCount + 1}) {expanded ? '▴' : '▾'}
+      </button>
+      {cancellableSeriesId !== null && <button type="button" disabled={busy} onClick={() => run((token) => cancelSeries(token, cancellableSeriesId))}>Serie absagen</button>}
+    </>
+  )
+}
+
+function LifecycleControls({ meetup, moving, busy, now, setMoving, run }: {
+  meetup: Meetup
+  moving: Moving | null
+  busy: boolean
+  now: Date
+  setMoving: Dispatch<SetStateAction<Moving | null>>
+  run: Run
+}) {
+  const can = (action: MeetupAction) => meetup.actions.includes(action)
+  return (
+    <>
+      {can('end') && <button type="button" disabled={busy} onClick={() => run((token) => endMeetup(token, meetup.id))}>Jetzt beenden</button>}
+      {can('cancel') && <button type="button" disabled={busy} onClick={() => run((token) => cancelMeetup(token, meetup.id))}>Absagen</button>}
+      {can('move') && moving?.id !== meetup.id && <button type="button" disabled={busy} onClick={() => setMoving({ id: meetup.id, startsAt: toInputValue(new Date(meetup.starts_at)) })}>Zeit ändern</button>}
+      {moving?.id === meetup.id && <MoveForm meetup={meetup} moving={moving} busy={busy} now={now} setMoving={setMoving} run={run} />}
+    </>
+  )
+}
+
 export default function MeetupCard(props: Props) {
   const { meetup, user, laterCount, offered, busy, now, joining, moving, person, expanded,
     cancellableSeriesId, setJoining, setMoving, setPerson, setNotice, onToggleExpanded,
     onLoginNeeded, run } = props
-  const can = (action: MeetupAction) => meetup.actions.includes(action)
   const live = meetup.state === 'live'
   return (
     <li id={`treffen-${meetup.id}`} className={live ? 'meetup-card' : meetup.state === 'cancelled' ? 'meetup-card cancelled' : 'meetup-card later'}>
       <MeetupIdentity meetup={meetup} user={user} onPerson={setPerson} />
-      {person?.meetupId === meetup.id && <PersonActions person={person} busy={busy} run={run} onClose={() => setPerson(null)} setNotice={setNotice} />}
+      <SelectedPersonActions meetupId={meetup.id} person={person} busy={busy} run={run} setPerson={setPerson} setNotice={setNotice} />
       <strong className="meetup-people">{people(meetup.people)}</strong>
       <MeetupAnswers
         meetup={meetup}
@@ -227,17 +268,9 @@ export default function MeetupCard(props: Props) {
         onLeave={() => run((token) => leaveMeetup(token, meetup.id))}
       />
       <InviteContacts meetup={meetup} />
-      {joining?.id === meetup.id && <JoinForm meetup={meetup} joining={joining} busy={busy} setJoining={setJoining} run={run} />}
-      {laterCount > 0 && meetup.series_id !== null && (
-        <button type="button" className="link-button" aria-expanded={expanded} onClick={onToggleExpanded}>
-          Alle Termine ({laterCount + 1}) {expanded ? '▴' : '▾'}
-        </button>
-      )}
-      {cancellableSeriesId !== null && laterCount > 0 && <button type="button" disabled={busy} onClick={() => run((token) => cancelSeries(token, cancellableSeriesId))}>Serie absagen</button>}
-      {can('end') && <button type="button" disabled={busy} onClick={() => run((token) => endMeetup(token, meetup.id))}>Jetzt beenden</button>}
-      {can('cancel') && <button type="button" disabled={busy} onClick={() => run((token) => cancelMeetup(token, meetup.id))}>Absagen</button>}
-      {can('move') && moving?.id !== meetup.id && <button type="button" disabled={busy} onClick={() => setMoving({ id: meetup.id, startsAt: toInputValue(new Date(meetup.starts_at)) })}>Zeit ändern</button>}
-      {moving?.id === meetup.id && <MoveForm meetup={meetup} moving={moving} busy={busy} now={now} setMoving={setMoving} run={run} />}
+      <SelectedJoinForm meetup={meetup} joining={joining} busy={busy} setJoining={setJoining} run={run} />
+      <SeriesControls meetup={meetup} laterCount={laterCount} expanded={expanded} cancellableSeriesId={cancellableSeriesId} busy={busy} onToggleExpanded={onToggleExpanded} run={run} />
+      <LifecycleControls meetup={meetup} moving={moving} busy={busy} now={now} setMoving={setMoving} run={run} />
     </li>
   )
 }
