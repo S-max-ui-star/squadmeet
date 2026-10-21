@@ -94,7 +94,7 @@ NOT_WAITING = Refusal(status.HTTP_409_CONFLICT, "Dieser Platz wartet nicht auf e
 ACTIVE, SUGGESTION, WAITING, REPORTED, LOCKED, DELETED = PlaceStatus
 
 # None = allowed. A reported Place is hidden from users like a locked one, until an Admin
-# dismisses the reports or locks it; its Meetups stay.
+# dismisses the reports or locks it; its Meetups stay, but take no Join or move (SCRUM-72).
 RULES: dict[PlaceUse, dict[PlaceStatus, Refusal | None]] = {
     PlaceUse.VIEW: {
         ACTIVE: None,

@@ -264,3 +264,36 @@ def test_a_later_fill_skips_a_full_date(session, client, place, host):
     session.flush()
 
     assert series_module.fill_series(session, third, now) == 0
+
+
+def emptied(session, series_id):
+    """The Series with all its Occurrences deleted, so the next fill makes them again."""
+    series = session.get(series_module.MeetupSeries, series_id)
+    session.exec(series_module.delete_future_of(series))
+    session.commit()
+    return series
+
+
+def count_of(session, series):
+    return len(session.exec(series_module.select(Meetup.id).where(Meetup.series_id == series.id)).all())
+
+
+def test_the_map_fills_only_the_series_in_its_area(session, client, place, host):
+    # SCRUM-72: a map load does not fill every Series of every user.
+    series = emptied(session, create_series(client, host[0], place.id, [slot(0)]).json()["id"])
+
+    client.get("/api/places", params={"bbox": "10,50,11,51"})
+    assert count_of(session, series) == 0
+
+    client.get("/api/places", params={"bbox": "-31,0,-30,1"})
+    assert count_of(session, series) > 0
+
+
+def test_my_meetups_fill_only_the_users_own_series(session, client, place, host, guest):
+    series = emptied(session, create_series(client, host[0], place.id, [slot(0)]).json()["id"])
+
+    client.get("/api/meetups/mine", headers=auth_header(guest[0]))
+    assert count_of(session, series) == 0
+
+    client.get("/api/meetups/mine", headers=auth_header(host[0]))
+    assert count_of(session, series) > 0

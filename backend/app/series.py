@@ -136,9 +136,10 @@ def fill_series(
     return len(created)
 
 
-def fill_open_series(session: Session, now: datetime, place_id: int | None = None) -> None:
-    """Fills every running Series (of one Place, or all) at a Place that may have Meetups, and
-    commits when something was made."""
+def fill_open_series(session: Session, now: datetime, *where) -> None:
+    """Fills the running Series at a Place that may have Meetups, and commits when something
+    was made. `where` limits them (on MeetupSeries or Place), so a request fills only the
+    Series it shows (SCRUM-72): one Place, the map area, or the user's own."""
     query = (
         select(MeetupSeries)
         .join(Place, Place.id == MeetupSeries.place_id)
@@ -146,10 +147,9 @@ def fill_open_series(session: Session, now: datetime, place_id: int | None = Non
             MeetupSeries.cancelled_at.is_(None),
             or_(MeetupSeries.until.is_(None), MeetupSeries.until >= now.astimezone(BERLIN).date()),
             allowed_in(PlaceUse.MEETUP),
+            *where,
         )
     )
-    if place_id is not None:
-        query = query.where(MeetupSeries.place_id == place_id)
     if sum(fill_series(session, series, now) for series in session.exec(query).all()):
         session.commit()
 

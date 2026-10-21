@@ -105,8 +105,9 @@ def list_places(
     user's count of people leaves out the Meetups of users who blocked them (SCRUM-32)."""
     west, south, east, north = parse_bbox(bbox)
     area = func.ST_MakeEnvelope(west, south, east, north, 4326)
-    # Weekly Series (SCRUM-38): make the missing Occurrences, so one that starts now counts.
-    fill_open_series(session, datetime.now(UTC))
+    # Weekly Series (SCRUM-38): make the missing Occurrences in the area, so one that starts now
+    # counts.
+    fill_open_series(session, datetime.now(UTC), Place.location.op("&&")(area))
     rows = session.exec(
         select_place_reads(frozenset(blockers_of(session, user.id if user else None)))
         # && compares bounding boxes, so PostgreSQL can use the spatial index.
