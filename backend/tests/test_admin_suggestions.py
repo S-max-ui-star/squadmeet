@@ -4,12 +4,14 @@ hint, approve after 24 h, reject."""
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlmodel import select
 
 from app.main import app
-from app.models import Place
+from app.models import Place, PlaceReport
 from app.osm_hint import get_osm_hinter, hints_from_answer
 from tests.test_admin_places import admin  # noqa: F401 (fixture)
 from tests.test_auth import auth_header, register
+from tests.test_place_reports import report, users
 from tests.test_suggestions import confirm, suggest, user_token
 
 BBOX = {"bbox": "-31,0,-30,1"}
@@ -173,6 +175,40 @@ def test_reject_removes_the_suggestion(client, admin, waiting):
     assert all(p["id"] != waiting for p in client.get("/api/places", params=BBOX).json())
     assert waiting_list(client, admin).json() == []
     assert approve(client, admin, waiting).status_code == 404
+
+
+def test_the_list_shows_the_open_reports(client, session, admin, waiting, hinter):
+    for token in users(client, session, 2):
+        report(client, token, waiting)
+
+    [item] = waiting_list(client, admin).json()
+
+    assert item["open_reports"] == 2
+
+
+def test_approve_closes_the_open_reports_so_the_place_stays_on_the_map(
+    client, session, admin, waiting
+):
+    for token in users(client, session, 3):
+        report(client, token, waiting)
+    suggested_ago(session, waiting, timedelta(days=2))
+
+    assert approve(client, admin, waiting).status_code == 204
+
+    assert any(p["id"] == waiting for p in client.get("/api/places", params=BBOX).json())
+    assert client.get(f"/api/places/{waiting}").json()["open_reports"] == 0
+
+
+def test_reject_closes_the_open_reports(client, session, admin, waiting):
+    [token] = users(client, session, 1)
+    report(client, token, waiting)
+
+    assert reject(client, admin, waiting).status_code == 204
+
+    still_open = session.exec(
+        select(PlaceReport).where(PlaceReport.place_id == waiting, PlaceReport.closed_at.is_(None))
+    ).all()
+    assert still_open == []
 
 
 def test_only_a_waiting_suggestion_can_be_approved_or_rejected(client, session, admin):
