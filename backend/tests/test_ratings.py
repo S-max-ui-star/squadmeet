@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 
 from app.models import ConditionVote, Place, Rating
-from app.ratings import RECENT_DAYS, VOTES_NEEDED, issue_state
+from app.ratings import RECENT_DAYS, VOTES_NEEDED, IssueHistory, issue_history
 from tests.test_auth import auth_header, register
 
 
@@ -155,7 +155,52 @@ def test_average_stars_and_top_reasons(client, place, paula, karl):
         "label": "Platte in gutem Zustand",
         "positive": True,
         "count": 2,
+        "fixed_at": None,
     }
+
+
+def test_rating_list_is_anonymous_and_newest_change_comes_first(
+    client, session, place, paula, karl
+):
+    older = datetime(2026, 10, 19, 8, tzinfo=UTC)
+    changed = datetime(2026, 10, 20, 14, 30, tzinfo=UTC)
+    session.add_all(
+        [
+            Rating(
+                place_id=place.id,
+                user_id=karl[1],
+                stars=5,
+                reasons=["table_good"],
+                created_at=older,
+                updated_at=older,
+            ),
+            Rating(
+                place_id=place.id,
+                user_id=paula[1],
+                stars=2,
+                reasons=["net_missing", "litter"],
+                created_at=older - timedelta(days=1),
+                updated_at=changed,
+            ),
+        ]
+    )
+    session.commit()
+
+    response = client.get(f"/api/places/{place.id}/ratings/list")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "stars": 2,
+            "reasons": ["Netz fehlt oder ist kaputt", "Müll oder Verschmutzung"],
+            "updated_at": "2026-10-20T14:30:00Z",
+        },
+        {
+            "stars": 5,
+            "reasons": ["Platte in gutem Zustand"],
+            "updated_at": "2026-10-19T08:00:00Z",
+        },
+    ]
 
 
 def test_condition_is_good_when_recent_ratings_name_no_problem(client, place, paula):
@@ -262,6 +307,21 @@ def test_a_later_vote_replaces_the_own_vote(client, session, place, paula):
     assert issue["needs_check"] is True
 
 
+def test_a_fixed_issue_keeps_the_rating_and_shows_its_reason_as_fixed(
+    client, session, place, paula
+):
+    old_rating(session, place, paula[1], ["net_missing"], days=RECENT_DAYS + 1)
+    for token in voters(client, VOTES_NEEDED):
+        vote(client, token, place.id, still_there=False)
+
+    result = summary(client, place.id)
+
+    assert (result["count"], result["average_stars"]) == (1, 2.0)
+    [chip] = result["top_reasons"]
+    assert (chip["key"], chip["count"]) == ("net_missing", 1)
+    assert chip["fixed_at"] is not None
+
+
 def test_a_new_rating_brings_a_fixed_issue_back(client, session, place, paula, karl):
     old_rating(session, place, paula[1], ["net_missing"], days=RECENT_DAYS + 1)
     for token in voters(client, VOTES_NEEDED):
@@ -269,9 +329,13 @@ def test_a_new_rating_brings_a_fixed_issue_back(client, session, place, paula, k
 
     rate(client, karl[0], place.id, stars=2, reasons=["net_missing"])
 
-    issue = the_issue(client, place.id)
-    assert issue["count"] == 2
-    assert issue["needs_check"] is False
+    result = summary(client, place.id)
+    assert result["condition"]["state"] == "issues"
+    # Only the new Rating counts for the issue; the old one stays shown as fixed.
+    [issue] = result["condition"]["issues"]
+    assert (issue["count"], issue["needs_check"]) == (1, False)
+    chips = {chip["fixed_at"] is None: chip["count"] for chip in result["top_reasons"]}
+    assert chips == {True: 1, False: 1}
 
 
 def test_voting_needs_a_login(client, place, paula):
@@ -328,7 +392,7 @@ def test_a_confirmed_issue_is_asked_about_again_two_months_later():
     # Confirmed by 3 votes 130 days ago; that was more than RECENT_DAYS ago.
     confirmed = votes((132, 1, True), (131, 2, True), (130, 3, True))
 
-    state = issue_state(reported, confirmed, NOW)
+    state = issue_history(reported, confirmed, NOW).open
 
     assert state.needs_check is True
     assert (state.still_there_votes, state.fixed_votes) == (0, 0)
@@ -338,7 +402,7 @@ def test_votes_of_an_earlier_check_do_not_count_in_the_next_one():
     reported = [day(200)]
     answers = votes((132, 1, True), (131, 2, True), (130, 3, True), (5, 1, False), (4, 2, False))
 
-    state = issue_state(reported, answers, NOW)
+    state = issue_history(reported, answers, NOW).open
 
     # Users 1 and 2 said "fixed" in the new check; the 3 old "still there" votes are spent.
     assert (state.still_there_votes, state.fixed_votes) == (0, 2)
@@ -348,7 +412,7 @@ def test_mixed_votes_need_three_on_one_side():
     reported = [day(100)]
     answers = votes((10, 1, True), (9, 2, False), (8, 3, True), (7, 4, False))
 
-    state = issue_state(reported, answers, NOW)
+    state = issue_history(reported, answers, NOW).open
 
     assert state.needs_check is True
     assert (state.still_there_votes, state.fixed_votes) == (2, 2)
@@ -358,7 +422,7 @@ def test_a_fixed_vote_before_the_check_still_counts_in_it():
     reported = [day(100)]
     answers = votes((90, 1, False), (5, 2, True), (4, 3, False))
 
-    state = issue_state(reported, answers, NOW)
+    state = issue_history(reported, answers, NOW).open
 
     assert state.needs_check is True
     assert (state.still_there_votes, state.fixed_votes) == (1, 2)
@@ -368,10 +432,27 @@ def test_a_confirmation_drops_the_fixed_votes_before_it():
     reported = [day(200)]
     answers = votes((190, 4, False), (132, 1, True), (131, 2, True), (130, 3, True))
 
-    state = issue_state(reported, answers, NOW)
+    state = issue_history(reported, answers, NOW).open
 
     assert (state.still_there_votes, state.fixed_votes) == (0, 0)
 
 
 def test_no_rating_names_the_issue():
-    assert issue_state([], [], NOW) is None
+    assert issue_history([], [], NOW) == IssueHistory(open=None, fixed_at=None)
+
+
+def test_three_fixed_votes_give_the_time_of_the_fix():
+    reported = [day(100)]
+    answers = votes((10, 1, False), (9, 2, False), (8, 3, False))
+
+    assert issue_history(reported, answers, NOW) == IssueHistory(open=None, fixed_at=day(8))
+
+
+def test_a_report_after_the_fix_opens_the_issue_and_keeps_the_fix():
+    reported = [day(100), day(5)]
+    answers = votes((10, 1, False), (9, 2, False), (8, 3, False))
+
+    history = issue_history(reported, answers, NOW)
+
+    assert history.fixed_at == day(8)
+    assert history.open.needs_check is False

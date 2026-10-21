@@ -3,6 +3,7 @@
 An open page keeps one stream to GET /api/live. When a commit changes a user's Notifications or
 Contacts, the stream sends that user the topic ("notifications" or "contacts"). A change to a
 Meetup or a Join goes to every open stream as "meetups:<place id>", because Meetups are public.
+A Rating or a Condition vote goes to every open stream as "ratings:<place id>" (SCRUM-98).
 The page then loads that data again. An event carries no data, so a lost or extra event does no
 harm: the page loads again when the stream opens, and it still polls every 60 s.
 
@@ -23,11 +24,20 @@ from sqlmodel import Session
 
 from app.auth import current_login
 from app.db import get_session
-from app.models import ContactRequest, LoginSession, Meetup, MeetupJoin, Notification, UserBlock
+from app.models import (
+    ConditionVote,
+    ContactRequest,
+    LoginSession,
+    Meetup,
+    MeetupJoin,
+    Notification,
+    Rating,
+    UserBlock,
+)
 
 logger = logging.getLogger(__name__)
 
-# "notifications", "contacts" or "meetups:<place id>".
+# "notifications", "contacts", "meetups:<place id>" or "ratings:<place id>".
 Message = str
 Listener = Callable[[Message], None]
 # The receiver of a change: a user id, or None for every open stream.
@@ -91,6 +101,9 @@ def changes_of(session: Session, obj: object) -> list[tuple[Receiver, Message]]:
         with session.no_autoflush:
             meetup = session.get(Meetup, obj.meetup_id)
         return [(None, f"meetups:{meetup.place_id}")] if meetup else []
+    if isinstance(obj, (Rating, ConditionVote)):
+        # The Rating summary and the Condition are public, like Meetups.
+        return [(None, f"ratings:{obj.place_id}")]
     if isinstance(obj, Notification):
         return [(obj.user_id, "notifications")]
     if isinstance(obj, ContactRequest):
@@ -99,6 +112,11 @@ def changes_of(session: Session, obj: object) -> list[tuple[Receiver, Message]]:
         # Only the blocker's list shows the Block; the blocked user does not learn about it.
         return [(obj.blocker_id, "contacts")]
     return []
+
+
+def note(session: Session, receiver: Receiver, message: Message) -> None:
+    """For a change that the ORM does not see (a Core statement): send it after the commit."""
+    session.info.setdefault(PENDING, set()).add((receiver, message))
 
 
 @event.listens_for(Session, "after_flush")

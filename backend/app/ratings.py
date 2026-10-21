@@ -16,9 +16,12 @@ The Condition comes only from the Reasons that the city or the operator must fix
   it again.
 - Votes count in a round: from the last report or confirmation on. Each user has one vote per
   round; a later vote replaces their own.
+- A fixed issue does not change the Ratings (SCRUM-99): the Reason in Ratings from before the
+  fix shows as fixed ("behoben am …"). A Rating after the fix names a new issue and counts
+  normally.
 
 Nothing is stored about checks except the votes: the state is worked out from the Ratings and
-the votes each time (`issue_state`), so two votes at the same moment cannot break it.
+the votes each time (`issue_history`), so two votes at the same moment cannot break it.
 """
 
 from collections import Counter
@@ -31,6 +34,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
+from app import live
 from app.auth import current_user
 from app.db import get_session
 from app.models import ConditionVote, Place, Rating, User
@@ -57,10 +61,13 @@ class ReasonRead(BaseModel):
 
 class ReasonCount(ReasonRead):
     count: int
+    # Set when these Ratings name an issue that users said is fixed: the time of the fix.
+    fixed_at: datetime | None = None
 
 
 class IssueRead(ReasonCount):
-    """A problem named in Ratings; `count` is the number of Ratings that name it."""
+    """A problem named in Ratings; `count` is the number of Ratings since the last fix that
+    name it."""
 
     # True when it was not confirmed for RECENT_DAYS and users are asked "Ist das noch so?".
     needs_check: bool
@@ -96,18 +103,16 @@ class RatingRead(BaseModel):
     updated_at: datetime
 
 
+class RatingListItem(BaseModel):
+    """One anonymous Rating in the public Place detail (SCRUM-100)."""
+
+    stars: int
+    reasons: list[str]
+    updated_at: datetime
+
+
 def to_read(reason: Reason) -> ReasonRead:
     return ReasonRead(key=reason.key, label=reason.label, positive=reason.positive)
-
-
-def counted(counts: Counter, reasons: dict[str, Reason]) -> list[ReasonCount]:
-    """The Reasons with their counts, the most chosen first. Keys the Place's Activity type no
-    longer has are left out."""
-    return [
-        ReasonCount(**to_read(reasons[key]).model_dump(), count=n)
-        for key, n in counts.most_common()
-        if key in reasons
-    ]
 
 
 @dataclass
@@ -117,37 +122,55 @@ class IssueState:
     fixed_votes: int
 
 
-def issue_state(
+@dataclass
+class IssueHistory:
+    # The open issue, or None when there is none (never named, or fixed).
+    open: IssueState | None
+    # When VOTES_NEEDED "fixed" votes ended it the last time; None if never.
+    fixed_at: datetime | None
+
+
+def issue_history(
     reported: list[datetime], votes: list[ConditionVote], now: datetime
-) -> IssueState | None:
-    """The state of one issue at a Place, or None when there is none (never named, or fixed).
+) -> IssueHistory:
+    """The state of one issue at a Place and its last fix.
 
     `reported` are the times of the Ratings that name it; `votes` are the votes about it.
     """
-    if not reported:
-        return None
     window = timedelta(days=RECENT_DAYS)
-    # A new or changed Rating that names the issue starts over: older votes do not count.
-    confirmed = max(reported)
+    # Ratings and votes in time order; a Rating comes before a vote at the same moment.
+    events = sorted(
+        [(at, 0, 0, None) for at in reported] + [(v.created_at, 1, v.id or 0, v) for v in votes],
+        key=lambda event: event[:3],
+    )
+    # The last report or confirmation of the open issue; None while there is no open issue.
+    confirmed: datetime | None = None
+    fixed_at = None
     round_votes: dict[int, bool] = {}
-    for vote in sorted(votes, key=lambda v: (v.created_at, v.id or 0)):
-        if vote.created_at <= confirmed:
-            continue  # from an earlier round
-        if vote.still_there and vote.created_at < confirmed + window:
+    for at, _, _, vote in events:
+        if vote is None:
+            # A new or changed Rating that names the issue starts over: older votes do not count.
+            confirmed, round_votes = at, {}
+            continue
+        if confirmed is None or at == confirmed:
+            continue  # nothing open to vote on, or from an earlier round
+        if vote.still_there and at < confirmed + window:
             continue  # "still there" only counts while a check is open
         round_votes[vote.user_id] = vote.still_there
         still_there = sum(round_votes.values())
         if still_there >= VOTES_NEEDED:
-            confirmed = vote.created_at
-            round_votes = {}
+            confirmed, round_votes = at, {}
         elif len(round_votes) - still_there >= VOTES_NEEDED:
-            return None
+            confirmed, fixed_at, round_votes = None, at, {}
+    if confirmed is None:
+        return IssueHistory(open=None, fixed_at=fixed_at)
     still_there = sum(round_votes.values())
-    return IssueState(
+    state = IssueState(
         needs_check=now >= confirmed + window,
         still_there_votes=still_there,
         fixed_votes=len(round_votes) - still_there,
     )
+    return IssueHistory(open=state, fixed_at=fixed_at)
 
 
 def summarize(
@@ -157,16 +180,30 @@ def summarize(
     now: datetime,
 ) -> RatingSummary:
     issues = []
+    # (Reason key, time of the fix or None) → Ratings; a fixed issue splits its Reason in two.
+    chips: Counter[tuple[str, datetime | None]] = Counter()
     for key, n in Counter(key for r in ratings for key in r.reasons).most_common():
-        if key not in reasons or not reasons[key].affects_condition:
+        if key not in reasons:
             continue
-        state = issue_state(
-            [r.updated_at for r in ratings if key in r.reasons],
-            [v for v in votes if v.reason_key == key],
-            now,
-        )
-        if state:
-            issues.append(IssueRead(**to_read(reasons[key]).model_dump(), count=n, **vars(state)))
+        if not reasons[key].affects_condition:
+            chips[key, None] = n
+            continue
+        reported = [r.updated_at for r in ratings if key in r.reasons]
+        history = issue_history(reported, [v for v in votes if v.reason_key == key], now)
+        fixed = sum(at <= history.fixed_at for at in reported) if history.fixed_at else 0
+        if fixed:
+            chips[key, history.fixed_at] = fixed
+        if n - fixed:
+            chips[key, None] = n - fixed
+        if history.open:
+            issues.append(
+                IssueRead(
+                    **to_read(reasons[key]).model_dump(),
+                    count=n - fixed,
+                    **vars(history.open),
+                )
+            )
+    issues.sort(key=lambda issue: -issue.count)
     since = now - timedelta(days=RECENT_DAYS)
     recent = any(r.updated_at > since for r in ratings) or any(v.created_at > since for v in votes)
     if issues:
@@ -176,8 +213,9 @@ def summarize(
     return RatingSummary(
         count=len(ratings),
         average_stars=round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else None,
-        top_reasons=counted(Counter(key for r in ratings for key in r.reasons), reasons)[
-            :TOP_REASONS
+        top_reasons=[
+            ReasonCount(**to_read(reasons[key]).model_dump(), count=n, fixed_at=fixed_at)
+            for (key, fixed_at), n in chips.most_common(TOP_REASONS)
         ],
         condition=ConditionRead(state=state, issues=issues),
     )
@@ -208,6 +246,30 @@ def rating_summary(
     session: Session = Depends(get_session),
 ):
     return load_summary(session, require(session, place_id, view_use(user)))
+
+
+@router.get("/places/{place_id}/ratings/list", response_model=list[RatingListItem])
+def rating_list(
+    place_id: int,
+    user: User | None = Depends(viewer),
+    session: Session = Depends(get_session),
+):
+    """Every Rating, newest change first and without identifying the author."""
+    place = require(session, place_id, view_use(user))
+    reasons = {reason.key: reason.label for reason in reasons_for(place.activity_type)}
+    rows = session.exec(
+        select(Rating)
+        .where(Rating.place_id == place_id)
+        .order_by(Rating.updated_at.desc(), Rating.id.desc())
+    ).all()
+    return [
+        RatingListItem(
+            stars=rating.stars,
+            reasons=[reasons[key] for key in rating.reasons if key in reasons],
+            updated_at=rating.updated_at,
+        )
+        for rating in rows
+    ]
 
 
 @router.get("/places/{place_id}/ratings/mine", response_model=RatingRead | None)
@@ -253,6 +315,8 @@ def rate_place(
         .values(place_id=place_id, user_id=user.id, created_at=now, **values)
         .on_conflict_do_update(constraint="uq_rating_place_user", set_=values)
     )
+    # The upsert is no ORM change, so the open pages hear of it here (SCRUM-98).
+    live.note(session, None, f"ratings:{place_id}")
     session.commit()
     rating = session.exec(
         select(Rating).where(Rating.place_id == place_id, Rating.user_id == user.id)

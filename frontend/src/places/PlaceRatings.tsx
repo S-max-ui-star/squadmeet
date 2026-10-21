@@ -13,8 +13,11 @@ import {
   type Reason,
   type ReasonCount,
 } from '../api/ratings'
+import { onRatingChange } from '../api/live'
 import type { Place } from '../api/places'
 import { findCityReport, mailtoLink, placeText, telLink } from './cityReport'
+import { usePlaceReloads } from './usePlaceReloads'
+import PlaceRatingList from './PlaceRatingList'
 
 type Props = {
   placeId: number
@@ -110,14 +113,26 @@ function starText(stars: number): string {
   return '★'.repeat(stars) + '☆'.repeat(5 - stars)
 }
 
+const fixedDay = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' })
+
+// A Reason of an issue that users said is fixed is crossed out; the Ratings stay (SCRUM-99).
 function ReasonChips({ reasons }: { reasons: ReasonCount[] }) {
   return (
     <ul className="reason-chips">
-      {reasons.map((reason) => (
-        <li key={reason.key} className={reason.positive ? 'good' : 'bad'}>
-          {reason.label} <span className="reason-count">{reason.count}</span>
-        </li>
-      ))}
+      {reasons.map((reason) =>
+        reason.fixed_at ? (
+          <li key={`${reason.key}-fixed`} className="fixed">
+            <del>
+              {reason.label} <span className="reason-count">{reason.count}</span>
+            </del>{' '}
+            behoben am {fixedDay.format(new Date(reason.fixed_at))}.
+          </li>
+        ) : (
+          <li key={reason.key} className={reason.positive ? 'good' : 'bad'}>
+            {reason.label} <span className="reason-count">{reason.count}</span>
+          </li>
+        ),
+      )}
     </ul>
   )
 }
@@ -204,6 +219,91 @@ function ConditionLine({ summary, voted, busy, onVote }: ConditionProps) {
   )
 }
 
+type RatingEditorProps = {
+  stars: number
+  chosen: Set<string>
+  reasons: Reason[] | null
+  busy: boolean
+  missing: string | null
+  onStars: (stars: number) => void
+  onToggle: (key: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}
+
+function RatingEditor({
+  stars,
+  chosen,
+  reasons,
+  busy,
+  missing,
+  onStars,
+  onToggle,
+  onSubmit,
+  onCancel,
+}: RatingEditorProps) {
+  function reasonGroup(title: string, positive: boolean) {
+    const group = (reasons ?? []).filter((reason) => reason.positive === positive)
+    return (
+      <fieldset className="reason-group">
+        <legend>{title}</legend>
+        {group.map((reason) => (
+          <button
+            key={reason.key}
+            type="button"
+            aria-pressed={chosen.has(reason.key)}
+            className={`${positive ? 'good' : 'bad'}${chosen.has(reason.key) ? ' on' : ''}`}
+            onClick={() => onToggle(reason.key)}
+          >
+            {reason.label}
+          </button>
+        ))}
+      </fieldset>
+    )
+  }
+
+  return (
+    <form
+      className="rating-form"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit()
+      }}
+    >
+      <fieldset className="star-picker">
+        <legend>Wie viele Sterne?</legend>
+        {STARS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={n === 1 ? '1 Stern' : `${n} Sterne`}
+            aria-pressed={n === stars}
+            className={n <= stars ? 'on' : ''}
+            onClick={() => onStars(n)}
+          >
+            ★
+          </button>
+        ))}
+      </fieldset>
+      {reasons === null ? (
+        <p className="hint">Lädt …</p>
+      ) : (
+        <>
+          {reasonGroup('Was ist gut?', true)}
+          {reasonGroup('Was ist nicht gut?', false)}
+        </>
+      )}
+      {missing && <p className="hint">{missing}</p>}
+      <button type="submit" className="rate-button" disabled={busy || missing !== null}>
+        Bewertung speichern
+      </button>
+      <button type="button" className="link-button" onClick={onCancel}>
+        Abbrechen
+      </button>
+    </form>
+  )
+}
+
 // The Ratings part of the Place detail (SCRUM-31): average stars, the most chosen Reasons, the
 // Condition, and the form to rate the Place or change the own Rating.
 export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Props) {
@@ -226,7 +326,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
       .catch((err: Error) => setError(err.message))
   }, [placeId])
 
-  useEffect(reload, [reload])
+  // Other users' Ratings and votes show without a reload (SCRUM-98).
+  usePlaceReloads(reload, placeId, onRatingChange)
 
   // The own Rating, so the form starts with it. App gives this part a new key per user.
   useEffect(() => {
@@ -304,26 +405,6 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
 
   const missing = stars === 0 ? 'Wähle 1 bis 5 Sterne.' : chosen.size === 0 ? 'Wähle mindestens eine Begründung.' : null
 
-  function reasonGroup(title: string, positive: boolean) {
-    const group = (reasons ?? []).filter((r) => r.positive === positive)
-    return (
-      <fieldset className="reason-group">
-        <legend>{title}</legend>
-        {group.map((reason) => (
-          <button
-            key={reason.key}
-            type="button"
-            aria-pressed={chosen.has(reason.key)}
-            className={`${positive ? 'good' : 'bad'}${chosen.has(reason.key) ? ' on' : ''}`}
-            onClick={() => toggle(reason.key)}
-          >
-            {reason.label}
-          </button>
-        ))}
-      </fieldset>
-    )
-  }
-
   return (
     <div className="place-ratings">
       <h3>Bewertungen</h3>
@@ -340,45 +421,21 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
         ))}
       {summary && summary.top_reasons.length > 0 && <ReasonChips reasons={summary.top_reasons} />}
       {summary && <ConditionLine summary={summary} voted={voted} busy={busy} onVote={vote} />}
+      {summary && (
+        <PlaceRatingList key={`${placeId}-${mine?.updated_at ?? 'none'}`} placeId={placeId} count={summary.count} />
+      )}
       {rating ? (
-        <form
-          className="rating-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit()
-          }}
-        >
-          <fieldset className="star-picker">
-            <legend>Wie viele Sterne?</legend>
-            {STARS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-label={n === 1 ? '1 Stern' : `${n} Sterne`}
-                aria-pressed={n === stars}
-                className={n <= stars ? 'on' : ''}
-                onClick={() => setStars(n)}
-              >
-                ★
-              </button>
-            ))}
-          </fieldset>
-          {reasons === null ? (
-            <p className="hint">Lädt …</p>
-          ) : (
-            <>
-              {reasonGroup('Was ist gut?', true)}
-              {reasonGroup('Was ist nicht gut?', false)}
-            </>
-          )}
-          {missing && <p className="hint">{missing}</p>}
-          <button type="submit" className="rate-button" disabled={busy || missing !== null}>
-            Bewertung speichern
-          </button>
-          <button type="button" className="link-button" onClick={() => setRating(false)}>
-            Abbrechen
-          </button>
-        </form>
+        <RatingEditor
+          stars={stars}
+          chosen={chosen}
+          reasons={reasons}
+          busy={busy}
+          missing={missing}
+          onStars={setStars}
+          onToggle={toggle}
+          onSubmit={submit}
+          onCancel={() => setRating(false)}
+        />
       ) : (
         <button type="button" className="rate-button" onClick={startRating}>
           {mine ? `Bewertung ändern (${starText(mine.stars)})` : '⭐ Bewertung erstellen'}

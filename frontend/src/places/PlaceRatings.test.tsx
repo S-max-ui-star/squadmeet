@@ -1,7 +1,8 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { saveToken, type User } from '../api/auth'
+import { announceRatingChange } from '../api/live'
 import type { RatingSummary } from '../api/ratings'
 import PlaceRatings from './PlaceRatings'
 
@@ -50,7 +51,20 @@ const reasons = [
   { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false },
 ]
 
+// Unmounted after each test, so an old panel does not answer a later live event.
+const roots: Root[] = []
+
+const ratingList = [
+  {
+    stars: 2,
+    reasons: ['Netz fehlt oder ist kaputt', 'Müll oder Verschmutzung'],
+    updated_at: '2026-10-20T14:30:00Z',
+  },
+  { stars: 5, reasons: ['Platte in gutem Zustand'], updated_at: '2026-10-19T08:00:00Z' },
+]
+
 afterEach(() => {
+  act(() => roots.splice(0).forEach((root) => root.unmount()))
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
   localStorage.clear()
@@ -60,6 +74,7 @@ afterEach(() => {
 function api(summary: RatingSummary, mine: unknown = null) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/reasons')) return Response.json(reasons)
+    if (url.endsWith('/ratings/list')) return Response.json(ratingList)
     if (url.endsWith('/ratings/mine') && init?.method === 'PUT') {
       return Response.json({ place_id: 3, ...JSON.parse(String(init.body)), updated_at: 'now' })
     }
@@ -80,8 +95,10 @@ const leipzigPlace = { name: 'Tischtennis', lat: 51.33261, lon: 12.35673, addres
 async function render(user: User | null, onLoginNeeded = () => {}, place: typeof leipzigPlace | null = null) {
   const container = document.createElement('div')
   document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
   await act(async () =>
-    createRoot(container).render(
+    root.render(
       <PlaceRatings placeId={3} place={place} user={user} onLoginNeeded={onLoginNeeded} />,
     ),
   )
@@ -96,6 +113,33 @@ async function click(element: HTMLElement | undefined) {
 }
 
 describe('PlaceRatings', () => {
+  it('loads the Ratings and the Condition again on a live event for its own Place (SCRUM-98)', async () => {
+    const fetch = api(empty)
+    const container = await render(null)
+    expect(container.textContent).toContain('Noch keine Bewertungen')
+
+    fetch.mockImplementation(async () => Response.json(rated))
+    await act(async () => announceRatingChange(4))
+    expect(container.textContent).toContain('Noch keine Bewertungen')
+    await act(async () => announceRatingChange(3))
+
+    expect(container.textContent).toContain('2 Bewertungen')
+    expect(container.textContent).toContain('Mängel gemeldet')
+  })
+
+  it('loads again when the page comes back to the front (SCRUM-98)', async () => {
+    const fetch = api(empty)
+    await render(null)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // jsdom says "prerender"; a real page in front says "visible".
+    const visible = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    visible.mockRestore()
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('shows average stars, top Reasons and the Condition', async () => {
     api(rated)
 
@@ -106,6 +150,55 @@ describe('PlaceRatings', () => {
     expect(text).toContain('Platte in gutem Zustand')
     expect(text).toContain('Mängel gemeldet')
     expect(text).toContain('Netz fehlt oder ist kaputt (1×)')
+  })
+
+  it('folds out every anonymous Rating with Reasons and the newest change date first', async () => {
+    const fetchMock = api(rated)
+    const container = await render(null)
+
+    expect(container.textContent).toContain('Alle Bewertungen (2)')
+    expect(container.textContent).not.toContain('20.10.2026')
+
+    await click(button(container, 'Alle Bewertungen'))
+
+    expect(container.textContent).toContain('20.10.2026')
+    expect(container.textContent).toContain('Netz fehlt oder ist kaputt')
+    expect(container.textContent).toContain('Müll oder Verschmutzung')
+    expect(container.textContent).toContain('19.10.2026')
+    expect(container.textContent!.indexOf('20.10.2026')).toBeLessThan(container.textContent!.indexOf('19.10.2026'))
+    expect(fetchMock).toHaveBeenCalledWith('/api/places/3/ratings/list', undefined)
+  })
+
+  it('crosses out the Reason of a fixed issue and keeps the Rating', async () => {
+    const net = { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false, count: 1 }
+    api({
+      count: 1,
+      average_stars: 2,
+      top_reasons: [{ ...net, fixed_at: '2026-10-20T10:00:00Z' }],
+      condition: { state: 'good', issues: [] },
+    })
+
+    const container = await render(null)
+
+    const chip = container.querySelector('.reason-chips .fixed')!
+    expect(chip.querySelector('del')?.textContent).toBe('Netz fehlt oder ist kaputt 1')
+    expect(chip.textContent).toContain('behoben am 20.10.')
+    expect(container.textContent).toContain('1 Bewertung')
+  })
+
+  it('shows a Reason named again after the fix normally', async () => {
+    const net = { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false, count: 1 }
+    api({
+      ...rated,
+      count: 2,
+      top_reasons: [{ ...net, fixed_at: '2026-10-20T10:00:00Z' }, { ...net, fixed_at: null }],
+    })
+
+    const container = await render(null)
+
+    expect(container.querySelectorAll('.reason-chips .fixed')).toHaveLength(1)
+    expect(container.querySelector('.reason-chips .bad')?.textContent).toBe('Netz fehlt oder ist kaputt 1')
+    expect(container.textContent).toContain('Mängel gemeldet')
   })
 
   it('says when there are no Ratings yet', async () => {

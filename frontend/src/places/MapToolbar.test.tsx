@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 async function render(incomingRequests = 0) {
-  const handlers = { onContacts: vi.fn(), onFavorites: vi.fn(), onHomeArea: vi.fn() }
+  const handlers = { onContacts: vi.fn(), onFavorites: vi.fn(), onHomeArea: vi.fn(), onMyMeetups: vi.fn() }
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
@@ -26,13 +26,14 @@ const byLabel = (container: HTMLElement, label: string) =>
   container.querySelector<HTMLButtonElement>(`button[aria-label^="${label}"]`)!
 
 describe('MapToolbar (SCRUM-85)', () => {
-  it('has three icon buttons with a label and a tooltip', async () => {
+  it('has four icon buttons with a label and a tooltip', async () => {
     const { container } = await render()
 
     for (const [label, icon] of [
       ['Kontakte', '👤'],
       ['Favoriten', '⭐'],
       ['Heimatbereich', '📍'],
+      ['Meine Treffen', '📅'],
     ]) {
       const button = byLabel(container, label)
       expect(button.textContent).toContain(icon)
@@ -50,6 +51,14 @@ describe('MapToolbar (SCRUM-85)', () => {
     expect(handlers.onContacts).toHaveBeenCalledOnce()
     expect(handlers.onFavorites).toHaveBeenCalledOnce()
     expect(handlers.onHomeArea).toHaveBeenCalledOnce()
+  })
+
+  it('opens "Meine Treffen" (SCRUM-102)', async () => {
+    const { container, handlers } = await render()
+
+    await act(async () => byLabel(container, 'Meine Treffen').click())
+
+    expect(handlers.onMyMeetups).toHaveBeenCalledOnce()
   })
 
   it('shows waiting Contact requests on the person icon', async () => {
