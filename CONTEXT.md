@@ -38,7 +38,8 @@ _Avoid_: vote, verification
 A user's statement that a Place does not exist, is not public, or is dangerous, chosen from fixed
 reasons. A reported Place shows that users reported it; after reports from 3 different users it
 leaves the map until an Admin dismisses the reports or locks the Place. While it is off the map,
-only Admins can open it, and nobody can start a Meetup or rate it there; its Meetups stay.
+only Admins can open it, and nobody can start a Meetup or rate it there. Its Meetups stay, but
+nobody can join or move them; Leave, Cancel and End still work.
 Dismissing or locking closes the reports; a user can report the Place again later.
 _Avoid_: complaint, flag, City report
 
