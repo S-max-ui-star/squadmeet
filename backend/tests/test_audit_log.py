@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, time, timedelta
 
 import pyotp
+from sqlalchemy import event
 from sqlmodel import select
 
 from app.models import AuditLog, Place
@@ -150,6 +151,40 @@ def test_an_update_of_only_excluded_fields_writes_no_row(client, session):
     assert after(session, before) == []
 
 
+def test_a_password_reset_is_logged_without_the_hash(client, session):
+    body = register(client).json()
+    user_id = body["user"]["id"]
+    before = audit_rows(session)
+
+    client.post(
+        "/api/auth/password-reset",
+        json={
+            "nickname": "Pingpong_Paula",
+            "code": body["recovery_codes"][0],
+            "new_password": "ein-ganz-neues-passwort",
+            "turnstile_token": "ok",
+        },
+    )
+
+    [entry] = after(session, before)
+    assert (entry.entity, entry.entity_id, entry.action) == ("app_user", user_id, "update")
+    assert (entry.actor_id, entry.actor_kind) == (user_id, "user")
+    assert entry.changes == {"password": "changed"}
+
+
+def test_new_recovery_codes_are_logged_without_the_codes(client, session):
+    body = register(client).json()
+    before = audit_rows(session)
+
+    client.post(
+        "/api/auth/recovery-codes", json={"password": PASSWORD}, headers=auth_header(body["token"])
+    )
+
+    [entry] = after(session, before)
+    assert (entry.entity, entry.entity_id, entry.action) == ("app_user", body["user"]["id"], "update")
+    assert entry.changes == {"recovery_codes": "changed"}
+
+
 def test_block_logs_the_removed_contact_and_join(client, session, place, host):  # noqa: F811
     paula_token, paula_id = host
     karl_token, karl_id = user(client, "Korb_Karl")
@@ -270,6 +305,20 @@ def test_the_osm_import_logs_only_real_changes(session, tmp_path):
     [entry] = after(session, before)
     assert (entry.entity, entry.action, entry.actor_kind) == ("place", "update", "system")
     assert entry.changes == {"name": ["Alt", "Neu"]}
+
+
+def test_the_osm_import_logs_all_places_in_one_statement(session, tmp_path):
+    inserts = []
+
+    def count(_conn, _cursor, statement, *_):
+        if statement.startswith("INSERT INTO audit_log"):
+            inserts.append(statement)
+
+    event.listen(session.connection(), "before_cursor_execute", count)
+    load(session, [snapshot(tmp_path, row("test/1"), row("test/2"), row("test/3"))])
+
+    assert len(inserts) == 1
+    assert len(audit_rows(session, "place", action="insert")) >= 3
 
 
 def test_a_change_outside_a_request_is_a_system_change(client, session, place):  # noqa: F811

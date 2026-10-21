@@ -25,7 +25,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
 from app.activities import LABELS, ActivityType
-from app.audit import record
+from app.audit import write
 from app.models import Place
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "osm"
@@ -244,18 +244,20 @@ def point(lon: float, lat: float) -> str:
 
 
 def log_changes(session: Session, rows: list[dict], before: dict, ids: dict) -> None:
-    """Audit rows for new Places and for Places whose name or location changed. The import
-    refreshes every Place on each deploy; an unchanged one is not logged."""
+    """Audit rows for new Places and for Places whose name or location changed, in one
+    statement. The import refreshes every Place on each deploy; an unchanged one is not logged."""
+    entries = []
     for row in rows:
         key = (row["osm_id"], row["activity_type"])
         name, location = row["name"], point(row["lon"], row["lat"])
         if key not in before:
-            record(
-                session,
-                "place",
-                ids[key],
-                "insert",
-                {"name": name, "activity_type": key[1], "osm_id": key[0], "location": location},
+            entries.append(
+                (
+                    "place",
+                    ids[key],
+                    "insert",
+                    {"name": name, "activity_type": key[1], "osm_id": key[0], "location": location},
+                )
             )
             continue
         old = dict(zip(("name", "location"), before[key]))
@@ -265,7 +267,8 @@ def log_changes(session: Session, rows: list[dict], before: dict, ids: dict) -> 
             if old[field] != new
         }
         if changes:
-            record(session, "place", ids[key], "update", changes)
+            entries.append(("place", ids[key], "update", changes))
+    write(session, entries)
 
 
 def main(args: list[str]) -> None:

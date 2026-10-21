@@ -3,8 +3,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import false
+from sqlalchemy.exc import IntegrityError
 
-from app.models import Meetup
+from app import contacts as contacts_module
+from app.models import ContactRequest, Meetup
 from tests.test_auth import auth_header, register
 from tests.test_meetups import (  # noqa: F401
     create,
@@ -320,3 +323,26 @@ def test_an_ended_meetup_is_not_affected(client, session, place, paula, karl):
     session.commit()
 
     assert block(client, paula[0], "Korb_Karl").status_code == 201
+
+
+def test_the_database_refuses_a_second_row_for_the_same_pair(client, session, paula, karl):
+    ask(client, paula[0], "Korb_Karl")
+
+    session.add(
+        ContactRequest(
+            requester_id=karl[1], addressee_id=paula[1], status="pending", updated_at=datetime.now(UTC)
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_two_requests_at_the_same_moment_answer_409(client, paula, karl, monkeypatch):
+    ask(client, paula[0], "Korb_Karl")
+    # Karl's request does not see Paula's row, as if both were sent at the same moment.
+    monkeypatch.setattr(contacts_module, "between", lambda a, b: false())
+
+    response = ask(client, karl[0], "Pingpong_Paula")
+
+    assert response.status_code == 409
+    assert len(contacts(client, paula[0])["outgoing"]) == 1

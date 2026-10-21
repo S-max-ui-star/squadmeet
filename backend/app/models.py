@@ -268,7 +268,7 @@ class Meetup(SQLModel, table=True):
     # SCRUM-37: the Host moved to this new Meetup; the users who were in get an offer.
     moved_to_id: int | None = Field(
         default=None,
-        sa_column=Column(ForeignKey("meetup.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(ForeignKey("meetup.id", ondelete="SET NULL"), nullable=True, index=True),
     )
     # True while the current Host (who got the role after the move) has not answered.
     host_move_pending: bool = Field(
@@ -400,7 +400,13 @@ class ContactRequest(SQLModel, table=True):
 
     __tablename__ = "contact_request"
     __table_args__ = (
-        UniqueConstraint("requester_id", "addressee_id", name="uq_contact_request_pair"),
+        # One row per pair, whoever asked: A→B and B→A cannot both exist (SCRUM-69).
+        Index(
+            "uq_contact_request_pair",
+            text("least(requester_id, addressee_id)"),
+            text("greatest(requester_id, addressee_id)"),
+            unique=True,
+        ),
         CheckConstraint("requester_id <> addressee_id", name="ck_contact_request_not_self"),
         CheckConstraint(
             "status IN ('pending', 'accepted', 'declined')", name="ck_contact_request_status"
@@ -519,7 +525,7 @@ class Notification(SQLModel, table=True):
     # The person who caused the event; empty after that account is deleted.
     actor_id: int | None = Field(
         default=None,
-        sa_column=Column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True, index=True),
     )
     created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     read_at: datetime | None = Field(
@@ -573,7 +579,9 @@ class AuditLog(SQLModel, table=True):
     """One insert, update or delete of a domain row, with who did it and when (SCRUM-66).
 
     Written by app/audit.py, never changed. changes: for an update only the changed fields as
-    {field: [old, new]}; for an insert or a delete the row. Secrets are never in it.
+    {field: [old, new]}; for an insert or a delete the row. Secrets are never in it: a new
+    password or new Recovery codes show only as {"password": "changed"} or
+    {"recovery_codes": "changed"}.
     """
 
     __tablename__ = "audit_log"
