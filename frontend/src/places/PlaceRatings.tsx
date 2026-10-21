@@ -39,8 +39,12 @@ type CityReportProps = {
 // office for green spaces and playgrounds with e-mail and phone, plus the place to copy.
 // The app sends nothing; the links open the user's browser, mail or phone app.
 // A button that folds out, closed at first (SCRUM-82); it opens by itself when asked.
+// Copying the Place: done, or not possible (no Clipboard API, or refused): then the text shows
+// in a field to copy by hand (SCRUM-163).
+type CopyState = 'idle' | 'copied' | 'failed'
+
 function CityReportBox({ place, highlighted, asked }: CityReportProps) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<CopyState>('idle')
   // null until the user taps: then it follows `asked`.
   const [toggled, setToggled] = useState<boolean | null>(null)
   const open = toggled ?? asked
@@ -59,12 +63,23 @@ function CityReportBox({ place, highlighted, asked }: CityReportProps) {
 type LinksProps = {
   report: NonNullable<ReturnType<typeof findCityReport>>
   place: CityReportProps['place']
-  copied: boolean
-  onCopied: (copied: boolean) => void
+  copied: CopyState
+  onCopied: (copied: CopyState) => void
 }
 
 function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
   const { office } = report
+  const text = placeText(place.name, place.lat, place.lon, place.address ?? null)
+  function copy() {
+    if (!navigator.clipboard?.writeText) {
+      onCopied('failed')
+      return
+    }
+    navigator.clipboard
+      .writeText(text)
+      .then(() => onCopied('copied'))
+      .catch(() => onCopied('failed'))
+  }
   return (
     <>
       <a href={report.portal.url} target="_blank" rel="noreferrer">
@@ -85,18 +100,15 @@ function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
           ☎️ <a href={telLink(office.phone.number)}>{office.phone.number}</a> ({office.phone.note})
         </span>
       )}
-      <button
-        type="button"
-        className="link-button"
-        onClick={() =>
-          navigator.clipboard
-            ?.writeText(placeText(place.name, place.lat, place.lon, place.address ?? null))
-            .then(() => onCopied(true))
-            .catch(() => onCopied(false))
-        }
-      >
-        {copied ? 'Ort kopiert ✓' : 'Ort für die Meldung kopieren'}
+      <button type="button" className="link-button" onClick={copy}>
+        {copied === 'copied' ? 'Ort kopiert ✓' : 'Ort für die Meldung kopieren'}
       </button>
+      {copied === 'failed' && (
+        <label className="city-report-copy">
+          Kopieren ging nicht. Markiere den Text und kopiere ihn selbst:
+          <textarea readOnly rows={4} value={text} onFocus={(event) => event.target.select()} />
+        </label>
+      )}
     </>
   )
 }
@@ -374,7 +386,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
       const keys = (reasons ?? []).map((r) => r.key).filter((key) => chosen.has(key))
       setMine(await saveRating(token, placeId, { stars, reasons: keys }))
       setRating(false)
-      const fresh = await fetchRatingSummary(placeId)
+      // With the token, like every other load of the summary (SCRUM-163).
+      const fresh = await fetchRatingSummary(placeId, token)
       setSummary(fresh)
       // A chosen Reason that now shows as a Condition issue is something the city must fix.
       setAskReport(fresh.condition.issues.some((issue) => keys.includes(issue.key)))
@@ -413,7 +426,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
           <p className="hint">Noch keine Bewertungen.</p>
         ) : (
           <p className="rating-average">
-            <span className="stars" aria-hidden="true">
+            {/* Read out as "4,0 von 5 Sternen" (SCRUM-163); the stars alone mean nothing to a screen reader. */}
+            <span className="stars" role="img" aria-label={`${decimal.format(summary.average_stars)} von 5 Sternen`}>
               {starText(Math.round(summary.average_stars))}
             </span>{' '}
             <strong>{decimal.format(summary.average_stars)}</strong> · {ratings(summary.count)}

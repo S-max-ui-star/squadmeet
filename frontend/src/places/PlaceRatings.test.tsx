@@ -342,6 +342,43 @@ describe('PlaceRatings', () => {
     expect(container.querySelector('.city-report')).toBeNull()
   })
 
+  // SCRUM-163: a screen reader hears what the stars mean.
+  it('reads the average out as stars', async () => {
+    api(rated)
+
+    const container = await render(null)
+
+    expect(container.querySelector('.rating-average [role="img"]')?.getAttribute('aria-label')).toBe('3,5 von 5 Sternen')
+  })
+
+  it('shows the Place text to copy by hand when the browser cannot copy (SCRUM-163)', async () => {
+    api(rated)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined })
+    const container = await render(null, () => {}, leipzigPlace)
+
+    await click(button(container, 'Willst du das der Stadt melden?'))
+    await click(button(container, 'Ort für die Meldung kopieren'))
+
+    const field = container.querySelector<HTMLTextAreaElement>('.city-report-copy textarea')!
+    expect(field.readOnly).toBe(true)
+    expect(field.value).toContain('Karl-Tauchnitz-Straße')
+  })
+
+  it('loads the summary with the token after saving a Rating (SCRUM-163)', async () => {
+    saveToken('tok')
+    const fetchMock = api(empty)
+    const container = await render(paula)
+
+    await click(button(container, 'Bewertung erstellen'))
+    await click(container.querySelector<HTMLButtonElement>('[aria-label="4 Sterne"]')!)
+    await click(button(container, 'Platte in gutem Zustand'))
+    await click(button(container, 'Bewertung speichern'))
+
+    const put = fetchMock.mock.calls.findIndex(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')
+    const after = fetchMock.mock.calls.slice(put + 1).find(([url]) => String(url).endsWith('/ratings'))!
+    expect((after[1] as RequestInit).headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+
   it('opens the city report after a Rating that names an issue', async () => {
     saveToken('tok')
     let saved = false

@@ -18,21 +18,26 @@ export default function PlaceShareButton({ placeId, placeName }: Props) {
     if (state === 'busy') return
     setState('busy')
     const url = publicPlaceUrl(placeId)
-    try {
-      if (typeof navigator.share === 'function') {
+    if (typeof navigator.share === 'function') {
+      try {
         await navigator.share({ title: placeName, text: placeName, url })
         setState('idle')
         return
+      } catch (error) {
+        // The user closed the share sheet: nothing more to do.
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          setState('idle')
+          return
+        }
+        // The browser refused the share sheet: copy the link instead (SCRUM-163).
       }
+    }
+    try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
       await navigator.clipboard.writeText(url)
       setState('copied')
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setState('idle')
-      } else {
-        setState('failed')
-      }
+    } catch {
+      setState('failed')
     }
   }
 
