@@ -2,10 +2,20 @@
 # pushed to GHCR; nothing is built here. host-deploy.sh writes the .env next to this file,
 # with IMAGE_OWNER, the GHCR account of the images (the repo's owner, lowercase).
 # Only Caddy ("web") has open ports; the database and the API are reachable only inside.
+
+# Docker keeps container logs without a size limit by default, so they would fill the 20 GB
+# disk over time. At most 3 files of 10 MB per container (SCRUM-49 review).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: ghcr.io/${IMAGE_OWNER:?}/squadmeet-db:${IMAGE_TAG:?}
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
@@ -21,6 +31,7 @@ services:
   backend:
     image: ghcr.io/${IMAGE_OWNER:?}/squadmeet-backend:${IMAGE_TAG:?}
     restart: unless-stopped
+    logging: *logging
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       # The captcha (SCRUM-27), from SSM Parameter Store.
@@ -54,6 +65,7 @@ services:
   web:
     image: ghcr.io/${IMAGE_OWNER:?}/squadmeet-frontend:${IMAGE_TAG:?}
     restart: unless-stopped
+    logging: *logging
     environment:
       DOMAIN: ${DOMAIN:?}
     ports:

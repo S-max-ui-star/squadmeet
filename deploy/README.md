@@ -52,7 +52,10 @@ before (by the name `squadmeet`) and keeps the values in `.env.aws` (not in git)
    see [Captcha keys](#captcha-keys-turnstile)).
 5. **Firewall** `squadmeet-web` (only TCP 80, TCP 443 and UDP 443) and the **IAM role**
    `squadmeet-ec2` (SSM may run commands; the host may read `/squadmeet/*`).
-6. **EC2** `t2.micro` (Free Tier eligible; `t3.micro` is not in this account), Amazon Linux 2023, 20 GB, CPU credits "standard", and an **Elastic IP**.
+6. **EC2** `t2.micro` (Free Tier eligible; `t3.micro` is not in this account), Amazon Linux 2023, 20 GB
+   encrypted disk, CPU credits "standard", and an **Elastic IP**. The disk is encrypted only for
+   hosts started after the `SCRUM-49` review; the current host's disk is probably not (not checked:
+   EC2 → Volumes → *Encryption*). Encrypting it later needs an encrypted copy of a snapshot.
 7. **DuckDNS** points the subdomain to the Elastic IP.
 8. **Deploy:** `setup-deploy-document.sh` creates the SSM document, then `deploy.sh` deploys
    (tag `main`; before the first merge into `main`, run the wizard with `DEPLOY_TAG=dev`).
@@ -159,7 +162,7 @@ In a shell on the host, in `/opt/squadmeet`:
 | No certificate? (DNS must point to the host, port 80 must be open) | `docker compose logs web` |
 | Did the first boot finish? | `cloud-init status` and `/var/log/cloud-init-output.log` |
 | Memory? | `free -h` (the swap file must show 2 GB) |
-| Disk? | `df -h /` and `docker system df` (each deploy removes the images that do not run) |
+| Disk? | `df -h /` and `docker system df` (each deploy removes the images that do not run; each container keeps at most 3 × 10 MB of logs) |
 | Deploy fails at `docker login`? The GHCR token may have expired | `t=$(aws ssm get-parameter --name /squadmeet/ghcr-token --with-decryption --query Parameter.Value --output text); curl -sI -H "Authorization: Bearer $t" https://api.github.com/user \| grep -i -e '^HTTP' -e expiration`; a new token: [setup-aws.sh](setup-aws.sh) stage 4 |
 
 ## Backups
