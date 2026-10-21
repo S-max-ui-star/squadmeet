@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from app.favorites import MAX_RULES
+from tests.test_admin_places import admin, lock, unlock  # noqa: F401 (fixture)
 from tests.test_auth import auth_header
 from tests.test_contacts import block
 from tests.test_meetups import create, guest, host, place, third  # noqa: F401 (fixtures)
@@ -129,3 +131,43 @@ def test_a_series_notifies_for_matching_occurrences(client, place, host, guest):
 def test_favorites_need_a_login(client, place):
     assert client.get("/api/favorites").status_code == 401
     assert client.put(f"/api/places/{place.id}/favorite").status_code == 401
+
+
+def test_a_too_big_id_answers_404(client, place, guest):
+    big = 9_999_999_999
+    headers = auth_header(guest[0])
+    favorite = add_favorite(client, guest[0], place.id).json()
+    rule = {"weekdays": [1], "start": "10:00", "end": "11:00"}
+
+    assert client.get(f"/api/places/{big}/favorite", headers=headers).status_code == 404
+    assert client.delete(f"/api/places/{big}/favorite", headers=headers).status_code == 204
+    assert add_rule(client, guest[0], big, [1]).status_code == 404
+    path = f"/api/favorites/{favorite['id']}/rules/{big}"
+    assert client.put(path, json=rule, headers=headers).status_code == 404
+    assert client.delete(path, headers=headers).status_code == 404
+
+
+def test_a_locked_place_leaves_the_favorites_until_it_is_unlocked(client, place, guest, admin):
+    favorite = add_favorite(client, guest[0], place.id).json()
+
+    lock(client, admin, place.id)
+
+    assert client.get("/api/favorites", headers=auth_header(guest[0])).json() == []
+    assert client.get(
+        f"/api/places/{place.id}/favorite", headers=auth_header(guest[0])
+    ).status_code == 404
+
+    unlock(client, admin, place.id)
+
+    assert client.get("/api/favorites", headers=auth_header(guest[0])).json() == [favorite]
+
+
+def test_a_favorite_has_at_most_ten_time_rules(client, place, guest):
+    favorite = add_favorite(client, guest[0], place.id).json()
+    for _ in range(MAX_RULES):
+        assert add_rule(client, guest[0], favorite["id"], [1]).status_code == 201
+
+    response = add_rule(client, guest[0], favorite["id"], [2])
+
+    assert response.status_code == 409
+    assert str(MAX_RULES) in response.json()["detail"]

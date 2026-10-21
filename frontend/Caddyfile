@@ -27,7 +27,12 @@
 		}
 	}
 
+	# The backend reads a whole request body before it checks the login (SCRUM-73), so Caddy
+	# refuses a bigger one with 413. The biggest real body is a Photo: 10 MB + form overhead.
 	handle /api/* {
+		request_body {
+			max_size 12MB
+		}
 		reverse_proxy backend:8000
 	}
 

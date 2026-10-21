@@ -210,6 +210,8 @@ _Avoid_: location, current position, radius
 
 **Favorite** (Favorit):
 A Place a user marks to get Notifications about it at any distance.
+A locked, deleted or hidden Place leaves the user's list of Favorites; the Favorite comes
+back when the Place is unlocked.
 _Avoid_: bookmark, saved place
 
 **Time rule** (Zeitfenster):
@@ -217,6 +219,7 @@ Weekdays plus a time range on a Favorite. A Notification goes out only for Meetu
 inside a Time rule in `Europe/Berlin` local time. The start is inclusive and the end is exclusive;
 a rule must end on the same day. A Favorite without Time rules notifies always. Each newly stored
 occurrence of a Series follows the same rule as an individually created Meetup.
+A Favorite has at most 10 Time rules.
 _Avoid_: schedule, filter
 
 **Notification** (Benachrichtigung):
