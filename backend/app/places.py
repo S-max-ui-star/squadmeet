@@ -5,11 +5,12 @@ What a user may see of a Place depends on its status (app.place_status, SCRUM-60
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.audit import as_system
 from app.blocks import blockers_of
 from app.db import get_session
 from app.geocoding import NominatimGeocoder, get_geocoder
@@ -23,8 +24,10 @@ from app.meetups import (
     visible_to,
 )
 from app.models import Meetup, Place, PlaceConfirmation, PlaceRead, PlaceSearchHit, User
-from app.series import fill_open_series
 from app.place_reports import REPORT_REASON
+from app.rate_limit import RateLimit
+from app.series import fill_open_series
+from app.turnstile import client_ip
 from app.place_status import (
     MAX_DB_INT,
     NOT_FOUND,
@@ -42,6 +45,8 @@ router = APIRouter()
 MAX_PLACES = 2000
 # Set on the answer when there were more Places than MAX_PLACES, so the map can ask to zoom in.
 TRUNCATED_HEADER = "X-Places-Truncated"
+# Each search may ask Nominatim, which allows one request per second for the whole app (SCRUM-70).
+search_per_ip = RateLimit(limit=20, window_seconds=60)
 
 
 class MapMeetupsRead(BaseModel):
@@ -168,6 +173,7 @@ def list_map_meetups(
 
 @router.get("/search", response_model=list[PlaceSearchHit])
 def search_places(
+    request: Request,
     q: str = Query(min_length=1, max_length=200),
     session: Session = Depends(get_session),
     geocoding: NominatimGeocoder = Depends(get_geocoder),
@@ -177,6 +183,7 @@ def search_places(
     The UI calls this only when its search form is submitted; it is deliberately not an
     autocomplete endpoint, in accordance with the public Nominatim usage policy.
     """
+    search_per_ip.hit(client_ip(request))
     query = q.strip()
     if not query:
         return []
@@ -235,6 +242,7 @@ def get_place(
             place = session.get(Place, place_id)
             place.address = address
             session.add(place)
-            session.commit()
+            with as_system(session):
+                session.commit()
             result.address = address
     return result

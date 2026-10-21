@@ -16,6 +16,7 @@ Not logged, because they skip the ORM:
 
 import struct
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 
@@ -75,6 +76,18 @@ def set_actor(session: Session, user: User | int, kind: ActorKind) -> None:
     """The user who makes the changes of this request. A User object may be new: its id is read
     when the rows are written (register)."""
     session.info[ACTOR] = (user, kind)
+
+
+@contextmanager
+def as_system(session: Session) -> Iterator[None]:
+    """Changes the app makes by itself inside a user's request are system changes. The Place
+    address that the first open stores (SCRUM-70) must not show who opened the Place."""
+    actor = session.info.pop(ACTOR, None)
+    try:
+        yield
+    finally:
+        if actor is not None:
+            session.info[ACTOR] = actor
 
 
 def audit_request(session: Session = Depends(get_session)) -> Iterator[None]:

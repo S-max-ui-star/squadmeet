@@ -15,12 +15,12 @@ OSM data is © OpenStreetMap contributors, ODbL; the map shows the attribution.
 import json
 import re
 import sys
-from dataclasses import dataclass
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
@@ -224,10 +224,17 @@ def load(session: Session, files: list[Path] | None = None) -> LoadResult:
                 for row in rows
             ]
         )
+        table = Place.__table__
+        # Only a changed Place is updated (SCRUM-70); the others are not written again, so
+        # RETURNING gives the new and the changed Places only.
         ids = session.exec(
             statement.on_conflict_do_update(
                 constraint="uq_place_osm_id_activity_type",
                 set_={"name": statement.excluded.name, "location": statement.excluded.location},
+                where=or_(
+                    table.c.name.is_distinct_from(statement.excluded.name),
+                    table.c.location.is_distinct_from(statement.excluded.location),
+                ),
             ).returning(Place.id, Place.osm_id, Place.activity_type)
         ).all()
         log_changes(session, rows, before, {(osm_id, kind): id for id, osm_id, kind in ids})
@@ -245,7 +252,7 @@ def point(lon: float, lat: float) -> str:
 
 def log_changes(session: Session, rows: list[dict], before: dict, ids: dict) -> None:
     """Audit rows for new Places and for Places whose name or location changed, in one
-    statement. The import refreshes every Place on each deploy; an unchanged one is not logged."""
+    statement. The import runs on each deploy; an unchanged Place is not written or logged."""
     entries = []
     for row in rows:
         key = (row["osm_id"], row["activity_type"])

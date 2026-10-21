@@ -26,6 +26,8 @@ export type WaitingSuggestion = {
   lon: number
   address: string | null
   confirmations: number
+  // Open Place reports; approve and reject close them (SCRUM-71).
+  open_reports: number
   suggested_at: string
   confirmed_at: string
   // The Admin may approve 24 h after the suggestion at the earliest.

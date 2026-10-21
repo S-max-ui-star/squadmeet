@@ -40,7 +40,10 @@ reasons. A reported Place shows that users reported it; after reports from 3 dif
 leaves the map until an Admin dismisses the reports or locks the Place. While it is off the map,
 only Admins can open it, and nobody can start a Meetup or rate it there. Its Meetups stay, but
 nobody can join or move them; Leave, Cancel and End still work.
-Dismissing or locking closes the reports; a user can report the Place again later.
+Reporting needs an account that is at least 7 days old; a user reports at most 10 Places per hour.
+A Place suggestion with reports stays a suggestion and stays on the map.
+Dismissing, locking or deleting the Place, and approving or rejecting a Place suggestion, closes the
+reports; a user can report the Place again later.
 _Avoid_: complaint, flag, City report
 
 **Locked place** (gesperrter Platz):

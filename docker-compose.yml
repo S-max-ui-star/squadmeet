@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-squadmeet}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-squadmeet}
       POSTGRES_DB: ${POSTGRES_DB:-squadmeet}
+    # Only on this computer, not on the Wi-Fi: the password is the default (SCRUM-49 review).
+    # Both loopback addresses: many database apps resolve "localhost" to ::1 first.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+      - "[::1]:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +21,11 @@ services:
       retries: 30
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      # The tests run in this container (README → Tests), so it gets pytest too.
+      args:
+        REQUIREMENTS: requirements-dev.txt
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-squadmeet}:${POSTGRES_PASSWORD:-squadmeet}@db:5432/${POSTGRES_DB:-squadmeet}
       # Cloudflare's public test keys for the captcha (SCRUM-27): the widget always passes.

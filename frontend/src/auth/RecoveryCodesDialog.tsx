@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import Dialog from '../Dialog'
 import { newRecoveryCodes, type User } from '../api/auth'
 import PasswordAndCodeFields from './PasswordAndCodeFields'
 import RecoveryCodes from './RecoveryCodes'
@@ -35,30 +36,32 @@ export default function RecoveryCodesDialog({ token, user, onClose }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop">
-      <form className="dialog" onSubmit={submit}>
-        <h2>Neue Wiederherstellungscodes</h2>
-        <p>
-          Du bekommst 10 neue Codes. Deine alten Codes gelten danach nicht mehr, auch die noch
-          nicht benutzten.
-        </p>
-        <PasswordAndCodeFields
-          user={user}
-          password={password}
-          onPassword={setPassword}
-          code={code}
-          onCode={setCode}
-        />
+    <Dialog
+      title="Neue Wiederherstellungscodes"
+      onSubmit={submit}
+      onClose={onClose}
+      dismissible={!busy}
+    >
+      <p>
+        Du bekommst 10 neue Codes. Deine alten Codes gelten danach nicht mehr, auch die noch nicht
+        benutzten.
+      </p>
+      <PasswordAndCodeFields
+        user={user}
+        password={password}
+        onPassword={setPassword}
+        code={code}
+        onCode={setCode}
+      />
 
-        {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
-        <button type="submit" disabled={busy}>
-          Neue Codes erstellen
-        </button>
-        <button type="button" className="link" onClick={onClose}>
-          Abbrechen
-        </button>
-      </form>
-    </div>
+      <button type="submit" disabled={busy}>
+        Neue Codes erstellen
+      </button>
+      <button type="button" className="link" disabled={busy} onClick={onClose}>
+        Abbrechen
+      </button>
+    </Dialog>
   )
 }
