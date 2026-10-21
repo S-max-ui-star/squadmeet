@@ -1361,6 +1361,11 @@ body {
   background: #fdebd8;
 }
 
+.reason-chips .fixed {
+  color: #555;
+  background: #eee;
+}
+
 .reason-count {
   font-weight: 700;
 }
