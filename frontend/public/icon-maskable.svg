@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable variant: full-bleed background, the pin in the safe zone (inner 80 %). -->
+  <rect width="512" height="512" fill="#2563eb"/>
+  <path fill="#fff" d="M256 124c-58 0-104 46-104 103 0 76 104 165 104 165s104-89 104-165c0-57-46-103-104-103z"/>
+  <circle cx="256" cy="227" r="40" fill="#2563eb"/>
+</svg>
