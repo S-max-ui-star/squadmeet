@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import select
 
 from app.activities import ActivityType
@@ -218,3 +218,20 @@ def test_every_city_snapshot_loads_without_duplicates(session):
         for r in json.loads(f.read_text())["places"]
     ]
     assert len(keys) == len(set(keys))
+
+
+def row_version(session, osm_id):
+    """The physical row: an UPDATE writes a new one, even inside one transaction."""
+    statement = text("SELECT ctid FROM place WHERE osm_id = :id").bindparams(id=osm_id)
+    return session.exec(statement).one()
+
+
+def test_a_second_run_does_not_rewrite_unchanged_places(session, tmp_path):
+    # SCRUM-70: each deploy rewrote all 2541 Places.
+    load(session, [snapshot(tmp_path, row("test/1"), row("test/2", name="Alt"))])
+    unchanged, renamed = row_version(session, "test/1"), row_version(session, "test/2")
+
+    load(session, [snapshot(tmp_path, row("test/1"), row("test/2", name="Neu"))])
+
+    assert row_version(session, "test/1") == unchanged
+    assert row_version(session, "test/2") != renamed

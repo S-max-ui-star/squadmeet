@@ -2,7 +2,8 @@ import pytest
 
 from app.geocoding import GeocodingHit, format_address, get_geocoder
 from app.main import app
-from app.models import Place
+from app.models import AuditLog, Place
+from tests.test_auth import auth_header, register
 
 # Far away in the Atlantic, so imported OSM Places never fall into these areas.
 INSIDE = Place(name="Innen", activity_type="basketball", location="SRID=4326;POINT(-30.5 0.5)")
@@ -86,6 +87,14 @@ def test_an_unknown_place_is_404(client):
 @pytest.mark.parametrize("place_id", ["0", "-1", "99999999999"])
 def test_an_id_outside_the_database_range_is_404(client, place_id):
     assert client.get(f"/api/places/{place_id}").status_code == 404
+
+
+class FailingGeocoder:
+    def search(self, query, limit=5):
+        raise OSError("Nominatim is down")
+
+    def reverse(self, lat, lon):
+        raise TimeoutError()
 
 
 class FakeGeocoder:
@@ -180,3 +189,59 @@ def test_nominatim_address_is_reduced_to_the_agreed_fields():
     }
 
     assert format_address(answer) == "Straße der Einheit 12, 99098 Erfurt, Ortsteil Büßleben"
+
+
+def test_search_still_finds_database_places_when_the_geocoder_fails(client, session):
+    session.add(
+        Place(
+            name="Zetkin-Platte",
+            activity_type="table_tennis",
+            location="SRID=4326;POINT(12.3 51.3)",
+        )
+    )
+    session.commit()
+    app.dependency_overrides[get_geocoder] = lambda: FailingGeocoder()
+
+    response = client.get("/api/search", params={"q": "Zetkin-Platte"})
+
+    assert response.status_code == 200
+    assert [hit["label"] for hit in response.json()] == ["Zetkin-Platte"]
+
+
+def test_place_detail_answers_without_address_when_the_geocoder_fails(client, session):
+    place = Place(name="Korb", activity_type="basketball", location="SRID=4326;POINT(12.3 51.3)")
+    session.add(place)
+    session.commit()
+    app.dependency_overrides[get_geocoder] = lambda: FailingGeocoder()
+
+    response = client.get(f"/api/places/{place.id}")
+
+    assert response.status_code == 200
+    assert response.json()["address"] is None
+
+
+def test_search_is_limited_per_ip(client):
+    # Each search may ask Nominatim, which allows one request per second for the whole app.
+    for _ in range(20):
+        assert client.get("/api/search", params={"q": "Leipzig"}).status_code == 200
+
+    assert client.get("/api/search", params={"q": "Leipzig"}).status_code == 429
+
+
+def test_the_audit_log_does_not_show_who_opened_a_place(client, session):
+    # SCRUM-70: the address is stored on the first open; that is a system change.
+    token = register(client).json()["token"]
+    place = Place(name="Korb", activity_type="basketball", location="SRID=4326;POINT(12.3 51.3)")
+    session.add(place)
+    session.commit()
+    app.dependency_overrides[get_geocoder] = lambda: FakeGeocoder(address="Parkstraße 1")
+
+    client.get(f"/api/places/{place.id}", headers=auth_header(token))
+
+    [entry] = [
+        row
+        for row in session.query(AuditLog).filter_by(entity="place", entity_id=place.id)
+        if row.action == "update"
+    ]
+    assert entry.changes == {"address": [None, "Parkstraße 1"]}
+    assert (entry.actor_kind, entry.actor_id) == ("system", None)
