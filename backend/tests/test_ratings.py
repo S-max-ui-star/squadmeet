@@ -159,6 +159,50 @@ def test_average_stars_and_top_reasons(client, place, paula, karl):
     }
 
 
+def test_rating_list_is_anonymous_and_newest_change_comes_first(
+    client, session, place, paula, karl
+):
+    older = datetime(2026, 10, 19, 8, tzinfo=UTC)
+    changed = datetime(2026, 10, 20, 14, 30, tzinfo=UTC)
+    session.add_all(
+        [
+            Rating(
+                place_id=place.id,
+                user_id=karl[1],
+                stars=5,
+                reasons=["table_good"],
+                created_at=older,
+                updated_at=older,
+            ),
+            Rating(
+                place_id=place.id,
+                user_id=paula[1],
+                stars=2,
+                reasons=["net_missing", "litter"],
+                created_at=older - timedelta(days=1),
+                updated_at=changed,
+            ),
+        ]
+    )
+    session.commit()
+
+    response = client.get(f"/api/places/{place.id}/ratings/list")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "stars": 2,
+            "reasons": ["Netz fehlt oder ist kaputt", "Müll oder Verschmutzung"],
+            "updated_at": "2026-10-20T14:30:00Z",
+        },
+        {
+            "stars": 5,
+            "reasons": ["Platte in gutem Zustand"],
+            "updated_at": "2026-10-19T08:00:00Z",
+        },
+    ]
+
+
 def test_condition_is_good_when_recent_ratings_name_no_problem(client, place, paula):
     # "Oft überfüllt" is negative, but nobody has to fix it (SCRUM-18 decision).
     rate(client, paula[0], place.id, reasons=["table_good", "often_crowded"])

@@ -103,6 +103,14 @@ class RatingRead(BaseModel):
     updated_at: datetime
 
 
+class RatingListItem(BaseModel):
+    """One anonymous Rating in the public Place detail (SCRUM-100)."""
+
+    stars: int
+    reasons: list[str]
+    updated_at: datetime
+
+
 def to_read(reason: Reason) -> ReasonRead:
     return ReasonRead(key=reason.key, label=reason.label, positive=reason.positive)
 
@@ -238,6 +246,30 @@ def rating_summary(
     session: Session = Depends(get_session),
 ):
     return load_summary(session, require(session, place_id, view_use(user)))
+
+
+@router.get("/places/{place_id}/ratings/list", response_model=list[RatingListItem])
+def rating_list(
+    place_id: int,
+    user: User | None = Depends(viewer),
+    session: Session = Depends(get_session),
+):
+    """Every Rating, newest change first and without identifying the author."""
+    place = require(session, place_id, view_use(user))
+    reasons = {reason.key: reason.label for reason in reasons_for(place.activity_type)}
+    rows = session.exec(
+        select(Rating)
+        .where(Rating.place_id == place_id)
+        .order_by(Rating.updated_at.desc(), Rating.id.desc())
+    ).all()
+    return [
+        RatingListItem(
+            stars=rating.stars,
+            reasons=[reasons[key] for key in rating.reasons if key in reasons],
+            updated_at=rating.updated_at,
+        )
+        for rating in rows
+    ]
 
 
 @router.get("/places/{place_id}/ratings/mine", response_model=RatingRead | None)

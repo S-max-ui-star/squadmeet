@@ -54,6 +54,15 @@ const reasons = [
 // Unmounted after each test, so an old panel does not answer a later live event.
 const roots: Root[] = []
 
+const ratingList = [
+  {
+    stars: 2,
+    reasons: ['Netz fehlt oder ist kaputt', 'Müll oder Verschmutzung'],
+    updated_at: '2026-10-20T14:30:00Z',
+  },
+  { stars: 5, reasons: ['Platte in gutem Zustand'], updated_at: '2026-10-19T08:00:00Z' },
+]
+
 afterEach(() => {
   act(() => roots.splice(0).forEach((root) => root.unmount()))
   document.body.innerHTML = ''
@@ -65,6 +74,7 @@ afterEach(() => {
 function api(summary: RatingSummary, mine: unknown = null) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/reasons')) return Response.json(reasons)
+    if (url.endsWith('/ratings/list')) return Response.json(ratingList)
     if (url.endsWith('/ratings/mine') && init?.method === 'PUT') {
       return Response.json({ place_id: 3, ...JSON.parse(String(init.body)), updated_at: 'now' })
     }
@@ -140,6 +150,23 @@ describe('PlaceRatings', () => {
     expect(text).toContain('Platte in gutem Zustand')
     expect(text).toContain('Mängel gemeldet')
     expect(text).toContain('Netz fehlt oder ist kaputt (1×)')
+  })
+
+  it('folds out every anonymous Rating with Reasons and the newest change date first', async () => {
+    const fetchMock = api(rated)
+    const container = await render(null)
+
+    expect(container.textContent).toContain('Alle Bewertungen (2)')
+    expect(container.textContent).not.toContain('20.10.2026')
+
+    await click(button(container, 'Alle Bewertungen'))
+
+    expect(container.textContent).toContain('20.10.2026')
+    expect(container.textContent).toContain('Netz fehlt oder ist kaputt')
+    expect(container.textContent).toContain('Müll oder Verschmutzung')
+    expect(container.textContent).toContain('19.10.2026')
+    expect(container.textContent!.indexOf('20.10.2026')).toBeLessThan(container.textContent!.indexOf('19.10.2026'))
+    expect(fetchMock).toHaveBeenCalledWith('/api/places/3/ratings/list', undefined)
   })
 
   it('crosses out the Reason of a fixed issue and keeps the Rating', async () => {

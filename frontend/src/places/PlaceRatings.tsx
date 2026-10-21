@@ -17,6 +17,7 @@ import { onRatingChange } from '../api/live'
 import type { Place } from '../api/places'
 import { findCityReport, mailtoLink, placeText, telLink } from './cityReport'
 import { usePlaceReloads } from './usePlaceReloads'
+import PlaceRatingList from './PlaceRatingList'
 
 type Props = {
   placeId: number
@@ -218,6 +219,91 @@ function ConditionLine({ summary, voted, busy, onVote }: ConditionProps) {
   )
 }
 
+type RatingEditorProps = {
+  stars: number
+  chosen: Set<string>
+  reasons: Reason[] | null
+  busy: boolean
+  missing: string | null
+  onStars: (stars: number) => void
+  onToggle: (key: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}
+
+function RatingEditor({
+  stars,
+  chosen,
+  reasons,
+  busy,
+  missing,
+  onStars,
+  onToggle,
+  onSubmit,
+  onCancel,
+}: RatingEditorProps) {
+  function reasonGroup(title: string, positive: boolean) {
+    const group = (reasons ?? []).filter((reason) => reason.positive === positive)
+    return (
+      <fieldset className="reason-group">
+        <legend>{title}</legend>
+        {group.map((reason) => (
+          <button
+            key={reason.key}
+            type="button"
+            aria-pressed={chosen.has(reason.key)}
+            className={`${positive ? 'good' : 'bad'}${chosen.has(reason.key) ? ' on' : ''}`}
+            onClick={() => onToggle(reason.key)}
+          >
+            {reason.label}
+          </button>
+        ))}
+      </fieldset>
+    )
+  }
+
+  return (
+    <form
+      className="rating-form"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit()
+      }}
+    >
+      <fieldset className="star-picker">
+        <legend>Wie viele Sterne?</legend>
+        {STARS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={n === 1 ? '1 Stern' : `${n} Sterne`}
+            aria-pressed={n === stars}
+            className={n <= stars ? 'on' : ''}
+            onClick={() => onStars(n)}
+          >
+            ★
+          </button>
+        ))}
+      </fieldset>
+      {reasons === null ? (
+        <p className="hint">Lädt …</p>
+      ) : (
+        <>
+          {reasonGroup('Was ist gut?', true)}
+          {reasonGroup('Was ist nicht gut?', false)}
+        </>
+      )}
+      {missing && <p className="hint">{missing}</p>}
+      <button type="submit" className="rate-button" disabled={busy || missing !== null}>
+        Bewertung speichern
+      </button>
+      <button type="button" className="link-button" onClick={onCancel}>
+        Abbrechen
+      </button>
+    </form>
+  )
+}
+
 // The Ratings part of the Place detail (SCRUM-31): average stars, the most chosen Reasons, the
 // Condition, and the form to rate the Place or change the own Rating.
 export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Props) {
@@ -319,26 +405,6 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
 
   const missing = stars === 0 ? 'Wähle 1 bis 5 Sterne.' : chosen.size === 0 ? 'Wähle mindestens eine Begründung.' : null
 
-  function reasonGroup(title: string, positive: boolean) {
-    const group = (reasons ?? []).filter((r) => r.positive === positive)
-    return (
-      <fieldset className="reason-group">
-        <legend>{title}</legend>
-        {group.map((reason) => (
-          <button
-            key={reason.key}
-            type="button"
-            aria-pressed={chosen.has(reason.key)}
-            className={`${positive ? 'good' : 'bad'}${chosen.has(reason.key) ? ' on' : ''}`}
-            onClick={() => toggle(reason.key)}
-          >
-            {reason.label}
-          </button>
-        ))}
-      </fieldset>
-    )
-  }
-
   return (
     <div className="place-ratings">
       <h3>Bewertungen</h3>
@@ -355,45 +421,21 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
         ))}
       {summary && summary.top_reasons.length > 0 && <ReasonChips reasons={summary.top_reasons} />}
       {summary && <ConditionLine summary={summary} voted={voted} busy={busy} onVote={vote} />}
+      {summary && (
+        <PlaceRatingList key={`${placeId}-${mine?.updated_at ?? 'none'}`} placeId={placeId} count={summary.count} />
+      )}
       {rating ? (
-        <form
-          className="rating-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit()
-          }}
-        >
-          <fieldset className="star-picker">
-            <legend>Wie viele Sterne?</legend>
-            {STARS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-label={n === 1 ? '1 Stern' : `${n} Sterne`}
-                aria-pressed={n === stars}
-                className={n <= stars ? 'on' : ''}
-                onClick={() => setStars(n)}
-              >
-                ★
-              </button>
-            ))}
-          </fieldset>
-          {reasons === null ? (
-            <p className="hint">Lädt …</p>
-          ) : (
-            <>
-              {reasonGroup('Was ist gut?', true)}
-              {reasonGroup('Was ist nicht gut?', false)}
-            </>
-          )}
-          {missing && <p className="hint">{missing}</p>}
-          <button type="submit" className="rate-button" disabled={busy || missing !== null}>
-            Bewertung speichern
-          </button>
-          <button type="button" className="link-button" onClick={() => setRating(false)}>
-            Abbrechen
-          </button>
-        </form>
+        <RatingEditor
+          stars={stars}
+          chosen={chosen}
+          reasons={reasons}
+          busy={busy}
+          missing={missing}
+          onStars={setStars}
+          onToggle={toggle}
+          onSubmit={submit}
+          onCancel={() => setRating(false)}
+        />
       ) : (
         <button type="button" className="rate-button" onClick={startRating}>
           {mine ? `Bewertung ändern (${starText(mine.stars)})` : '⭐ Bewertung erstellen'}

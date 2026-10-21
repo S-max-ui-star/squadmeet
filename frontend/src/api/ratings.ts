@@ -35,6 +35,8 @@ export type RatingSummary = {
 
 export type Rating = { place_id: number; stars: number; reasons: string[]; updated_at: string }
 
+export type RatingListItem = { stars: number; reasons: string[]; updated_at: string }
+
 export type RatingInput = { stars: number; reasons: string[] }
 
 export async function fetchReasons(placeId: number): Promise<Reason[]> {
@@ -45,6 +47,12 @@ export async function fetchReasons(placeId: number): Promise<Reason[]> {
 export async function fetchRatingSummary(placeId: number, token?: string | null): Promise<RatingSummary> {
   const init = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
   return answer(await fetch(`/api/places/${placeId}/ratings`, init), 'GET ratings')
+}
+
+/** Every anonymous Rating of the Place, newest change first. */
+export async function fetchRatingList(placeId: number, token?: string | null): Promise<RatingListItem[]> {
+  const init = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+  return answer(await fetch(`/api/places/${placeId}/ratings/list`, init), 'GET rating list')
 }
 
 /** The user's own Rating of the Place, or null. */
