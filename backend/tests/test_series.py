@@ -172,6 +172,22 @@ def test_the_host_may_cancel_the_series_only_while_it_runs(client, place, host):
     assert client.post(f"/api/meetup-series/{series_id}/cancel", headers=auth_header(host[0])).status_code == 409
 
 
+def test_cancelling_the_series_leaves_an_occurrence_handed_to_another_host(client, place, host, guest):
+    series_id = create_series(client, host[0], place.id, [slot(d) for d in range(7)]).json()["id"]
+    handed, *rest = sorted(occurrences(client, host[0], place.id), key=lambda m: m["starts_at"])
+    join(client, guest[0], handed["id"])
+    # The Series Host Leaves, so the guest becomes Host of this Occurrence (SCRUM-37).
+    assert leave(client, host[0], handed["id"]).status_code == 204
+
+    seen = {m["id"]: m for m in occurrences(client, host[0], place.id)}
+    assert "cancel_series" not in seen[handed["id"]]["actions"]
+    assert client.post(f"/api/meetup-series/{series_id}/cancel", headers=auth_header(host[0])).status_code == 200
+
+    after = {m["id"]: m for m in occurrences(client, guest[0], place.id)}
+    assert not after[handed["id"]]["cancelled"]
+    assert all(after[m["id"]]["cancelled"] for m in rest)
+
+
 def test_an_occurrence_shows_whether_the_viewer_may_cancel_the_series(client, place, host, guest):
     create_series(client, host[0], place.id, [slot(0)])
 
