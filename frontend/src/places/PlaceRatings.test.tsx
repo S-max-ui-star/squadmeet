@@ -169,6 +169,38 @@ describe('PlaceRatings', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/places/3/ratings/list', undefined)
   })
 
+  it('crosses out the Reason of a fixed issue and keeps the Rating', async () => {
+    const net = { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false, count: 1 }
+    api({
+      count: 1,
+      average_stars: 2,
+      top_reasons: [{ ...net, fixed_at: '2026-10-20T10:00:00Z' }],
+      condition: { state: 'good', issues: [] },
+    })
+
+    const container = await render(null)
+
+    const chip = container.querySelector('.reason-chips .fixed')!
+    expect(chip.querySelector('del')?.textContent).toBe('Netz fehlt oder ist kaputt 1')
+    expect(chip.textContent).toContain('behoben am 20.10.')
+    expect(container.textContent).toContain('1 Bewertung')
+  })
+
+  it('shows a Reason named again after the fix normally', async () => {
+    const net = { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false, count: 1 }
+    api({
+      ...rated,
+      count: 2,
+      top_reasons: [{ ...net, fixed_at: '2026-10-20T10:00:00Z' }, { ...net, fixed_at: null }],
+    })
+
+    const container = await render(null)
+
+    expect(container.querySelectorAll('.reason-chips .fixed')).toHaveLength(1)
+    expect(container.querySelector('.reason-chips .bad')?.textContent).toBe('Netz fehlt oder ist kaputt 1')
+    expect(container.textContent).toContain('Mängel gemeldet')
+  })
+
   it('says when there are no Ratings yet', async () => {
     api(empty)
 

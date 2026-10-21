@@ -144,7 +144,9 @@ The state of a Place, derived from the negative Reasons in recent Ratings that n
 city or the operator must fix (broken or missing equipment, litter, broken glass, standing water).
 Negative Reasons such as "Oft überfüllt" do not change it. An issue that nobody confirmed for
 two months stays, and users are asked "Ist das noch so?"; three "still there" confirm it for two
-more months. Three "fixed", which users can say at any time, end it.
+more months. Three "fixed", which users can say at any time, end it. The Ratings stay: in
+Ratings from before the fix the Reason shows crossed out with "behoben am …"; a Rating after
+the fix names a new issue, shows normally and alone counts for it.
 _Avoid_: status, quality
 
 **City report** (Meldung an die Stadt):

@@ -4,9 +4,13 @@ import { answer } from './http'
 
 export type Reason = { key: string; label: string; positive: boolean }
 
-export type ReasonCount = Reason & { count: number }
+export type ReasonCount = Reason & {
+  count: number
+  // Set when these Ratings name an issue that users said is fixed: the time of the fix (SCRUM-99).
+  fixed_at?: string | null
+}
 
-// A problem named in Ratings; `count` is the number of Ratings that name it.
+// A problem named in Ratings; `count` is the number of Ratings since the last fix that name it.
 export type Issue = ReasonCount & {
   // Not confirmed for two months: users are asked "Ist das noch so?".
   needs_check: boolean

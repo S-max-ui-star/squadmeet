@@ -113,14 +113,26 @@ function starText(stars: number): string {
   return '★'.repeat(stars) + '☆'.repeat(5 - stars)
 }
 
+const fixedDay = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' })
+
+// A Reason of an issue that users said is fixed is crossed out; the Ratings stay (SCRUM-99).
 function ReasonChips({ reasons }: { reasons: ReasonCount[] }) {
   return (
     <ul className="reason-chips">
-      {reasons.map((reason) => (
-        <li key={reason.key} className={reason.positive ? 'good' : 'bad'}>
-          {reason.label} <span className="reason-count">{reason.count}</span>
-        </li>
-      ))}
+      {reasons.map((reason) =>
+        reason.fixed_at ? (
+          <li key={`${reason.key}-fixed`} className="fixed">
+            <del>
+              {reason.label} <span className="reason-count">{reason.count}</span>
+            </del>{' '}
+            behoben am {fixedDay.format(new Date(reason.fixed_at))}.
+          </li>
+        ) : (
+          <li key={reason.key} className={reason.positive ? 'good' : 'bad'}>
+            {reason.label} <span className="reason-count">{reason.count}</span>
+          </li>
+        ),
+      )}
     </ul>
   )
 }
