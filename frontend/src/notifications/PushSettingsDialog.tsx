@@ -10,6 +10,8 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
   const [state, setState] = useState<State>('loading')
   const [publicKey, setPublicKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // While "einschalten" or "ausschalten" runs, so a second tap sends nothing (SCRUM-147).
+  const [busy, setBusy] = useState(false)
   const iosNeedsInstall = needsIosHomeScreen(navigator.userAgent, runsStandalone())
 
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
   async function enable() {
     if (!publicKey) return
     setError(null)
+    setBusy(true)
     try {
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
@@ -59,11 +62,14 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
       setState('on')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Push konnte nicht eingeschaltet werden.')
+    } finally {
+      setBusy(false)
     }
   }
 
   async function disable() {
     setError(null)
+    setBusy(true)
     try {
       const registration = await navigator.serviceWorker.ready
       const subscription = await registration.pushManager.getSubscription()
@@ -74,6 +80,8 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
       setState('off')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Push konnte nicht ausgeschaltet werden.')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -86,15 +94,15 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
       )}
       {state === 'unsupported' && !iosNeedsInstall && <p>Dieser Browser unterstützt keine Push-Benachrichtigungen.</p>}
       {state === 'off' && (
-        <button type="button" onClick={enable}>Push einschalten</button>
+        <button type="button" disabled={busy} onClick={enable}>Push einschalten</button>
       )}
       {state === 'on' && (
         <>
           <p>Push ist eingeschaltet.</p>
-          <button type="button" onClick={disable}>Push ausschalten</button>
+          <button type="button" disabled={busy} onClick={disable}>Push ausschalten</button>
         </>
       )}
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="form-error">{error}</p>}
       <button type="button" className="link" onClick={onClose}>Schließen</button>
     </Dialog>
   )

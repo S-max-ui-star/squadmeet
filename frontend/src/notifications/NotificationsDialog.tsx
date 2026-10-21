@@ -78,6 +78,8 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     return onTopicChange('notifications', () => void reload())
   }, [reload])
 
+  // The Place opens also when marking as read fails (offline for a moment): the read state
+  // comes with the next reload (SCRUM-147).
   async function open(notice: Notification) {
     if (busy || data === null) return
     setBusy(true)
@@ -87,12 +89,12 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
       const updated = data.map((item) => (item.id === notice.id ? { ...item, read: true } : item))
       setData(updated)
       onChanged(updated)
-      onOpenMeetup(notice.place_id)
-    } catch (err) {
-      setError((err as Error).message)
+    } catch {
+      // Not read on the server yet; nothing the user must do.
     } finally {
       setBusy(false)
     }
+    onOpenMeetup(notice.place_id)
   }
 
   // Runs one request, then shows the changed list and passes it on for the unread count.

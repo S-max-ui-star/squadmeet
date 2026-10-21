@@ -95,7 +95,8 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
     return onTopicChange('contacts', () => void reload())
   }, [reload])
 
-  async function run(action: () => Promise<unknown>, done?: string) {
+  // True when the action worked, so the caller can clear its input only then (SCRUM-147).
+  async function run(action: () => Promise<unknown>, done?: string): Promise<boolean> {
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -103,8 +104,10 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
       await action()
       if (done) setNotice(done)
       await reload()
+      return true
     } catch (err) {
       setError((err as Error).message)
+      return false
     } finally {
       setBusy(false)
     }
@@ -116,7 +119,7 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
         onSubmit={(event) => {
           event.preventDefault()
           const asked = nickname.trim()
-          run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then(() => setNickname(''))
+          run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then((sent) => sent && setNickname(''))
         }}
       >
         <label>

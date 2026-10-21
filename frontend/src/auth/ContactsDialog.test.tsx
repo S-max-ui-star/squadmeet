@@ -81,6 +81,8 @@ describe('ContactsDialog (SCRUM-32)', () => {
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(JSON.parse(post[1]!.body as string)).toEqual({ nickname: 'Pingpong_Paula' })
     expect(container.textContent).toContain('Anfrage nicht möglich')
+    // SCRUM-147: the typed Nickname stays, so the user can correct it.
+    expect(input.value).toBe('Pingpong_Paula')
   })
 
   it('blocks a Contact and lists blocked users with "Aufheben"', async () => {
