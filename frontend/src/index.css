@@ -131,6 +131,39 @@ body {
   gap: 4px;
 }
 
+/* SCRUM-102: "Meine Treffen", one button per Meetup (or per Series). */
+.my-meetup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0 0 12px;
+  list-style: none;
+}
+
+.my-meetup-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.my-meetup-list button:hover {
+  background: #eef0f3;
+}
+
+.my-meetup-list .cancelled-tag {
+  font-weight: 600;
+  color: #c01c28;
+}
+
 .favorite-card {
   padding-top: 12px;
   border-top: 1px solid #ddd;
@@ -451,7 +484,8 @@ body {
 }
 
 /* SCRUM-85: Contacts, Favorites, Home area as icons right of the search field. The search
-   container gets narrower to make room; the search field itself is unchanged. */
+   container gets narrower to make room; the search field itself is unchanged. "Meine Treffen"
+   (SCRUM-102) is the fourth icon. */
 .map-toolbar {
   position: absolute;
   z-index: 1200;
@@ -479,7 +513,7 @@ body {
 }
 
 .map-toolbar + .place-search {
-  right: 156px;
+  right: 204px;
 }
 
 .place-search form {

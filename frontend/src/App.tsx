@@ -40,6 +40,7 @@ import PlacePhotos from './places/PlacePhotos'
 import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
 import MapToolbar from './places/MapToolbar'
+import MyMeetupsDialog from './places/MyMeetupsDialog'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
 import NotificationsDialog from './notifications/NotificationsDialog'
@@ -133,6 +134,7 @@ export default function App() {
   const [adminDialog, setAdminDialog] = useState<AdminDialogKind | null>(null)
   const [showContacts, setShowContacts] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
+  const [showMyMeetups, setShowMyMeetups] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showPushSettings, setShowPushSettings] = useState(false)
   // Set while the Home area dialog is open: where its map starts (SCRUM-45).
@@ -351,6 +353,7 @@ export default function App() {
     setShowNotifications(false)
     setShowPushSettings(false)
     setShowFavorites(false)
+    setShowMyMeetups(false)
     setShowMfa(false)
     setShowSuggest(false)
     setShowDelete(false)
@@ -493,6 +496,17 @@ export default function App() {
           onClose={() => setShowFavorites(false)}
         />
       )}
+      {showMyMeetups && user && (
+        <MyMeetupsDialog
+          token={loadToken() ?? ''}
+          onOpenPlace={(placeId) => {
+            setShowMyMeetups(false)
+            focusOn(placeId)
+            openPlace(placeId)
+          }}
+          onClose={() => setShowMyMeetups(false)}
+        />
+      )}
       {adminDialog && user && (
         <AdminDialog
           kind={adminDialog}
@@ -556,6 +570,7 @@ export default function App() {
           onContacts={() => setShowContacts(true)}
           onFavorites={() => setShowFavorites(true)}
           onHomeArea={() => setHomeAreaCenter(areaCenter(lastArea.current))}
+          onMyMeetups={() => setShowMyMeetups(true)}
         />
       )}
       <PlaceSearch onPick={pickSearchHit} dismissRequest={searchDismissRequest} />

@@ -342,6 +342,43 @@ def list_meetups(
     return to_reads(session, list(session.exec(query).all()), user)
 
 
+class PlaceRef(BaseModel):
+    id: int
+    name: str
+    activity_type: str
+
+
+class MyMeetupRead(MeetupRead):
+    place: PlaceRef
+    # True: the user is the Host. False: the user joined.
+    hosting: bool
+
+
+@router.get("/meetups/mine", response_model=list[MyMeetupRead])
+def my_meetups(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """"Meine Treffen" (SCRUM-102): the user's upcoming, live and cancelled Meetups, as Host and
+    as Join, with their Place. By start time, as in the Place detail."""
+    now = datetime.now(UTC)
+    # The Occurrences of the next 30 days of the user's Series (SCRUM-38).
+    fill_open_series(session, now)
+    joined = select(MeetupJoin.meetup_id).where(MeetupJoin.user_id == user.id)
+    rows = session.exec(
+        select(Meetup, Place)
+        .join(Place, Place.id == Meetup.place_id)
+        .where(or_(Meetup.host_id == user.id, Meetup.id.in_(joined)), lifecycle.is_listed(now))
+        .order_by(Meetup.starts_at, Meetup.id)
+    ).all()
+    reads = to_reads(session, [meetup for meetup, _ in rows], user)
+    return [
+        MyMeetupRead(
+            **read.model_dump(),
+            place=PlaceRef(id=place.id, name=place.name, activity_type=place.activity_type),
+            hosting=meetup.host_id == user.id,
+        )
+        for read, (meetup, place) in zip(reads, rows, strict=True)
+    ]
+
+
 @router.post("/meetups/{meetup_id}/end", response_model=MeetupRead)
 def end_meetup_early(
     meetup_id: int,
