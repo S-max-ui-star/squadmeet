@@ -44,7 +44,7 @@ describe('the date and time field', () => {
   it(`allows the next minute up to ${MAX_DAYS_AHEAD} days ahead`, () => {
     const { min, max } = inputBounds(now)
     expect(min).toBe('2026-10-12T10:31')
-    expect(max).toBe('2026-11-11T09:30')
+    expect(max).toBe(toInputValue(new Date(now.getTime() + MAX_DAYS_AHEAD * 24 * 3_600_000)))
   })
 
   it('uses an exact 30-day duration across a daylight-saving change (SCRUM-153)', () => {
