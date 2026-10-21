@@ -15,7 +15,7 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Mi 21.10.2026 — Tag 11
 
-- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails: auf Smartphones über das Systemmenü, am Laptop per kopiertem Live-Link; test-first umgesetzt und automatisiert geprüft.
+- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails: auf Smartphones über das Systemmenü, am Laptop per kopiertem Live-Link. `SCRUM-100` ergänzt die anonyme Liste einzelner Bewertungen mit Gründen und Änderungsdatum; beides test-first umgesetzt und automatisiert geprüft.
 
 ## Di 20.10.2026 — Tag 10
 
