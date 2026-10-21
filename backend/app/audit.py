@@ -20,8 +20,9 @@ from typing import Any, Literal
 
 from fastapi import Depends
 from geoalchemy2 import WKBElement, WKTElement
-from sqlalchemy import delete, event, inspect, insert
-from sqlmodel import Session
+from sqlalchemy import ARRAY, Text, cast, delete, event, func, inspect, insert, literal, update
+from sqlalchemy.dialects.postgresql import JSONB, array
+from sqlmodel import Session, SQLModel
 from sqlmodel.main import default_registry
 
 from app.db import get_session
@@ -44,6 +45,22 @@ EXCLUDED_TABLES = {
 }
 # Secrets. failed_logins is not one, but each login changes it; it is not domain data.
 EXCLUDED_FIELDS = {"app_user": {"password_hash", "mfa_secret", "mfa_last_step", "failed_logins"}}
+
+
+def user_columns(table) -> list[str]:
+    return [
+        column.key
+        for column in table.columns
+        if any(key.column.table.name == "app_user" for key in column.foreign_keys)
+    ]
+
+
+# The fields that name a user, per logged table: every foreign key to app_user (SCRUM-114).
+PERSON_FIELDS = {
+    table.name: user_columns(table)
+    for table in SQLModel.metadata.sorted_tables
+    if table.name not in EXCLUDED_TABLES and user_columns(table)
+}
 
 ACTOR = "audit_actor"
 TIME = "audit_time"
@@ -74,8 +91,24 @@ def record(
 
 def forget_user(session: Session, user_id: int) -> None:
     """Account delete (SCRUM-28): the user's own rows hold the old Nickname. Call it after the
-    flush that deleted the user; the database sets actor_id to NULL in the other rows."""
+    flush that deleted the user; the database sets actor_id to NULL in the other rows.
+
+    SCRUM-114: the other rows also hold the old id in their person fields (host_id, user_id, ...).
+    It would group all rows of the deleted person, so it becomes null; the other values stay."""
     session.exec(delete(AuditLog).where(AuditLog.entity == "app_user", AuditLog.entity_id == user_id))
+    old_id = literal(user_id, JSONB)
+    # JSON null: a SQL NULL would make jsonb_set return NULL for the whole changes.
+    null = literal(JSONB.NULL, JSONB)
+    for table, fields in PERSON_FIELDS.items():
+        for field in fields:
+            # The value, or the old or the new half of an [old, new] pair.
+            for keys in ([field], [field, "0"], [field, "1"]):
+                path = cast(array(keys), ARRAY(Text))
+                session.exec(
+                    update(AuditLog)
+                    .where(AuditLog.entity == table, AuditLog.changes.op("#>")(path) == old_id)
+                    .values(changes=func.jsonb_set(AuditLog.changes, path, null))
+                )
 
 
 def write(session: Session, entries: list[tuple[str, int, Action, dict[str, Any]]]) -> None:
