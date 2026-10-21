@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchHomeArea, saveHomeArea, turnOffHomeArea, type HomeArea } from '../api/homeArea'
 import { ACTIVITIES, ACTIVITY_TYPES, type ActivityType } from '../places/activities'
 import HomeAreaMap, { type Point } from './HomeAreaMap'
+import Dialog from '../Dialog'
 
 type Props = {
   token: string
@@ -90,45 +91,42 @@ export default function HomeAreaDialog({ token, fallbackCenter, onClose }: Props
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-label="Heimatbereich">
-        <h2>Heimatbereich</h2>
-        {form === null ? (
-          <p>Laden …</p>
-        ) : (
-          <>
-            <p>
-              Tippe auf die Karte, um deinen Punkt zu setzen. Wir speichern nur diesen Punkt, nie
-              deinen aktuellen Standort.
-            </p>
-            <HomeAreaMap
-              point={form.point}
-              radiusKm={form.radiusKm}
-              fallbackCenter={fallbackCenter}
-              onPick={(point) => change({ point })}
-            />
-            <HomeAreaFields form={form} onChange={change} />
-            <button
-              type="button"
-              onClick={() => form.point && save(form, form.point)}
-              disabled={busy || !form.point || form.types.size === 0}
-            >
-              {form.on ? 'Änderungen speichern' : 'Heimatbereich einschalten'}
+    <Dialog title="Heimatbereich" onClose={onClose}>
+      {form === null ? (
+        <p>Laden …</p>
+      ) : (
+        <>
+          <p>
+            Tippe auf die Karte, um deinen Punkt zu setzen. Wir speichern nur diesen Punkt, nie
+            deinen aktuellen Standort.
+          </p>
+          <HomeAreaMap
+            point={form.point}
+            radiusKm={form.radiusKm}
+            fallbackCenter={fallbackCenter}
+            onPick={(point) => change({ point })}
+          />
+          <HomeAreaFields form={form} onChange={change} />
+          <button
+            type="button"
+            onClick={() => form.point && save(form, form.point)}
+            disabled={busy || !form.point || form.types.size === 0}
+          >
+            {form.on ? 'Änderungen speichern' : 'Heimatbereich einschalten'}
+          </button>
+          {form.on && (
+            <button type="button" onClick={turnOff} disabled={busy}>
+              Heimatbereich ausschalten
             </button>
-            {form.on && (
-              <button type="button" onClick={turnOff} disabled={busy}>
-                Heimatbereich ausschalten
-              </button>
-            )}
-          </>
-        )}
-        {message && <p>{message}</p>}
-        {error && <p className="form-error">{error}</p>}
-        <button type="button" className="link" onClick={onClose}>
-          Schließen
-        </button>
-      </div>
-    </div>
+          )}
+        </>
+      )}
+      {message && <p>{message}</p>}
+      {error && <p className="form-error">{error}</p>}
+      <button type="button" className="link" onClick={onClose}>
+        Schließen
+      </button>
+    </Dialog>
   )
 }
 
