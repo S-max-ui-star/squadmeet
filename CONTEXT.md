@@ -231,7 +231,8 @@ _Avoid_: schedule, filter
 A message about a Meetup, kept in the in-app list newest first. A tap marks it read and opens the
 affected Place and its Meetups. If the user turned on Web Push, the same event also reaches each
 subscribed browser; tapping it opens the affected Place. An expired browser subscription is
-removed automatically.
+removed automatically. A Notification is deleted 14 days after its Meetup's end (`ends_at`, also
+for a cancelled Meetup or one that was ended early), read or not; the user can delete it earlier.
 _Avoid_: alert, pop-up, message
 
 **Contact Notification** (Kontakt-Benachrichtigung):
