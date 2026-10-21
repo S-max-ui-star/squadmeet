@@ -4,12 +4,16 @@ from datetime import UTC, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth import current_user
 from app.db import get_session
 from app.models import Favorite, FavoriteTimeRule, Place, User
-from app.place_status import require, view_use
+from app.place_status import MAX_DB_INT, allowed_in, require, view_use
+
+# Each rule is read on every new Meetup at the Place (app.favorite_notifications).
+MAX_RULES = 10
 
 router = APIRouter(tags=["favorites"])
 
@@ -52,11 +56,16 @@ class FavoriteRead(BaseModel):
     rules: list[TimeRuleRead]
 
 
+def in_db(row_id: int) -> bool:
+    """A bigger number than a PostgreSQL integer would make the query fail."""
+    return 1 <= row_id <= MAX_DB_INT
+
+
 def owned(session: Session, favorite_id: int, user_id: int) -> Favorite:
-    favorite = session.exec(
+    favorite = in_db(favorite_id) and session.exec(
         select(Favorite).where(Favorite.id == favorite_id, Favorite.user_id == user_id)
     ).first()
-    if favorite is None:
+    if not favorite:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Favorit nicht gefunden")
     return favorite
 
@@ -101,10 +110,13 @@ def favorite_reads(session: Session, favorites: list[Favorite]) -> list[Favorite
 def list_favorites(
     user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
+    """The user's Favorites at Places they may see; a locked or hidden Place comes back when
+    it is unlocked."""
     favorites = list(
         session.exec(
             select(Favorite)
-            .where(Favorite.user_id == user.id)
+            .join(Place, Place.id == Favorite.place_id)
+            .where(Favorite.user_id == user.id, allowed_in(view_use(user)))
             .order_by(Favorite.created_at, Favorite.id)
         )
     )
@@ -117,6 +129,7 @@ def get_favorite(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ):
+    require(session, place_id, view_use(user))
     favorite = session.exec(
         select(Favorite).where(Favorite.place_id == place_id, Favorite.user_id == user.id)
     ).first()
@@ -147,10 +160,10 @@ def remove_favorite(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ):
-    favorite = session.exec(
+    favorite = in_db(place_id) and session.exec(
         select(Favorite).where(Favorite.place_id == place_id, Favorite.user_id == user.id)
     ).first()
-    if favorite is not None:
+    if favorite:
         session.delete(favorite)
         session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -168,6 +181,14 @@ def add_time_rule(
     session: Session = Depends(get_session),
 ):
     owned(session, favorite_id, user.id)
+    rules = session.exec(
+        select(func.count()).where(FavoriteTimeRule.favorite_id == favorite_id)
+    ).one()
+    if rules >= MAX_RULES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ein Favorit hat höchstens {MAX_RULES} Zeitfenster",
+        )
     rule = FavoriteTimeRule(
         favorite_id=favorite_id,
         weekdays=body.weekdays,
@@ -182,12 +203,12 @@ def add_time_rule(
 
 def owned_rule(session: Session, favorite_id: int, rule_id: int, user_id: int):
     owned(session, favorite_id, user_id)
-    rule = session.exec(
+    rule = in_db(rule_id) and session.exec(
         select(FavoriteTimeRule).where(
             FavoriteTimeRule.id == rule_id, FavoriteTimeRule.favorite_id == favorite_id
         )
     ).first()
-    if rule is None:
+    if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zeitfenster nicht gefunden")
     return rule
 
