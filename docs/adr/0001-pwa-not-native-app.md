@@ -14,3 +14,8 @@ library did not support the web well (checked 2026-10-07).
 - On iPhone, push works only after the user adds the PWA to the home screen.
 - David plans a separate native Android app after the project. The backend must therefore be a
   clean, documented API that a second client can use.
+
+## Update 2026-10-21
+
+David left the project on 2026-10-08 (`SCRUM-46`), so nobody plans the Android app now. The
+decision stays: the API is still a clean, documented API (`/docs`).

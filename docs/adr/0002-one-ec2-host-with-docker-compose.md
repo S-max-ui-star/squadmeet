@@ -9,3 +9,10 @@ run the same Compose file, so the planned move to the NAS after the project cost
 
 - ECS Fargate + RDS: more "cloud native", but more setup and over budget.
 - NAS only: does not meet the brief's cloud requirement, and a home network is a risk on demo day.
+
+## Update 2026-10-21
+
+Since the handover on 2026-10-15 (`SCRUM-48`) the host runs in Stefan's own AWS account
+(`t2.micro`, budget alarm 10 USD), not on the course credit. David left the project on
+2026-10-08, so a later move to a NAS would be Stefan's. Backups: a dump before each deploy and a
+daily disk snapshot ([deploy/README.md](../../deploy/README.md) → *Backups*).

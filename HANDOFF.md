@@ -1,12 +1,14 @@
 # Abschlussprojekt — Handoff (shared)
 
 The shared handoff for the team (3 people) and their coding agents. It is in git. It holds
-what both people need: rules, project, team, Jira, open questions, decisions and the
+what all three need: rules, project, team, Jira, open questions, decisions and the
 debugging case.
 
 Each person's own progress (*Now*, *In flight*, *Next*, *Log*) is in **`HANDOFF.local.md`**.
 That file is not in git (`.gitignore`), because each person's progress differs.
 
+**Last update:** 2026-10-21 · Stefan · `SCRUM-49` review fixes deploy/CI: decision row
+**Last update:** 2026-10-21 · Steven · `SCRUM-70` Nominatim decision row
 **Last update:** 2026-10-21 · Stefan · `SCRUM-99` fixed Reason: decision row
 **Last update:** 2026-10-21 · Steven · `SCRUM-71` Place report: 7-day account age built
 
@@ -185,6 +187,7 @@ Short entries. Put the reason next to the decision. Longer reasoning goes to a s
 
 | Date | Decision | Why | Where |
 |------|----------|-----|-------|
+| 2026-10-21 | Review fixes deploy/CI (`SCRUM-49`, Stefan; Steven's area, Stefan said "fix everything"): **backups** = `pg_dump` before each deploy in `host-deploy.sh` (`/opt/squadmeet/backups`, newest 10) + daily EBS snapshot by DLM (`deploy/setup-backup.sh`, newest 7, **not run yet**); `docker image prune -af`; logs at most 3 × 10 MB per container; **security headers** in Caddy (HSTS 1 year, full CSP, `X-Frame-Options DENY`, `nosniff`, Referrer-Policy, no `Server`); backend image without dev requirements and `tests/`, as user `app`; base images pinned by digest + Dependabot monthly; CI `ruff check` (only `E9`,`F`) + dependency audit (report only); **IMDS** only for the backend (db in an internal network, iptables rule for Caddy); weekly security updates on the host (Wed 03:30 UTC); encrypted disk for new hosts; local DB port only on 127.0.0.1 | No backup existed; a dump helps after a failed migration, a snapshot when the host is gone. The CSP was checked in headless Chromium against the production images (map tiles, Turnstile: no violation). Report-only audit and Wednesday updates, so nothing blocks or restarts on demo day | `SCRUM-49`, [deploy/README.md](deploy/README.md) (*Backups*, *Host updates*, rollback), [frontend/Caddyfile](frontend/Caddyfile), [deploy/compose.yml](deploy/compose.yml) |
 | 2026-10-21 | Fixed Reason (`SCRUM-99`): after 3× "Ja, behoben" the Ratings stay; in `top_reasons` the Reason from Ratings older than the fix comes with `fixed_at` and shows **crossed out** (`<del>`, grey chip) with "behoben am TT.MM.". A Rating after the fix is a new issue: its chip shows normally, and the issue `count` counts only Ratings since the last fix | Ticket rule (no Rating deleted or changed); the line shows the history, the date says since when. Computed from Ratings and votes like before (`issue_history` in [backend/app/ratings.py](backend/app/ratings.py)), no migration | `SCRUM-99`, [CONTEXT.md](CONTEXT.md) (Condition) |
 | 2026-10-20 | Series: join several dates at once (`SCRUM-81`). Under "Alle Termine" a checkbox per date (dates the user is in are ticked and locked), one Party size, "Ausgewählten beitreten" and "Allen beitreten". Frontend only: one Join per date with the existing endpoint, so a date that fails (2-overlap limit, Block) does not stop the others; the failed dates are listed with the server's reason. Not shown to the Host. Replaces "no join-all" of `SCRUM-38` (2026-10-14) | Stefan (product owner) after the test run 19.10.: joining a weekly Series date by date was too much. One request per date reuses all Join rules of the backend without a new endpoint | `SCRUM-81`, [frontend/src/places/SeriesJoin.tsx](frontend/src/places/SeriesJoin.tsx) |
 | 2026-10-20 | **Photos deferred** until after the course. Upload is off and nobody sees Photos, also not the Admin approval. One backend switch `PHOTOS_ENABLED` (default off) does it, and the frontend hides the photo section and "Fotos freigeben" (`SCRUM-94`, Must, Sprint 3). Nothing is deleted: S3 bucket, `photo` table, code, tests and `deploy/setup-photos.sh` stay. Switch on again = `PHOTOS_ENABLED=true` + deploy. `SCRUM-83` (at most 5 Photos per Place) and `SCRUM-92` (Admin deletes approved Photos) left Sprint 3 for the backlog (label `deferred`). Until `SCRUM-94` is merged and live, Photos are still on. Off, the privacy page still names the stored Photos (wording for Stefan to check) | Steven (team), 2026-10-20. A switch, not a code removal, makes it easy to turn Photos on again | `SCRUM-94`, [backend/app/photo_storage.py](backend/app/photo_storage.py), [deploy/compose.yml](deploy/compose.yml) |
