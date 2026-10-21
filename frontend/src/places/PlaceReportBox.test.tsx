@@ -104,4 +104,24 @@ describe('PlaceReportBox', () => {
     expect(container.textContent).toContain('Du hast diesen Platz schon gemeldet')
     expect(onReported).not.toHaveBeenCalled()
   })
+
+  // SCRUM-158: from 3 reports an Admin reviews the Place; one more report is refused.
+  it('shows the reports of a Place under review without "Platz melden"', () => {
+    const reported = { ...place, open_reports: 3, report_reason: 'dangerous' as const }
+
+    const text = render({ place: reported, user }).textContent
+
+    expect(text).toContain('Von Nutzern gemeldet: Gefährlich (3 Meldungen, nicht auf der Karte)')
+    expect(text).toContain('Bis ein Admin entschieden hat')
+    expect(text).not.toContain('Platz melden')
+  })
+
+  it('keeps "Platz melden" for a reported Place still on the map (SCRUM-158)', () => {
+    const reported = { ...place, open_reports: 2, report_reason: 'dangerous' as const }
+
+    const text = render({ place: reported, user }).textContent
+
+    expect(text).toContain('Platz melden')
+    expect(text).not.toContain('Bis ein Admin entschieden hat')
+  })
 })

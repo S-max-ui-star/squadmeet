@@ -92,18 +92,32 @@ function api(summary: RatingSummary, mine: unknown = null) {
 // A table tennis table in the Clara-Zetkin-Park, Leipzig (SCRUM-55).
 const leipzigPlace = { name: 'Tischtennis', lat: 51.33261, lon: 12.35673, address: 'Karl-Tauchnitz-Straße' }
 
-async function render(user: User | null, onLoginNeeded = () => {}, place: typeof leipzigPlace | null = null) {
+async function render(
+  user: User | null,
+  onLoginNeeded = () => {},
+  place: typeof leipzigPlace | null = null,
+  readOnly = false,
+) {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
   roots.push(root)
   await act(async () =>
     root.render(
-      <PlaceRatings placeId={3} place={place} user={user} onLoginNeeded={onLoginNeeded} />,
+      <PlaceRatings placeId={3} place={place} user={user} onLoginNeeded={onLoginNeeded} readOnly={readOnly} />,
     ),
   )
   return container
 }
+
+// A fetch answer the test sends later, to put answers out of order.
+function later() {
+  let send!: (response: Response) => void
+  const response = new Promise<Response>((resolve) => (send = resolve))
+  return { response, send }
+}
+
+const status = (container: HTMLElement) => container.querySelector('.city-report [role="status"]')!.textContent
 
 const button = (container: HTMLElement, text: string) =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
@@ -166,7 +180,9 @@ describe('PlaceRatings', () => {
     expect(container.textContent).toContain('Müll oder Verschmutzung')
     expect(container.textContent).toContain('19.10.2026')
     expect(container.textContent!.indexOf('20.10.2026')).toBeLessThan(container.textContent!.indexOf('19.10.2026'))
-    expect(fetchMock).toHaveBeenCalledWith('/api/places/3/ratings/list', undefined)
+    // A guest sends no token.
+    const [, init] = fetchMock.mock.calls.find(([url]) => url === '/api/places/3/ratings/list')!
+    expect(init?.headers).toBeUndefined()
   })
 
   it('crosses out the Reason of a fixed issue and keeps the Rating', async () => {
@@ -404,5 +420,106 @@ describe('PlaceRatings', () => {
 
     // The city report opens by itself after a Rating that names something to fix.
     expect(container.textContent).toContain('Mängelmelder der Stadt Leipzig')
+  })
+
+  // SCRUM-162: the result of copying is read out, and a good retry clears the failure.
+  it('reads out a copied Place and a failed copy, and a retry clears the failure', async () => {
+    api(rated)
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const container = await render(null, () => {}, leipzigPlace)
+    await click(button(container, 'Willst du das der Stadt melden?'))
+
+    await click(button(container, 'Ort für die Meldung kopieren'))
+    expect(status(container)).toBe('Kopieren ging nicht.')
+    expect(container.querySelector('.city-report-copy textarea')).not.toBeNull()
+
+    await click(button(container, 'Ort für die Meldung kopieren'))
+    expect(status(container)).toBe('Ort kopiert.')
+    expect(container.querySelector('.city-report-copy textarea')).toBeNull()
+  })
+
+  // SCRUM-156: a slow older load must not replace a newer one.
+  it('keeps the newest summary when the answers come back out of order', async () => {
+    const first = later()
+    const second = later()
+    const answers = [first, second]
+    vi.stubGlobal('fetch', vi.fn(() => answers.shift()!.response))
+    const container = await render(null)
+
+    await act(async () => announceRatingChange(3))
+    await act(async () => second.send(Response.json(rated)))
+    await act(async () => first.send(Response.json(empty)))
+
+    expect(container.textContent).toContain('2 Bewertungen')
+    expect(container.textContent).not.toContain('Noch keine Bewertungen')
+  })
+
+  it('clears a load error with the next good load (SCRUM-156)', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ detail: 'Server kaputt' }, { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const container = await render(null)
+    expect(container.textContent).toContain('Server kaputt')
+
+    fetchMock.mockImplementation(async () => Response.json(rated))
+    await click(button(container, 'Erneut laden'))
+
+    expect(container.textContent).not.toContain('Server kaputt')
+    expect(container.textContent).toContain('2 Bewertungen')
+  })
+
+  // SCRUM-157: "Bewertung erstellen" only once it is clear that there is no own Rating.
+  it('waits for the own Rating before it offers to rate', async () => {
+    saveToken('tok')
+    const mine = later()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => (url.endsWith('/ratings/mine') ? mine.response : Response.json(rated))),
+    )
+    const container = await render(paula)
+
+    const waiting = button(container, 'Lädt …')!
+    expect(waiting.disabled).toBe(true)
+    expect(button(container, 'Bewertung erstellen')).toBeUndefined()
+
+    await act(async () => mine.send(Response.json({ place_id: 3, stars: 2, reasons: ['net_missing'], updated_at: 'x' })))
+    expect(button(container, 'Bewertung ändern')).toBeDefined()
+  })
+
+  it('offers a retry, not a new Rating, when the own Rating does not load (SCRUM-157)', async () => {
+    saveToken('tok')
+    let fail = true
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (!url.endsWith('/ratings/mine')) return Response.json(rated)
+        if (fail) return Response.json({ detail: 'weg' }, { status: 500 })
+        return Response.json({ place_id: 3, stars: 4, reasons: ['table_good'], updated_at: 'x' })
+      }),
+    )
+    const container = await render(paula)
+    expect(container.textContent).toContain('Deine Bewertung konnte nicht geladen werden')
+    expect(button(container, 'Bewertung erstellen')).toBeUndefined()
+
+    fail = false
+    await click(button(container, 'Erneut laden'))
+
+    expect(container.textContent).not.toContain('Deine Bewertung konnte nicht geladen werden')
+    expect(button(container, 'Bewertung ändern')).toBeDefined()
+  })
+
+  // SCRUM-158: an Admin reviews a reported Place: the Ratings show, nothing can be changed.
+  it('only shows the Ratings of a Place under review', async () => {
+    saveToken('tok')
+    api(unconfirmed)
+    const container = await render(paula, () => {}, null, true)
+
+    expect(container.textContent).toContain('3,5')
+    expect(container.textContent).toContain('Mängel gemeldet')
+    expect(container.textContent).toContain('Noch so: 1/3')
+    expect(button(container, 'Alle Bewertungen')).toBeDefined()
+    expect(container.querySelector('.rate-button')).toBeNull()
+    expect(button(container, 'Ja, behoben')).toBeUndefined()
+    expect(button(container, 'Nein, noch nicht behoben')).toBeUndefined()
   })
 })
