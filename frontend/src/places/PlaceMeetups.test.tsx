@@ -58,6 +58,7 @@ afterEach(() => {
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
   localStorage.clear()
+  window.location.hash = ''
 })
 
 async function render(user: User | null, onLoginNeeded = () => {}) {
@@ -73,8 +74,27 @@ async function render(user: User | null, onLoginNeeded = () => {}) {
   return container
 }
 
+function renderPending(user: User | null) {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
+  act(() => root.render(<PlaceMeetups placeId={3} user={user} onLoginNeeded={() => {}} onChanged={() => {}} />))
+  return container
+}
+
 const button = (container: HTMLElement, text: string) =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
 
 describe('PlaceMeetups', () => {
   it('loads again on a live Meetup event for its own Place only (SCRUM-93)', async () => {
@@ -88,6 +108,42 @@ describe('PlaceMeetups', () => {
     await act(async () => announceMeetupChange(3))
 
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the newest result when reload responses arrive out of order (SCRUM-151)', async () => {
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([meetup]))
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    vi.stubGlobal('fetch', fetch)
+    const container = await render(paula)
+
+    act(() => {
+      announceMeetupChange(3)
+      announceMeetupChange(3)
+    })
+    await act(async () => second.resolve(Response.json([{ ...meetup, id: 22, host: { ...meetup.host!, nickname: 'Neu' } }])))
+    await act(async () => first.resolve(Response.json([{ ...meetup, id: 21, host: { ...meetup.host!, nickname: 'Alt' } }])))
+
+    expect(container.textContent).toContain('Neu')
+    expect(container.textContent).not.toContain('Alt')
+  })
+
+  it('distinguishes the initial loading and error states from an empty list (SCRUM-151)', async () => {
+    const pending = deferred<Response>()
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise))
+    const container = renderPending(paula)
+
+    expect(container.textContent).toContain('Treffen werden geladen')
+    expect(container.textContent).not.toContain('Gerade ist niemand hier')
+
+    pending.reject(new Error('Netz kaputt'))
+    await act(async () => {})
+    expect(container.textContent).toContain('Netz kaputt')
+    expect(container.textContent).not.toContain('Gerade ist niemand hier')
   })
 
   it('loads again when the page comes back to the front (SCRUM-78)', async () => {
@@ -183,6 +239,26 @@ describe('PlaceMeetups', () => {
     const body = JSON.parse(post[1]!.body as string)
     expect(new Date(body.starts_at).getTime()).toBe(new Date(field.value).getTime())
     expect(body).toMatchObject({ place_id: 3, hours: 2, party_size: 1 })
+  })
+
+  it('submits a creation form only once when two submit events arrive together (SCRUM-149)', async () => {
+    localStorage.setItem('squadmeet.token', 'tok')
+    const pending = deferred<Response>()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? pending.promise : Promise.resolve(Response.json([])),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const container = await render(paula)
+    act(() => button(container, 'Ich bin jetzt hier')!.click())
+    const form = container.querySelector<HTMLFormElement>('.now-form')!
+
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+    await act(async () => pending.resolve(Response.json(meetup, { status: 201 })))
   })
 
   it('lets the Host move the start of a later Meetup', async () => {
@@ -451,5 +527,53 @@ describe('PlaceMeetups', () => {
     await act(async () => button(container, 'Serie absagen')!.click())
 
     expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/meetup-series/9/cancel' && init?.method === 'POST')).toBe(true)
+  })
+
+  it('keeps Series cancellation on the overview after the first occurrence changed Host (SCRUM-150)', async () => {
+    localStorage.setItem('squadmeet.token', 'tok')
+    const handed = {
+      ...laterMeetup,
+      id: 20,
+      series_id: 9,
+      host: { id: 2, nickname: 'Korb_Karl', avatar: 'bear' },
+      actions: ['cancel', 'move', 'leave'],
+      starts_at: hoursFromNow(24),
+      ends_at: hoursFromNow(26),
+    }
+    const owned = {
+      ...laterMeetup,
+      id: 21,
+      series_id: 9,
+      actions: [...laterMeetup.actions, 'cancel_series'],
+      starts_at: hoursFromNow(24 * 8),
+      ends_at: hoursFromNow(24 * 8 + 2),
+    }
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? Response.json({ id: 9 }) : Response.json([handed, owned]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const container = await render(paula)
+
+    await act(async () => button(container, 'Serie absagen')!.click())
+
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/meetup-series/9/cancel')).toBe(true)
+  })
+
+  it('does not scroll a Meetup deep link again after a reload (SCRUM-155)', async () => {
+    window.location.hash = '#treffen-7'
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([meetup])))
+    await render(paula)
+
+    await act(async () => announceMeetupChange(3))
+
+    expect(scrollIntoView).toHaveBeenCalledOnce()
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
   })
 })
