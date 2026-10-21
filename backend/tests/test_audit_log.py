@@ -7,7 +7,7 @@ import pyotp
 from sqlalchemy import event
 from sqlmodel import select
 
-from app.models import AuditLog, Place
+from app.models import AuditLog, Place, User
 from app.osm_import import load
 from tests.test_admin_places import admin, later, lock  # noqa: F401 (fixture)
 from tests.test_auth import PASSWORD, auth_header, register
@@ -17,6 +17,8 @@ from tests.test_meetups import create, host, join, leave, place  # noqa: F401 (f
 from tests.test_mfa import code_in
 from tests.test_osm_import import row, snapshot
 from tests.test_place_reports import dismiss, report
+from tests.test_ratings import rate
+from tests.test_suggestions import confirm, suggest, user_token
 
 
 def audit_rows(session, entity=None, entity_id=None, action=None):
@@ -223,6 +225,49 @@ def test_place_reports_and_their_dismissal_are_logged(client, session, place, ad
     assert closed.entity_id == inserted.entity_id
     assert list(closed.changes) == ["closed_at"]
     assert closed.changes["closed_at"][0] is None
+
+
+def test_a_rating_and_its_change_are_logged(client, session, place):  # noqa: F811
+    token, user_id = user(client, "Korb_Karl")
+
+    rate(client, token, place.id, stars=4, reasons=["table_good"])
+    rate(client, token, place.id, stars=2, reasons=["table_good", "table_damaged"])
+
+    [inserted, changed] = audit_rows(session, "rating")
+    assert (inserted.action, inserted.actor_id, inserted.actor_kind) == ("insert", user_id, "user")
+    assert inserted.changes["place_id"] == place.id
+    assert inserted.changes["user_id"] == user_id
+    assert inserted.changes["stars"] == 4
+    assert inserted.changes["reasons"] == ["table_good"]
+    assert (changed.action, changed.actor_id) == ("update", user_id)
+    assert changed.entity_id == inserted.entity_id
+    assert changed.changes["stars"] == [4, 2]
+    assert changed.changes["reasons"] == [["table_good"], ["table_good", "table_damaged"]]
+    assert "created_at" not in changed.changes
+
+
+def test_the_same_rating_again_logs_only_the_new_time(client, session, place):  # noqa: F811
+    token, _ = user(client, "Korb_Karl")
+
+    rate(client, token, place.id)
+    rate(client, token, place.id)
+
+    [_, changed] = audit_rows(session, "rating")
+    assert list(changed.changes) == ["updated_at"]
+
+
+def test_a_place_confirmation_is_logged(client, session):
+    place_id = suggest(client, user_token(client, session, "Steven")).json()["id"]
+    other = user_token(client, session, "Stefan")
+    other_id = session.exec(select(User.id).where(User.nickname == "Stefan")).one()
+
+    assert confirm(client, other, place_id).status_code == 200
+
+    [entry] = [r for r in audit_rows(session, "place_confirmation") if r.actor_id == other_id]
+    assert (entry.action, entry.actor_kind) == ("insert", "user")
+    assert entry.changes["place_id"] == place_id
+    assert entry.changes["user_id"] == other_id
+    assert entry.changes["created_at"] is not None
 
 
 def test_delete_account_keeps_the_log_without_the_user(client, session, place):  # noqa: F811
