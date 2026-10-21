@@ -288,6 +288,13 @@ function Privacy({ photos }: { photos: boolean }) {
         </a>
         .
       </p>
+      <p>
+        Für die Suche und für die Adresse eines Platzes fragt unser Server den Dienst Nominatim
+        der OpenStreetMap Foundation (nominatim.openstreetmap.org). Bei der Suche geht dein
+        Suchtext dorthin, bei der Adresse nur die Koordinaten des Platzes. Deine IP-Adresse und
+        dein Nickname gehen nicht mit. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (ohne diesen
+        Dienst keine Adresssuche).
+      </p>
 
       <h2>Routenplanung (Apple Maps oder Google Maps)</h2>
       <p>
