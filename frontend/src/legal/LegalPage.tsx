@@ -73,7 +73,10 @@ function Privacy({ photos }: { photos: boolean }) {
           (Ausnahme: der Ort eines Platzes, den du vorschlägst, siehe unten).
         </li>
         <li>Es gibt keine Cookies, keine Werbung und kein Tracking.</li>
-        <li>Du kannst dein Konto jederzeit selbst löschen. Dann sind alle Daten dazu sofort weg.</li>
+        <li>
+          Du kannst dein Konto jederzeit selbst löschen. Dann entfernen wir deine Kontodaten und
+          die unten beschriebenen Verbindungen zu dir sofort.
+        </li>
       </ul>
 
       <h2>Verantwortlich</h2>
@@ -117,8 +120,9 @@ function Privacy({ photos }: { photos: boolean }) {
         </li>
         <li>
           <strong>Bewertungen:</strong> pro Platz deine Sterne, deine Gründe und wann du bewertet
-          hast. Andere sehen nur die Zusammenfassung aller Bewertungen (Durchschnitt und häufigste
-          Gründe), nicht deinen Nickname.
+          hast. Andere sehen die Zusammenfassung aller Bewertungen (Durchschnitt und häufigste
+          Gründe) und eine anonyme Liste der einzelnen Bewertungen mit Sternen, Gründen und dem
+          Datum der letzten Änderung. Deinen Nickname sehen sie dabei nicht.
         </li>
         <li>
           <strong>Antworten auf „Ist das noch so?“:</strong> pro Mangel an einem Platz, ob du
@@ -206,9 +210,6 @@ function Privacy({ photos }: { photos: boolean }) {
             gehört, von wem es ist und wann.
           </li>
         )}
-        <li>
-          <strong>Heimatgebiet:</strong> nur, wenn du es angibst, sobald es diese Funktion gibt.
-        </li>
       </ul>
       <p>
         Wir speichern den Zeitpunkt der Registrierung. Dein Alter speichern wir nicht: Du
@@ -324,9 +325,14 @@ function Privacy({ photos }: { photos: boolean }) {
 
       <h2>Konto löschen</h2>
       <p>
-        Angemeldet findest du oben rechts unter „Konto“ den Punkt „Konto löschen“. Wir fragen dein Passwort (und mit
-        Zwei-Faktor-Anmeldung einen Code) ab. Dann löschen wir sofort dein Konto mit allen oben
-        genannten Daten, auch deine Treffen, Serien, Teilnahmen, Kontakte, Blockierungen, Bewertungen und Antworten. Danach ist dein Nickname wieder frei. Deine Fotos bleiben am Platz, aber ohne Verbindung zu dir; noch nicht freigegebene prüft ein Admin weiter.
+        Angemeldet findest du oben rechts unter „Konto“ den Punkt „Konto löschen“. Wir fragen dein
+        Passwort (und mit Zwei-Faktor-Anmeldung einen Code) ab. Dann löschen wir sofort dein Konto,
+        deine Serien und Teilnahmen sowie deine Kontakte, Blockierungen, Bewertungen und Antworten.
+        Ein von dir veranstaltetes offenes Treffen ohne Teilnehmende wird gelöscht. Sind bereits
+        andere beigetreten, läuft es mit der zuerst beigetretenen Person als neuem Host weiter,
+        ohne Verbindung zu deinem gelöschten Konto. Danach ist dein Nickname wieder frei. Deine
+        Fotos bleiben am Platz, aber ohne Verbindung zu dir; noch nicht freigegebene prüft ein Admin
+        weiter.
       </p>
 
       <h2>Deine Rechte</h2>
