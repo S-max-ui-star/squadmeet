@@ -8,9 +8,9 @@ Work ends **Fri 23.10.2026**; presentation with live demo: **Mon 26.10.2026**.
 
 > **State:** live at https://squadmeet.duckdns.org (`SCRUM-20`, AWS host). A merge into `main`
 > deploys automatically (`SCRUM-23`). Sprints 1 (walking skeleton) and 2 (features) are done.
-> Sprint 3 (fixes from the test run) runs until Fri 23.10.; the feature freeze is on
-> **Wed 21.10.** evening, then Thu–Fri are for fixes, the manual test (`SCRUM-50`), the review
-> (`SCRUM-49`), docs and the presentation.
+> Sprint 3 (fixes from the test run and the code review `SCRUM-49`) runs until Fri 23.10. Feature
+> freeze since **Wed 21.10.** evening: Thu–Fri are for fixes, the manual test (`SCRUM-50`), docs
+> and the presentation.
 
 ## Team
 
@@ -42,6 +42,7 @@ Dominik joined on 2026-10-12 (`SCRUM-51`). David Ludwig-Erbs left the project on
 | [DIARY.md](DIARY.md) | What each person did each day |
 | [CONTEXT.md](CONTEXT.md) | Glossary: the domain terms we use |
 | [docs/adr/](docs/adr/) | Architecture decisions |
+| [docs/testlauf.md](docs/testlauf.md) | Checklist for the manual test of the whole app (`SCRUM-50`) |
 | [deploy/README.md](deploy/README.md) | How the app runs on AWS, the setup wizard, the move to the NAS |
 | [BRIEF.md](BRIEF.md) | The original course brief |
 
@@ -115,7 +116,7 @@ docker compose exec backend python -m app.admin revoke <Nickname>
 The Admin functions work only after the Admin turns on two-factor login (MFA) in the app
 ("Konto" → "Zwei-Faktor-Anmeldung").
 
-What an Admin can do (`SCRUM-39`):
+What an Admin can do (`SCRUM-39`, `SCRUM-56`, `SCRUM-57`):
 
 - **Lock a Place** ("Platz sperren" in the Place detail): it leaves the map and the search.
   Meetups that have not started are cancelled; running ones end at once.
@@ -126,11 +127,16 @@ What an Admin can do (`SCRUM-39`):
 - **Reported Places** ("Konto" → "Gemeldete Plätze"): Places that users reported, the ones off
   the map first. "Verwerfen" closes the reports, and the Place is back on the map. "Sperren"
   locks it as above.
+- **Approve Place suggestions** ("Konto" → "Platzvorschläge freigeben"): a suggestion with 3
+  Confirmations becomes a Place, at the earliest 24 h after it was suggested; "Ablehnen" removes
+  it. An OSM hint (building, private ground, residential area) helps decide.
+- **Approve Photos** ("Konto" → "Fotos freigeben"): only while Photos are on (`SCRUM-94`).
 
 ### Tests
 
 ```sh
 docker compose exec backend pytest        # backend (pytest)
+docker compose exec backend ruff check .  # backend lint (only real errors, as in CI)
 cd frontend && npm install && npm test    # frontend (Vitest)
 ```
 

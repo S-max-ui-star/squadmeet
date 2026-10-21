@@ -14,7 +14,8 @@ Use the Atlassian MCP server (`mcp__atlassian__*`) for every operation.
 - **List**: `searchJiraIssuesUsingJql`, e.g. `project = SCRUM AND statusCategory != Done`.
 - **Comment**: `addCommentToJiraIssue`.
 - **Labels**: `editJiraIssue` on the `labels` field (add or remove one string).
-- **Status**: `transitionJiraIssue`. Flow: To Do (11) → In Progress (21) → In Review (31) → Done (41).
+- **Status**: `transitionJiraIssue`. Flow: Zu erledigen (11) → In Arbeit (21) → Wird überprüft (31) → Fertig (41).
+  Jira shows the German names; "In Review" is the transition to "Wird überprüft".
 - **Close**: comment why, then transition to Done.
 
 ## Dependencies
@@ -25,7 +26,8 @@ issue is Done.
 
 ## Link to GitHub
 
-Branch names start with the key (`feature/SCRUM-12-login`), commits too (`SCRUM-12 add login form`).
+Branch names start with the key (`SCRUM-12-login`, see README → *How we work*), commits too
+(`SCRUM-12 add login form`).
 The "GitHub for Jira" app then shows branches, commits and PRs on the issue.
 
 ## When a skill says "publish to the issue tracker"
