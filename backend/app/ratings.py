@@ -12,8 +12,9 @@ The Condition comes only from the Reasons that the city or the operator must fix
   users "Ist das noch so?". VOTES_NEEDED votes "still there" confirm it for another
   RECENT_DAYS, from the last of them.
 - "Fixed" can be said at any time, so a repair does not wait for the check (Stefan,
-  2026-10-09). VOTES_NEEDED votes "fixed" end the issue, until a new or changed Rating names
-  it again.
+  2026-10-09). VOTES_NEEDED votes "fixed" end the issue, until a Rating adds its Reason
+  again. A save that keeps the Reason and changes only the stars or other Reasons is no new
+  report (Stefan, SCRUM-138).
 - Votes count in a round: from the last report or confirmation on. Each user has one vote per
   round; a later vote replaces their own.
 - A fixed issue does not change the Ratings (SCRUM-99): the Reason in Ratings from before the
@@ -31,10 +32,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import literal_column
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
 from app import live
+from app.audit import record
 from app.auth import current_user
 from app.db import get_session
 from app.models import ConditionVote, Place, Rating, User
@@ -135,7 +138,7 @@ def issue_history(
 ) -> IssueHistory:
     """The state of one issue at a Place and its last fix.
 
-    `reported` are the times of the Ratings that name it; `votes` are the votes about it.
+    `reported` are the times when Ratings added its Reason; `votes` are the votes about it.
     """
     window = timedelta(days=RECENT_DAYS)
     # Ratings and votes in time order; a Rating comes before a vote at the same moment.
@@ -149,7 +152,7 @@ def issue_history(
     round_votes: dict[int, bool] = {}
     for at, _, _, vote in events:
         if vote is None:
-            # A new or changed Rating that names the issue starts over: older votes do not count.
+            # A Rating that adds the issue's Reason starts over: older votes do not count.
             confirmed, round_votes = at, {}
             continue
         if confirmed is None or at == confirmed:
@@ -188,7 +191,7 @@ def summarize(
         if not reasons[key].affects_condition:
             chips[key, None] = n
             continue
-        reported = [r.updated_at for r in ratings if key in r.reasons]
+        reported = [r.added_at(key) for r in ratings if key in r.reasons]
         history = issue_history(reported, [v for v in votes if v.reason_key == key], now)
         fixed = sum(at <= history.fixed_at for at in reported) if history.fixed_at else 0
         if fixed:
@@ -303,19 +306,36 @@ def rate_place(
             detail=f"Diese Begründung passt nicht zu dem Platz: {', '.join(unknown)}",
         )
     now = datetime.now(UTC)
+    # The old values for the audit log and the Reason times; the lock keeps them true until
+    # the upsert.
+    old = session.exec(
+        select(Rating.stars, Rating.reasons, Rating.updated_at, Rating.reasons_added_at)
+        .where(Rating.place_id == place_id, Rating.user_id == user.id)
+        .with_for_update()
+    ).first()
+    # dict.fromkeys drops a Reason sent twice and keeps the order.
+    reasons = list(dict.fromkeys(body.reasons))
     values = {
         "stars": body.stars,
-        # dict.fromkeys drops a Reason sent twice and keeps the order.
-        "reasons": list(dict.fromkeys(body.reasons)),
+        "reasons": reasons,
         "updated_at": now,
+        "reasons_added_at": added_times(old, reasons, now),
     }
+    new = {"place_id": place_id, "user_id": user.id, "created_at": now, **values}
     # One statement, so two requests at the same moment cannot make two Ratings.
-    session.exec(
+    saved = session.exec(
         insert(Rating)
-        .values(place_id=place_id, user_id=user.id, created_at=now, **values)
+        .values(**new)
         .on_conflict_do_update(constraint="uq_rating_place_user", set_=values)
-    )
-    # The upsert is no ORM change, so the open pages hear of it here (SCRUM-98).
+        # xmax is 0 only in a row that this statement inserted.
+        .returning(Rating.id, literal_column("xmax = 0").label("inserted"))
+    ).one()
+    # The upsert is no ORM change, so the audit log (SCRUM-115) and the open pages (SCRUM-98)
+    # hear of it here.
+    if saved.inserted:
+        record(session, "rating", saved.id, "insert", new)
+    else:
+        record(session, "rating", saved.id, "update", changed(old, values))
     live.note(session, None, f"ratings:{place_id}")
     session.commit()
     rating = session.exec(
@@ -323,6 +343,26 @@ def rate_place(
     ).one()
     session.refresh(rating)
     return RatingRead.model_validate(rating, from_attributes=True)
+
+
+def added_times(old, reasons: list[str], now: datetime) -> dict[str, str]:
+    """When each Reason came into the Rating: a Reason that was in the old Rating keeps its
+    time, a new one gets `now` (SCRUM-138)."""
+    kept = {}
+    if old:
+        kept = {
+            key: old.reasons_added_at.get(key, old.updated_at.isoformat()) for key in old.reasons
+        }
+    return {key: kept.get(key, now.isoformat()) for key in reasons}
+
+
+def changed(old, values: dict) -> dict:
+    """[old, new] for each value that the update changed. Without a row read before (a second
+    request inserted it at the same moment), the old values are unknown."""
+    before = old._asdict() if old else {}
+    return {
+        key: [before.get(key), value] for key, value in values.items() if before.get(key) != value
+    }
 
 
 class ConditionVoteInput(BaseModel):

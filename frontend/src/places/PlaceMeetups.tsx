@@ -1,30 +1,13 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
-import type { User } from '../api/auth'
-import { loadToken } from '../api/auth'
-import {
-  answerMove,
-  cancelSeries,
-  createSeries,
-  cancelMeetup,
-  createMeetup,
-  endMeetup,
-  fetchMeetups,
-  joinMeetup,
-  leaveMeetup,
-  moveMeetupStart,
-  type Meetup,
-  type MeetupAction,
-  type MoveAnswer,
-} from '../api/meetups'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { loadToken, type User } from '../api/auth'
+import { fetchMeetups, type Meetup } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
-import { askForContact, blockUser } from '../api/contacts'
-import { AVATARS } from '../auth/avatars'
-import InviteContacts from './InviteContacts'
-import PartySizeStepper from './PartySizeStepper'
+import MeetupCard from './MeetupCard'
+import MeetupCreateForm from './MeetupCreateForm'
 import SeriesJoin from './SeriesJoin'
+import { groupSeries } from './seriesGroups'
+import { useLatestRequest } from './useLatestRequest'
 import { usePlaceReloads } from './usePlaceReloads'
-import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
-import { WEEKDAYS, emptySlots, groupSeries, slotsInput, type SlotFields } from './seriesGroups'
 
 type Props = {
   placeId: number
@@ -32,148 +15,108 @@ type Props = {
   onLoginNeeded: () => void
   // Called after a Meetup was created, moved or ended, so the map can show the new state.
   onChanged: () => void
-}
-
-const HOURS = [1, 2, 3, 4]
-
-const time = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
-
-function people(n: number): string {
-  return n === 1 ? '1 Person' : `${n} Personen`
-}
-
-// The next full hour, the default start of a later Meetup.
-function nextFullHour(now: Date): Date {
-  const next = new Date(now)
-  next.setHours(next.getHours() + 1, 0, 0, 0)
-  return next
-}
-
-// A Nickname in a Meetup; a tap offers "Als Kontakt anfragen" and "Blockieren" (SCRUM-32).
-function PersonButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button type="button" className="person-button" onClick={onClick}>
-      {label}
-    </button>
-  )
+  // A reported Place under Admin review: the Meetups only show (SCRUM-158).
+  readOnly?: boolean
 }
 
 // A Push tap carries the exact Meetup as a fragment. The list loads asynchronously, so scroll
-// only after that card exists (SCRUM-44). Keeping this effect outside PlaceMeetups also keeps the
-// already large Meetup workflow from gaining another branch.
-function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
+// once after that card exists, but do not pull the user back on every reload (SCRUM-155).
+function MeetupDeepLink({ meetups, placeId }: { meetups: Meetup[]; placeId: number }) {
+  const scrolled = useRef<string | null>(null)
   useEffect(() => {
     const match = /^#treffen-(\d+)$/.exec(window.location.hash)
     if (!match || !meetups.some((meetup) => meetup.id === Number(match[1]))) return
-    requestAnimationFrame(() => document.getElementById(`treffen-${match[1]}`)?.scrollIntoView({ block: 'center' }))
-  }, [meetups])
+    const key = `${placeId}:${window.location.hash}`
+    if (scrolled.current === key) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`treffen-${match[1]}`)?.scrollIntoView({ block: 'center' })
+      scrolled.current = key
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [meetups, placeId])
   return null
 }
 
-type AnswerProps = {
-  meetup: Meetup
-  // Another Meetup's open move answer points here; that answer is the Join.
-  offered: boolean
-  // The Party size form for this Meetup is open.
-  joining: boolean
-  busy: boolean
-  onAnswer: (choice: MoveAnswer) => void
-  onJoin: () => void
-  onLeave: () => void
+// The backend refuses every Meetup action at a Place under review: no card offers one, and
+// nobody joins a Series there (SCRUM-158).
+function reviewView(meetups: Meetup[] | null, user: User | null, readOnly: boolean) {
+  if (!readOnly) return { shown: meetups, seriesJoiner: user }
+  return { shown: meetups && meetups.map((meetup) => ({ ...meetup, actions: [] })), seriesJoiner: null }
 }
 
-// The move answer (SCRUM-37, SCRUM-79), "Ich komme mit" and "Verlassen" (SCRUM-34). While a move
-// answer is open, its buttons replace "Verlassen" here and "Ich komme mit" on the new Meetup (SCRUM-97).
-function MeetupAnswers({ meetup, offered, joining, busy, onAnswer, onJoin, onLeave }: AnswerProps) {
-  const offer = meetup.move_offer
+type StartProps = {
+  readOnly: boolean
+  creating: 'now' | 'later' | null
+  placeId: number
+  busy: boolean
+  run: (action: (token: string) => Promise<unknown>) => Promise<boolean>
+  onStart: (kind: 'now' | 'later') => void
+  onClose: () => void
+}
+
+// "Ich bin jetzt hier" and "Später treffen", or the form of the chosen one.
+function MeetupStart({ readOnly, creating, placeId, busy, run, onStart, onClose }: StartProps) {
+  if (readOnly) return null
+  if (creating) {
+    return <MeetupCreateForm key={creating} kind={creating} placeId={placeId} busy={busy} run={run} onClose={onClose} />
+  }
   return (
     <>
-      {offer && (
-        <div className="move-offer" role="group" aria-label="Neue Zeit">
-          <p>
-            {AVATARS[offer.host.avatar]?.emoji} {offer.host.nickname} hat das Treffen auf{' '}
-            {startChoice(offer.starts_at, meetup.starts_at)} verlegt. Wann bist du dabei?
-          </p>
-          {/* The times are the answers (SCRUM-79): new time = go along, old time = stay. */}
-          {(
-            [
-              ['go', startChoice(offer.starts_at, meetup.starts_at)],
-              ['stay', startChoice(meetup.starts_at, offer.starts_at)],
-              ['leave', 'Gar nicht'],
-            ] as const
-          ).map(([choice, label]) => (
-            <button key={choice} type="button" disabled={busy} onClick={() => onAnswer(choice)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-      {meetup.actions.includes('join') && !joining && !offered && (
-        <button type="button" disabled={busy} onClick={onJoin}>
-          Ich komme mit
-        </button>
-      )}
-      {meetup.actions.includes('leave') && !offer && (
-        <button type="button" disabled={busy} onClick={onLeave}>
-          Verlassen
-        </button>
-      )}
+      <button type="button" className="now-button" onClick={() => onStart('now')}>📍 Ich bin jetzt hier</button>
+      <button type="button" className="later-button" onClick={() => onStart('later')}>🗓 Später treffen</button>
     </>
   )
 }
 
-// The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
-// Meetups, the "Ich bin jetzt hier" form (SCRUM-29), "Später treffen" (SCRUM-35), and
-// "Ich komme mit" / "Verlassen" (SCRUM-34). Guests see only the number of people.
-// The Host can cancel before the start, Leave (handover), and move a Meetup with Joins; the
-// users who were in then choose go along / stay / leave (SCRUM-37).
-export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }: Props) {
-  const [meetups, setMeetups] = useState<Meetup[]>([])
+// Meetup orchestration stays here; focused components own the creation form and each card
+// (SCRUM-154). Server-provided actions remain the authority for every lifecycle control.
+export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, readOnly = false }: Props) {
+  const [meetups, setMeetups] = useState<Meetup[] | null>(null)
+  const [loadedFor, setLoadedFor] = useState('')
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Which form is open: "Ich bin jetzt hier", "Später treffen", or none.
   const [creating, setCreating] = useState<'now' | 'later' | null>(null)
-  // The start of a later Meetup, as the value of the date and time field.
-  const [startsAt, setStartsAt] = useState('')
-  // The Meetup whose start the Host is moving, and its new start.
   const [moving, setMoving] = useState<{ id: number; startsAt: string } | null>(null)
-  // The Meetup the user is joining, and their Party size.
   const [joining, setJoining] = useState<{ id: number; partySize: number } | null>(null)
-  // The person whose Nickname was tapped: ask them as a Contact or Block them (SCRUM-32).
   const [person, setPerson] = useState<{ meetupId: number; nickname: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  // Weekly Series (SCRUM-38): "Jede Woche wiederholen" in the form, and the open overviews.
-  const [repeat, setRepeat] = useState(false)
-  const [slotFields, setSlotFields] = useState<SlotFields[]>(emptySlots)
-  const [until, setUntil] = useState('')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  // The time of the last load, for the limits of the date and time fields.
   const [now, setNow] = useState(() => new Date())
-  const [hours, setHours] = useState(2)
-  const [partySize, setPartySize] = useState(1)
   const [busy, setBusy] = useState(false)
-  // When the form was opened; the shown end time is counted from here.
-  const [openedAt, setOpenedAt] = useState(0)
+  const busyRef = useRef(false)
+  const { run: latest } = useLatestRequest()
+  const viewerKey = `${placeId}:${user?.id ?? 'guest'}`
+  const loaded = loadedFor === viewerKey ? meetups : null
+  const { shown: visibleMeetups, seriesJoiner } = reviewView(loaded, user, readOnly)
 
-  // A guest sends no token and gets no Nicknames; after a login or logout this loads again.
   const reload = useCallback(() => {
-    fetchMeetups(placeId, user ? loadToken() : null)
-      .then((found) => {
+    setLoading(true)
+    setError(null)
+    latest(
+      (signal) => fetchMeetups(placeId, user ? loadToken() : null, signal),
+      (found) => {
         setMeetups(found)
+        setLoadedFor(viewerKey)
         setNow(new Date())
-        setError(null)
-      })
-      .catch((err: Error) => setError(err.message))
-  }, [placeId, user])
+        setLoading(false)
+      },
+      (err) => {
+        setError(err.message)
+        setLoading(false)
+      },
+    )
+  }, [placeId, user, viewerKey, latest])
 
   usePlaceReloads(reload, placeId, onMeetupChange)
 
-  // True when the action worked, so a caller can show its own message.
   async function run(action: (token: string) => Promise<unknown>): Promise<boolean> {
+    if (busyRef.current) return false
     const token = loadToken()
     if (!token) {
       onLoginNeeded()
       return false
     }
+    busyRef.current = true
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -190,6 +133,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
       setError((err as Error).message)
       return false
     } finally {
+      busyRef.current = false
       setBusy(false)
     }
   }
@@ -199,393 +143,79 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
       onLoginNeeded()
       return
     }
-    setHours(2)
-    setPartySize(1)
-    setOpenedAt(Date.now())
-    setStartsAt(toInputValue(nextFullHour(new Date())))
-    setRepeat(false)
-    setSlotFields(emptySlots())
-    setUntil('')
     setCreating(kind)
   }
 
-  const bounds = inputBounds(new Date(openedAt))
-  // The form makes a weekly Series; at least one weekday must be on.
-  const series = creating === 'later' && repeat
-  const noWeekday = series && slotFields.every((f) => !f.on)
-  // The new Meetups that an open move answer points to: the answer is their Join (SCRUM-97).
-  const offeredIds = new Set(meetups.map((m) => m.move_offer?.meetup_id))
-
-  // One Meetup in the list. `laterCount` > 0: the next Occurrence of a Series, with the
-  // overview of its other dates (SCRUM-38).
-  function renderCard(meetup: Meetup, laterCount: number) {
-    // The server says what the Meetup is and what this user may do (SCRUM-61).
-    const can = (action: MeetupAction) => meetup.actions.includes(action)
-    const live = meetup.state === 'live'
-    // Only for the label "(du, Gastgeber)", not for a rule.
-    const isHost = user !== null && user.id === meetup.host?.id
-    return (
-      <li id={`treffen-${meetup.id}`} key={meetup.id} className={live ? 'meetup-card' : meetup.state === 'cancelled' ? 'meetup-card cancelled' : 'meetup-card later'}>
-        <div>
-          {meetup.state === 'cancelled' && (
-            <>
-              <span className="cancelled-tag">Abgesagt</span>{' '}
-            </>
-          )}
-          {meetup.series_id !== null && (
-            <>
-              <span className="series-tag" title="Termin einer wöchentlichen Serie">
-                🔁
-              </span>{' '}
-            </>
-          )}
-          {live ? (
-            <>
-              <span className="live">LIVE</span> bis {time.format(new Date(meetup.ends_at))} Uhr
-            </>
-          ) : (
-            slot(meetup)
-          )}
-          {meetup.host && (
-            <>
-              <br />
-              {isHost ? (
-                `${AVATARS[meetup.host.avatar]?.emoji ?? ''} ${meetup.host.nickname} (du, Gastgeber)`
-              ) : (
-                <PersonButton
-                  label={`${AVATARS[meetup.host.avatar]?.emoji ?? ''} ${meetup.host.nickname}`}
-                  onClick={() => setPerson({ meetupId: meetup.id, nickname: meetup.host!.nickname })}
-                />
-              )}
-            </>
-          )}
-          {meetup.participants && meetup.participants.length > 0 && (
-            <>
-              <br />
-              <span className="participants">
-                Dabei:{' '}
-                {meetup.participants.map((p, i) => {
-                  const label = `${AVATARS[p.avatar]?.emoji ?? ''} ${p.nickname}${p.party_size > 1 ? ` (${p.party_size})` : ''}`
-                  return (
-                    <span key={p.id}>
-                      {i > 0 && ', '}
-                      {p.id === user?.id ? (
-                        label
-                      ) : (
-                        <PersonButton
-                          label={label}
-                          onClick={() => setPerson({ meetupId: meetup.id, nickname: p.nickname })}
-                        />
-                      )}
-                    </span>
-                  )
-                })}
-              </span>
-            </>
-          )}
-          {meetup.blocked_user_in && (
-            <>
-              <br />
-              <span className="blocked-warning">⚠️ Jemand, den du blockiert hast, ist dabei</span>
-            </>
-          )}
-        </div>
-        {person?.meetupId === meetup.id && (
-          <div className="person-actions" role="group" aria-label={person.nickname}>
-            <strong>{person.nickname}</strong>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                run((token) => askForContact(token, person.nickname)).then(
-                  (ok) => ok && setNotice(`Kontaktanfrage an ${person.nickname} gesendet`),
-                )
-              }
-            >
-              Als Kontakt anfragen
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                run((token) => blockUser(token, person.nickname)).then(
-                  (ok) => ok && setNotice(`${person.nickname} ist blockiert`),
-                )
-              }
-            >
-              Blockieren
-            </button>
-            <button type="button" className="link-button" onClick={() => setPerson(null)}>
-              Abbrechen
-            </button>
-          </div>
-        )}
-        <strong className="meetup-people">{people(meetup.people)}</strong>
-        <MeetupAnswers
-          meetup={meetup}
-          offered={offeredIds.has(meetup.id)}
-          joining={joining?.id === meetup.id}
-          busy={busy}
-          onAnswer={(choice) => run((token) => answerMove(token, meetup.id, choice))}
-          onJoin={() => (user ? setJoining({ id: meetup.id, partySize: 1 }) : onLoginNeeded())}
-          onLeave={() => run((token) => leaveMeetup(token, meetup.id))}
-        />
-        <InviteContacts meetup={meetup} />
-        {joining?.id === meetup.id && (
-          <form
-            className="move-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              run((token) => joinMeetup(token, meetup.id, joining.partySize))
-            }}
-          >
-            <PartySizeStepper
-              value={joining.partySize}
-              onChange={(n) => setJoining({ id: meetup.id, partySize: n })}
-            />
-            <button type="submit" disabled={busy}>
-              Beitreten
-            </button>
-            <button type="button" className="link-button" onClick={() => setJoining(null)}>
-              Abbrechen
-            </button>
-          </form>
-        )}
-        {laterCount > 0 && meetup.series_id !== null && (
-          <button
-            type="button"
-            className="link-button"
-            aria-expanded={expanded.has(meetup.series_id)}
-            onClick={() => {
-              const next = new Set(expanded)
-              if (next.has(meetup.series_id!)) next.delete(meetup.series_id!)
-              else next.add(meetup.series_id!)
-              setExpanded(next)
-            }}
-          >
-            Alle Termine ({laterCount + 1}) {expanded.has(meetup.series_id) ? '▴' : '▾'}
-          </button>
-        )}
-        {can('cancel_series') && laterCount > 0 && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run((token) => cancelSeries(token, meetup.series_id!))}
-          >
-            Serie absagen
-          </button>
-        )}
-        {can('end') && (
-          <button type="button" disabled={busy} onClick={() => run((token) => endMeetup(token, meetup.id))}>
-            Jetzt beenden
-          </button>
-        )}
-        {can('cancel') && (
-          <button type="button" disabled={busy} onClick={() => run((token) => cancelMeetup(token, meetup.id))}>
-            Absagen
-          </button>
-        )}
-        {can('move') && moving?.id !== meetup.id && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setMoving({ id: meetup.id, startsAt: toInputValue(new Date(meetup.starts_at)) })}
-          >
-            Zeit ändern
-          </button>
-        )}
-        {moving?.id === meetup.id && (
-          <form
-            className="move-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              run((token) => moveMeetupStart(token, meetup.id, fromInputValue(moving.startsAt)))
-            }}
-          >
-            {(meetup.participants?.length ?? 0) > 0 && (
-              <p className="hint">
-                Die anderen werden gefragt, ob sie zur neuen oder zur alten Zeit dabei sind.
-              </p>
-            )}
-            <label className="field">
-              Neuer Beginn
-              <input
-                type="datetime-local"
-                required
-                value={moving.startsAt}
-                min={inputBounds(now).min}
-                max={inputBounds(now).max}
-                onChange={(event) => setMoving({ id: meetup.id, startsAt: event.target.value })}
-              />
-            </label>
-            <button type="submit" disabled={busy}>
-              Speichern
-            </button>
-            <button type="button" className="link-button" onClick={() => setMoving(null)}>
-              Abbrechen
-            </button>
-          </form>
-        )}
-      </li>
-    )
+  function toggleSeries(seriesId: number) {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(seriesId)) next.delete(seriesId)
+      else next.add(seriesId)
+      return next
+    })
   }
+
+  const offeredIds = new Set((visibleMeetups ?? []).map((meetup) => meetup.move_offer?.meetup_id))
+  const card = (meetup: Meetup, laterCount: number, cancellableSeriesId: number | null = null) => (
+    <MeetupCard
+      key={meetup.id}
+      meetup={meetup}
+      user={user}
+      laterCount={laterCount}
+      offered={offeredIds.has(meetup.id)}
+      busy={busy}
+      now={now}
+      joining={joining}
+      moving={moving}
+      person={person}
+      expanded={expanded.has(meetup.series_id ?? -1)}
+      cancellableSeriesId={cancellableSeriesId}
+      setJoining={setJoining}
+      setMoving={setMoving}
+      setPerson={setPerson}
+      setNotice={setNotice}
+      onToggleExpanded={() => toggleSeries(meetup.series_id!)}
+      onLoginNeeded={onLoginNeeded}
+      run={run}
+    />
+  )
 
   return (
     <div className="place-meetups">
-      <MeetupDeepLink meetups={meetups} />
-      {creating ? (
-        <form
-          className="now-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (series) {
-              run((token) =>
-                createSeries(token, {
-                  place_id: placeId,
-                  slots: slotsInput(slotFields),
-                  party_size: partySize,
-                  until: until || null,
-                }),
-              )
-              return
-            }
-            const input = { place_id: placeId, hours, party_size: partySize }
-            run((token) =>
-              createMeetup(token, creating === 'later' ? { ...input, starts_at: fromInputValue(startsAt) } : input),
-            )
-          }}
-        >
-          <h3>{creating === 'later' ? 'Später treffen' : 'Ich bin jetzt hier'}</h3>
-          {creating === 'later' && (
-            <label className="checkbox">
-              <input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} /> 🔁
-              Jede Woche wiederholen
-            </label>
-          )}
-          {series && (
-            <fieldset className="series-slots">
-              <legend>An welchen Tagen?</legend>
-              {WEEKDAYS.map((name, weekday) => {
-                const f = slotFields[weekday]
-                const change = (patch: Partial<SlotFields>) =>
-                  setSlotFields(slotFields.map((old, i) => (i === weekday ? { ...old, ...patch } : old)))
-                return (
-                  <div key={name} className="series-slot">
-                    <label>
-                      <input type="checkbox" checked={f.on} onChange={(event) => change({ on: event.target.checked })} />{' '}
-                      {name}
-                    </label>
-                    {f.on && (
-                      <>
-                        <input
-                          type="time"
-                          aria-label={`Beginn ${name}`}
-                          required
-                          value={f.time}
-                          onChange={(event) => change({ time: event.target.value })}
-                        />
-                        <select
-                          aria-label={`Dauer ${name}`}
-                          value={f.hours}
-                          onChange={(event) => change({ hours: Number(event.target.value) })}
-                        >
-                          {HOURS.map((h) => (
-                            <option key={h} value={h}>
-                              {h} h
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-              <label className="field">
-                Bis (optional)
-                <input type="date" value={until} min={bounds.min.slice(0, 10)} onChange={(event) => setUntil(event.target.value)} />
-              </label>
-            </fieldset>
-          )}
-          {creating === 'later' && !series && (
-            <label className="field">
-              Wann?
-              <input
-                type="datetime-local"
-                required
-                value={startsAt}
-                min={bounds.min}
-                max={bounds.max}
-                onChange={(event) => setStartsAt(event.target.value)}
-              />
-            </label>
-          )}
-          {!series && (
-            <fieldset className="segments">
-              <legend>Wie lange bist du da?</legend>
-              {HOURS.map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  aria-pressed={h === hours}
-                  className={h === hours ? 'on' : ''}
-                  onClick={() => setHours(h)}
-                >
-                  {h} h
-                </button>
-              ))}
-            </fieldset>
-          )}
-          <PartySizeStepper value={partySize} onChange={setPartySize} />
-          {series ? (
-            <p className="hint">Jede Woche, die nächsten 30 Tage sind schon geplant. Andere treten jedem Termin einzeln bei.</p>
-          ) : creating === 'later' ? (
-            <p className="hint">Alle sehen dein Treffen hier am Platz. Zur Startzeit erscheint es auf der Karte.</p>
-          ) : (
-            <p className="hint">Alle sehen dich auf der Karte bis {time.format(openedAt + hours * 3_600_000)} Uhr.</p>
-          )}
-          {noWeekday && <p className="hint">Wähle mindestens einen Wochentag.</p>}
-          <button type="submit" className="now-button" disabled={busy || noWeekday}>
-            {series ? '🔁 Serie anlegen' : creating === 'later' ? '🗓 Treffen planen' : '📍 Jetzt auf die Karte'}
-          </button>
-          <button type="button" className="link-button" onClick={() => setCreating(null)}>
-            Abbrechen
-          </button>
-        </form>
-      ) : (
-        <>
-          <button type="button" className="now-button" onClick={() => startCreating('now')}>
-            📍 Ich bin jetzt hier
-          </button>
-          <button type="button" className="later-button" onClick={() => startCreating('later')}>
-            🗓 Später treffen
-          </button>
-        </>
-      )}
+      <MeetupDeepLink meetups={loaded ?? []} placeId={placeId} />
+      <MeetupStart
+        readOnly={readOnly}
+        creating={creating}
+        placeId={placeId}
+        busy={busy}
+        run={run}
+        onStart={startCreating}
+        onClose={() => setCreating(null)}
+      />
 
       {error && <p className="form-error">{error}</p>}
       {notice && !error && <p className="hint">{notice}</p>}
 
       <h3>Treffen hier</h3>
-      {meetups.length === 0 && <p className="hint">Gerade ist niemand hier.</p>}
+      {visibleMeetups === null && loading && <p className="hint">Treffen werden geladen …</p>}
+      {visibleMeetups?.length === 0 && !error && <p className="hint">Gerade ist niemand hier.</p>}
       <ul className="meetup-list">
-        {groupSeries(meetups).map(({ meetup, laterOfSeries }) => (
-          <Fragment key={meetup.id}>
-            {renderCard(meetup, laterOfSeries.length)}
-            {/* Several dates at once (SCRUM-81), for a signed-in user who is not the Host. */}
-            {expanded.has(meetup.series_id ?? -1) && user && meetup.host?.id !== user.id && (
-              <li className="series-join-item">
-                <SeriesJoin
-                  dates={[meetup, ...laterOfSeries]}
-                  onDone={() => {
-                    reload()
-                    onChanged()
-                  }}
-                />
-              </li>
-            )}
-            {expanded.has(meetup.series_id ?? -1) && laterOfSeries.map((later) => renderCard(later, 0))}
-          </Fragment>
-        ))}
+        {groupSeries(visibleMeetups ?? []).map(({ meetup, laterOfSeries }) => {
+          const dates = [meetup, ...laterOfSeries]
+          const cancellable = dates.find((date) => date.actions.includes('cancel_series'))
+          const open = expanded.has(meetup.series_id ?? -1)
+          return (
+            <Fragment key={meetup.id}>
+              {card(meetup, laterOfSeries.length, cancellable?.series_id ?? null)}
+              {open && seriesJoiner && meetup.host?.id !== seriesJoiner.id && (
+                <li className="series-join-item">
+                  <SeriesJoin dates={dates} onDone={() => { reload(); onChanged() }} />
+                </li>
+              )}
+              {open && laterOfSeries.map((later) => card(later, 0))}
+            </Fragment>
+          )
+        })}
       </ul>
     </div>
   )

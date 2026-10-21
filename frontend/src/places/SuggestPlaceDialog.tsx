@@ -8,6 +8,7 @@ import {
   type NearbyPlace,
   type Position,
 } from '../api/suggestions'
+import Dialog from '../Dialog'
 import LegalLinks from '../legal/LegalLinks'
 import { ACTIVITIES, ACTIVITY_TYPES, activityOf, type ActivityType } from './activities'
 
@@ -72,94 +73,88 @@ export default function SuggestPlaceDialog({ token, onCreated, onOpenPlace, onCl
 
   if (duplicates) {
     return (
-      <div className="dialog-backdrop">
-        <div className="dialog" role="dialog" aria-label="Ist es einer davon?">
-          <h2>Ist es einer davon?</h2>
-          <p className="hint">
-            Hier gibt es schon {duplicates.length === 1 ? 'einen Platz' : `${duplicates.length} Plätze`} für{' '}
-            {activityOf(activityType!).label} in {DUPLICATE_RADIUS_M} m.
-          </p>
-          <ul className="duplicate-list">
-            {duplicates.map((place) => (
-              <li key={place.id}>
-                <button type="button" onClick={() => onOpenPlace(place.id)}>
-                  <strong>{place.name}</strong>
-                  <span>
-                    {place.distance_m} m entfernt{place.is_suggestion && ' · noch nicht bestätigt'}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {error && <p className="form-error">{error}</p>}
-          <button type="button" disabled={busy} onClick={() => run(() => save(position!, activityType!))}>
-            Nein, neuer Platz
-          </button>
-          <button type="button" className="link" onClick={onClose}>
-            Abbrechen
-          </button>
-          <LegalLinks className="legal-links-inline" />
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="dialog-backdrop">
-      <form className="dialog" onSubmit={check}>
-        <h2>Platz vorschlagen</h2>
-        <p className="hint">Du stehst an einem Platz, der auf der Karte fehlt? Schlag ihn hier vor.</p>
-
-        {position ? (
-          <p className="hint">
-            📍 Deine Position (auf {Math.round(position.accuracy)} m genau)
-            {position.accuracy > DUPLICATE_RADIUS_M && '. Ungenau: warte kurz und versuche es noch einmal.'}
-          </p>
-        ) : (
-          !error && <p className="hint">Standort wird bestimmt …</p>
-        )}
-        {!position && error && (
-          <button type="button" onClick={() => setLocateTry((n) => n + 1)}>
-            Standort nochmal bestimmen
-          </button>
-        )}
-
-        <fieldset className="activity-choice">
-          <legend>Aktivität</legend>
-          {ACTIVITY_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              aria-pressed={type === activityType}
-              className={type === activityType ? 'on' : ''}
-              style={{ borderColor: ACTIVITIES[type].color }}
-              onClick={() => setActivityType(type)}
-            >
-              {ACTIVITIES[type].emoji} {ACTIVITIES[type].label}
-            </button>
+      <Dialog title="Ist es einer davon?" onClose={onClose}>
+        <p className="hint">
+          Hier gibt es schon {duplicates.length === 1 ? 'einen Platz' : `${duplicates.length} Plätze`} für{' '}
+          {activityOf(activityType!).label} in {DUPLICATE_RADIUS_M} m.
+        </p>
+        <ul className="duplicate-list">
+          {duplicates.map((place) => (
+            <li key={place.id}>
+              <button type="button" onClick={() => onOpenPlace(place.id)}>
+                <strong>{place.name}</strong>
+                <span>
+                  {place.distance_m} m entfernt{place.is_suggestion && ' · noch nicht bestätigt'}
+                </span>
+              </button>
+            </li>
           ))}
-        </fieldset>
-
-        <label>
-          Name (freiwillig)
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={MAX_NAME_LENGTH}
-            placeholder="z. B. Platte am Teich"
-          />
-        </label>
-
-        <p className="hint">Andere sehen den Vorschlag auf der Karte. Er braucht 3 Bestätigungen, deine zählt als erste.</p>
+        </ul>
         {error && <p className="form-error">{error}</p>}
-        <button type="submit" disabled={busy || !position || !activityType}>
-          Weiter
+        <button type="button" disabled={busy} onClick={() => run(() => save(position!, activityType!))}>
+          Nein, neuer Platz
         </button>
         <button type="button" className="link" onClick={onClose}>
           Abbrechen
         </button>
         <LegalLinks className="legal-links-inline" />
-      </form>
-    </div>
+      </Dialog>
+    )
+  }
+
+  return (
+    <Dialog title="Platz vorschlagen" onClose={onClose} onSubmit={check}>
+      <p className="hint">Du stehst an einem Platz, der auf der Karte fehlt? Schlag ihn hier vor.</p>
+
+      {position ? (
+        <p className="hint">
+          📍 Deine Position (auf {Math.round(position.accuracy)} m genau)
+          {position.accuracy > DUPLICATE_RADIUS_M && '. Ungenau: warte kurz und versuche es noch einmal.'}
+        </p>
+      ) : (
+        !error && <p className="hint">Standort wird bestimmt …</p>
+      )}
+      {!position && error && (
+        <button type="button" onClick={() => setLocateTry((n) => n + 1)}>
+          Standort nochmal bestimmen
+        </button>
+      )}
+
+      <fieldset className="activity-choice">
+        <legend>Aktivität</legend>
+        {ACTIVITY_TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            aria-pressed={type === activityType}
+            className={type === activityType ? 'on' : ''}
+            style={{ borderColor: ACTIVITIES[type].color }}
+            onClick={() => setActivityType(type)}
+          >
+            {ACTIVITIES[type].emoji} {ACTIVITIES[type].label}
+          </button>
+        ))}
+      </fieldset>
+
+      <label>
+        Name (freiwillig)
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={MAX_NAME_LENGTH}
+          placeholder="z. B. Platte am Teich"
+        />
+      </label>
+
+      <p className="hint">Andere sehen den Vorschlag auf der Karte. Er braucht 3 Bestätigungen, deine zählt als erste.</p>
+      {error && <p className="form-error">{error}</p>}
+      <button type="submit" disabled={busy || !position || !activityType}>
+        Weiter
+      </button>
+      <button type="button" className="link" onClick={onClose}>
+        Abbrechen
+      </button>
+      <LegalLinks className="legal-links-inline" />
+    </Dialog>
   )
 }

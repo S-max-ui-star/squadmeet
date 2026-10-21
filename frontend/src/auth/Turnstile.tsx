@@ -11,6 +11,7 @@ type TurnstileApi = {
     options: {
       sitekey: string
       language: string
+      size: 'normal' | 'compact'
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
@@ -73,6 +74,8 @@ export default function Turnstile({ onToken }: Props) {
         widgetId = turnstile.render(container.current, {
           sitekey: siteKey,
           language: 'de',
+          // The normal widget is 300 px wide; on a 320 px phone the dialog is narrower (SCRUM-113).
+          size: container.current.clientWidth < 300 ? 'compact' : 'normal',
           callback: (token) => onTokenRef.current(token),
           'expired-callback': () => onTokenRef.current(null),
           'error-callback': () => onTokenRef.current(null),

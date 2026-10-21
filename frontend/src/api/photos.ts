@@ -20,7 +20,19 @@ export type PendingPhoto = Photo & {
 
 // The server checks the same; the browser checks first, so a big file is not sent for nothing.
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
-export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const PHOTO_ENDINGS = /\.(jpe?g|png|webp)$/i
+// The file picker offers these first; the endings also find files without a type.
+export const PHOTO_ACCEPT = [...PHOTO_TYPES, '.jpg', '.jpeg', '.png', '.webp'].join(',')
+
+// Some phones and file managers give no type or an unusual one (image/jpg, image/pjpeg). The
+// server checks the bytes anyway, so only a type that clearly names something else is refused
+// here (SCRUM-159).
+export function photoTypeAllowed(file: File): boolean {
+  if (PHOTO_TYPES.includes(file.type)) return true
+  if (file.type === '' || file.type === 'application/octet-stream') return true
+  return file.type.startsWith('image/') && PHOTO_ENDINGS.test(file.name)
+}
 
 function auth(token: string | null | undefined): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -36,8 +48,8 @@ export async function fetchPhotosEnabled(): Promise<boolean> {
   }
 }
 
-export async function fetchPhotos(placeId: number, token?: string | null): Promise<Photo[]> {
-  return answer(await fetch(`/api/places/${placeId}/photos`, { headers: auth(token) }), 'GET photos')
+export async function fetchPhotos(placeId: number, token?: string | null, signal?: AbortSignal): Promise<Photo[]> {
+  return answer(await fetch(`/api/places/${placeId}/photos`, { headers: auth(token), signal }), 'GET photos')
 }
 
 export async function uploadPhoto(token: string, placeId: number, file: File): Promise<void> {

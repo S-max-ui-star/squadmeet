@@ -40,4 +40,20 @@ describe('LockedPlacesDialog (SCRUM-39)', () => {
     expect(onUnlocked).toHaveBeenCalled()
     expect(container.textContent).toContain('Kein Platz ist gesperrt.')
   })
+
+  // SCRUM-109: the Admin dialogs use the shared Dialog: modal, × and Escape close it.
+  it('is a modal dialog that closes with × and with Escape', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
+    const onClose = vi.fn()
+    const container = document.createElement('div')
+    document.body.append(container)
+    await act(async () => createRoot(container).render(<LockedPlacesDialog token="t" onUnlocked={() => {}} onClose={onClose} />))
+
+    const dialog = container.querySelector('[role="dialog"]')!
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    await act(async () => container.querySelector<HTMLButtonElement>('.dialog-close')!.click())
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
 })

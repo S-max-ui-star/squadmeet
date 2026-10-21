@@ -5,6 +5,10 @@ for the project and later build it. The original course text is in `BRIEF.md`.
 
 **State (2026-10-02):** Preparation only. No team, no topic, no code.
 
+> **Outdated (note of 2026-10-21):** these are the notes from before the project. The dates
+> changed: work ends Fri 23.10.2026, the presentation is on Mon 26.10.2026 (see
+> [HANDOFF.md](HANDOFF.md)). The topic is SquadMeet, not one of the shortlist below.
+
 ## Real timeline
 
 The brief says "3 sprints of 1 week each". The course calendar is shorter.

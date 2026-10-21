@@ -38,8 +38,12 @@ _Avoid_: vote, verification
 A user's statement that a Place does not exist, is not public, or is dangerous, chosen from fixed
 reasons. A reported Place shows that users reported it; after reports from 3 different users it
 leaves the map until an Admin dismisses the reports or locks the Place. While it is off the map,
-only Admins can open it, and nobody can start a Meetup or rate it there; its Meetups stay.
-Dismissing or locking closes the reports; a user can report the Place again later.
+only Admins can open it, and nobody can start a Meetup or rate it there. Its Meetups stay, but
+nobody can join or move them; Leave, Cancel and End still work.
+Reporting needs an account that is at least 7 days old; a user reports at most 10 Places per hour.
+A Place suggestion with reports stays a suggestion and stays on the map.
+Dismissing, locking or deleting the Place, and approving or rejecting a Place suggestion, closes the
+reports; a user can report the Place again later.
 _Avoid_: complaint, flag, City report
 
 **Locked place** (gesperrter Platz):
@@ -133,6 +137,7 @@ _Avoid_: group, guests
 
 **Rating** (Bewertung):
 A user's 1–5 star judgement of a Place, with at least one Reason. One per user per Place.
+Everyone sees each Rating without a name: stars, Reasons and the date of the last change.
 _Avoid_: review, comment
 
 **Reason** (Begründung):
@@ -144,7 +149,9 @@ The state of a Place, derived from the negative Reasons in recent Ratings that n
 city or the operator must fix (broken or missing equipment, litter, broken glass, standing water).
 Negative Reasons such as "Oft überfüllt" do not change it. An issue that nobody confirmed for
 two months stays, and users are asked "Ist das noch so?"; three "still there" confirm it for two
-more months. Three "fixed", which users can say at any time, end it. The Ratings stay: in
+more months. Three "fixed", which users can say at any time, end it. Only a Rating that adds the
+Reason reports the issue again; a save that keeps the Reason and changes only the stars or other
+Reasons does not start a new vote round and does not open a fixed issue again. The Ratings stay: in
 Ratings from before the fix the Reason shows crossed out with "behoben am …"; a Rating after
 the fix names a new issue, shows normally and alone counts for it.
 _Avoid_: status, quality
@@ -182,17 +189,21 @@ _Avoid_: friend, follower, connection
 
 **Contact request** (Kontaktanfrage):
 A request to become a Contact, sent by the exact Nickname. The other user must accept it. If they
-decline, the asker sees that and may ask again.
+decline, the asker sees that and may ask again. A user makes at most 20 Contact requests and
+Blocks by Nickname per hour.
 _Avoid_: friend request, invite
 
 **Block** (Blockieren):
 A user's choice that works in one direction: the blocked user can no longer send them requests,
 does not see the Meetups they host, and does not see their Nickname in other Meetups. The
 blocking user still sees the blocked user and is warned when they are in the same Meetup.
+The blocked user's older Notifications about the blocker or the blocker's Meetups leave their
+list while the Block lasts.
 _Avoid_: mute, report
 
 **Admin**:
-A team member who moderates Photos and can lock or delete Places.
+A team member who approves or rejects Place suggestions and Photos, handles Place reports, and
+can lock, unlock or delete Places. The Admin functions need MFA.
 _Avoid_: moderator, owner
 
 ## Notifications
@@ -206,6 +217,8 @@ _Avoid_: location, current position, radius
 
 **Favorite** (Favorit):
 A Place a user marks to get Notifications about it at any distance.
+A locked, deleted or hidden Place leaves the user's list of Favorites; the Favorite comes
+back when the Place is unlocked.
 _Avoid_: bookmark, saved place
 
 **Time rule** (Zeitfenster):
@@ -213,13 +226,15 @@ Weekdays plus a time range on a Favorite. A Notification goes out only for Meetu
 inside a Time rule in `Europe/Berlin` local time. The start is inclusive and the end is exclusive;
 a rule must end on the same day. A Favorite without Time rules notifies always. Each newly stored
 occurrence of a Series follows the same rule as an individually created Meetup.
+A Favorite has at most 10 Time rules.
 _Avoid_: schedule, filter
 
 **Notification** (Benachrichtigung):
 A message about a Meetup, kept in the in-app list newest first. A tap marks it read and opens the
 affected Place and its Meetups. If the user turned on Web Push, the same event also reaches each
 subscribed browser; tapping it opens the affected Place. An expired browser subscription is
-removed automatically.
+removed automatically. A Notification is deleted 14 days after its Meetup's end (`ends_at`, also
+for a cancelled Meetup or one that was ended early), read or not; the user can delete it earlier.
 _Avoid_: alert, pop-up, message
 
 **Contact Notification** (Kontakt-Benachrichtigung):
@@ -231,11 +246,13 @@ _Avoid_: friend alert, follow
 **Invitation** (Einladung):
 A Notification that someone in a Meetup (the Host or a Join) sends to chosen Contacts of their
 own. It names the inviter and offers "Ich komme mit" (Party size 1). At most one per user and
-Meetup; nobody already in the Meetup, nobody blocked with the inviter or the Host.
+Meetup; nobody already in the Meetup, nobody blocked with the inviter or the Host. Not at a
+hidden Place.
 _Avoid_: request, invite link
 
 **Push subscription** (Push-Abo):
 One browser endpoint plus its encryption keys, stored for one user after browser permission. It is
-private account data and disappears when the user turns Push off, the provider reports it expired,
-or the account is deleted. The VAPID private key is only server configuration.
+private account data and disappears when the user turns Push off, logs out in that browser, the
+provider reports it expired, or the account is deleted. The VAPID private key is only server configuration. Only endpoints of
+the browsers' push services are accepted, at most 5 per user; a sixth replaces the oldest.
 _Avoid_: device token, Notification

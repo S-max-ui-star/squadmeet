@@ -121,4 +121,20 @@ describe('SeriesJoin (SCRUM-81)', () => {
     expect(container.textContent).toContain('Beigetreten: 1 Termin.')
     expect(container.textContent).toContain(`${slot(dates[1])}: Du bist zu dieser Zeit schon in 2 Treffen.`)
   })
+
+  it('starts only one batch for two immediate clicks (SCRUM-149)', async () => {
+    let finish!: (response: Response) => void
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => (finish = resolve)))
+    vi.stubGlobal('fetch', fetch)
+    const container = await render()
+    const all = button(container, 'Allen beitreten')!
+
+    act(() => {
+      all.click()
+      all.click()
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await act(async () => finish(Response.json({}, { status: 201 })))
+  })
 })

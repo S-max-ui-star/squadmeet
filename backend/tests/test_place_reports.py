@@ -7,6 +7,7 @@ from app.admin import set_admin
 from tests.test_admin_places import admin, lock, on_map, unlock  # noqa: F401 (fixture)
 from tests.test_auth import auth_header, register
 from tests.test_meetups import create, place  # noqa: F401 (fixture)
+from tests.test_suggestions import add_place, suggest, user_token
 
 
 def report(client, token, place_id, reason="dangerous"):
@@ -15,8 +16,9 @@ def report(client, token, place_id, reason="dangerous"):
     )
 
 
-def users(client, count):
-    return [register(client, nickname=f"Melder_{n}").json()["token"] for n in range(count)]
+def users(client, session, count):
+    """Tokens of `count` users whose accounts are old enough to report (8 days)."""
+    return [user_token(client, session, f"Melder_{n}") for n in range(count)]
 
 
 def detail(client, place_id, token=None):
@@ -37,14 +39,34 @@ def test_a_guest_cannot_report(client, place):
     assert response.status_code == 401
 
 
-def test_only_the_fixed_reasons(client, place):
-    [token] = users(client, 1)
+def test_only_the_fixed_reasons(client, session, place):
+    [token] = users(client, session, 1)
 
     assert report(client, token, place.id, reason="Hier ist es laut").status_code == 422
 
 
-def test_the_first_report_shows_the_hint_and_keeps_the_place_on_the_map(client, place):
-    [token] = users(client, 1)
+def test_a_report_needs_an_account_at_least_7_days_old(client, session, place):
+    young = user_token(client, session, "Neu_Nina", age=timedelta(days=6))
+
+    response = report(client, young, place.id)
+
+    assert response.status_code == 403
+    assert "7 Tage" in response.json()["detail"]
+    assert detail(client, place.id).json()["open_reports"] == 0
+
+
+def test_a_user_can_report_at_most_10_places_per_hour(client, session, place):
+    [token] = users(client, session, 1)
+    others = [add_place(session, name=f"Platte {n}", metres_north=200 * (n + 1)) for n in range(10)]
+    for other in others[:9]:
+        assert report(client, token, other.id).status_code == 204
+    assert report(client, token, place.id).status_code == 204
+
+    assert report(client, token, others[9].id).status_code == 429
+
+
+def test_the_first_report_shows_the_hint_and_keeps_the_place_on_the_map(client, session, place):
+    [token] = users(client, session, 1)
 
     assert report(client, token, place.id, reason="not_public").status_code == 204
 
@@ -54,8 +76,8 @@ def test_the_first_report_shows_the_hint_and_keeps_the_place_on_the_map(client, 
     assert on_map(client, place.id)
 
 
-def test_the_hint_shows_the_most_common_reason(client, place, admin):
-    tokens = users(client, 3)
+def test_the_hint_shows_the_most_common_reason(client, session, place, admin):
+    tokens = users(client, session, 3)
     report(client, tokens[0], place.id, reason="dangerous")
     report(client, tokens[1], place.id, reason="not_existing")
     report(client, tokens[2], place.id, reason="not_existing")
@@ -63,8 +85,8 @@ def test_the_hint_shows_the_most_common_reason(client, place, admin):
     assert detail(client, place.id, admin).json()["report_reason"] == "not_existing"
 
 
-def test_the_same_user_twice_counts_once(client, place):
-    [token] = users(client, 1)
+def test_the_same_user_twice_counts_once(client, session, place):
+    [token] = users(client, session, 1)
     report(client, token, place.id)
 
     response = report(client, token, place.id, reason="not_public")
@@ -73,8 +95,8 @@ def test_the_same_user_twice_counts_once(client, place):
     assert detail(client, place.id).json()["open_reports"] == 1
 
 
-def test_hidden_exactly_at_three_users(client, place):
-    tokens = users(client, 3)
+def test_hidden_exactly_at_three_users(client, session, place):
+    tokens = users(client, session, 3)
     report(client, tokens[0], place.id)
     report(client, tokens[1], place.id)
 
@@ -88,8 +110,8 @@ def test_hidden_exactly_at_three_users(client, place):
     assert client.get("/api/search", params={"q": "Testplatte"}).json() == []
 
 
-def test_an_admin_still_opens_a_reported_place(client, place, admin):
-    for token in users(client, 3):
+def test_an_admin_still_opens_a_reported_place(client, session, place, admin):
+    for token in users(client, session, 3):
         report(client, token, place.id)
 
     body = detail(client, place.id, admin).json()
@@ -103,7 +125,7 @@ def test_an_admin_still_opens_a_reported_place(client, place, admin):
 
 
 def test_an_admin_without_mfa_does_not_see_a_reported_place(client, session, place):
-    for token in users(client, 3):
+    for token in users(client, session, 3):
         report(client, token, place.id)
     token = register(client, nickname="Admin_Anna").json()["token"]
     set_admin(session, "Admin_Anna", True)
@@ -111,8 +133,10 @@ def test_an_admin_without_mfa_does_not_see_a_reported_place(client, session, pla
     assert detail(client, place.id, token).status_code == 404
 
 
-def test_no_new_meetups_or_ratings_at_a_hidden_place_but_old_meetups_stay(client, place, admin):
-    tokens = users(client, 4)
+def test_no_new_meetups_or_ratings_at_a_hidden_place_but_old_meetups_stay(
+    client, session, place, admin
+):
+    tokens = users(client, session, 4)
     starts_at = (datetime.now(UTC) + timedelta(hours=3)).isoformat()
     meetup = create(client, tokens[3], place.id, starts_at=starts_at).json()
     for token in tokens[:3]:
@@ -131,12 +155,34 @@ def test_no_new_meetups_or_ratings_at_a_hidden_place_but_old_meetups_stay(client
     assert [(m["id"], m["state"]) for m in listed] == [(meetup["id"], "upcoming")]
 
 
-def test_a_normal_user_cannot_list_or_dismiss(client, place):
-    [token] = users(client, 1)
+def test_a_normal_user_cannot_list_or_dismiss(client, session, place):
+    [token] = users(client, session, 1)
     report(client, token, place.id)
 
     assert reported_list(client, token).status_code == 403
     assert dismiss(client, token, place.id).status_code == 403
+
+
+def test_a_guest_and_an_admin_without_mfa_cannot_list_or_dismiss(client, session, place):
+    token = register(client, nickname="Admin_Otto").json()["token"]
+    set_admin(session, "Admin_Otto", True)
+
+    assert reported_list(client, token).status_code == 403
+    assert dismiss(client, token, place.id).status_code == 403
+    assert client.get("/api/admin/place-reports").status_code == 401
+    assert client.post(f"/api/admin/place-reports/{place.id}/dismiss").status_code == 401
+
+
+def test_a_reported_suggestion_is_listed_but_not_hidden(client, session, admin):
+    suggestion = suggest(client, user_token(client, session, "Steven")).json()["id"]
+    for token in users(client, session, 3):
+        report(client, token, suggestion)
+
+    # A suggestion stays a suggestion (place_status.STATUS): still on the map.
+    assert on_map(client, suggestion)
+    [listed] = reported_list(client, admin).json()
+    assert listed["id"] == suggestion
+    assert listed["hidden"] is False
 
 
 def test_the_admin_list_shows_reported_places_hidden_first(client, place, session, admin):
@@ -149,7 +195,7 @@ def test_the_admin_list_shows_reported_places_hidden_first(client, place, sessio
     )
     session.add(other)
     session.commit()
-    tokens = users(client, 3)
+    tokens = users(client, session, 3)
     report(client, tokens[0], other.id, reason="not_public")
     for token in tokens:
         report(client, token, place.id)
@@ -163,8 +209,8 @@ def test_the_admin_list_shows_reported_places_hidden_first(client, place, sessio
     assert body[1]["reasons"] == {"not_public": 1}
 
 
-def test_dismiss_shows_the_place_again_and_users_may_report_again(client, place, admin):
-    tokens = users(client, 3)
+def test_dismiss_shows_the_place_again_and_users_may_report_again(client, session, place, admin):
+    tokens = users(client, session, 3)
     for token in tokens:
         report(client, token, place.id)
 
@@ -181,8 +227,8 @@ def test_dismiss_without_open_reports_is_a_conflict(client, place, admin):
     assert dismiss(client, admin, place.id).status_code == 409
 
 
-def test_lock_makes_a_reported_place_a_locked_place(client, place, admin):
-    for token in users(client, 3):
+def test_lock_makes_a_reported_place_a_locked_place(client, session, place, admin):
+    for token in users(client, session, 3):
         report(client, token, place.id)
 
     assert lock(client, admin, place.id).status_code == 200
@@ -195,10 +241,10 @@ def test_lock_makes_a_reported_place_a_locked_place(client, place, admin):
     assert on_map(client, place.id)
 
 
-def test_deleting_the_account_deletes_the_users_reports(client, place):
+def test_deleting_the_account_deletes_the_users_reports(client, session, place):
     from tests.test_auth import PASSWORD
 
-    [token] = users(client, 1)
+    [token] = users(client, session, 1)
     report(client, token, place.id)
 
     client.post(

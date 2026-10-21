@@ -7,6 +7,7 @@ error only means "no hint" (decision of 2026-10-12, HANDOFF.md).
 """
 
 import json
+import time
 import urllib.parse
 import urllib.request
 
@@ -14,6 +15,9 @@ from app.osm_import import CLOSED_ACCESS, OVERPASS_URLS
 
 # One point needs one small query; the Admin list waits for it, so give up early.
 TIMEOUT_SECONDS = 10
+# After all servers failed, do not ask again for this long (SCRUM-70): the Admin list asks once
+# per waiting suggestion, and each try could wait TIMEOUT_SECONDS per server.
+PAUSE_AFTER_ERROR_SECONDS = 60.0
 # The order the Admin reads them in.
 HINTS = ("building", "private", "residential")
 
@@ -46,8 +50,14 @@ def hints_from_answer(answer: dict) -> list[str]:
 
 
 class OverpassHinter:
+    def __init__(self):
+        self._paused_until = 0.0
+
     def hints(self, lat: float, lon: float) -> list[str]:
-        """Ask the Overpass servers in turn; raise the last error when none answers."""
+        """Ask the Overpass servers in turn; raise the last error when none answers. After that,
+        raise at once for PAUSE_AFTER_ERROR_SECONDS."""
+        if time.monotonic() < self._paused_until:
+            raise OSError("Overpass is paused after an error")
         body = urllib.parse.urlencode({"data": overpass_query(lat, lon)}).encode()
         last_error: Exception = OSError("no Overpass server")
         for url in OVERPASS_URLS:
@@ -57,6 +67,7 @@ class OverpassHinter:
                     return hints_from_answer(json.load(response))
             except (OSError, TimeoutError, ValueError) as error:
                 last_error = error
+        self._paused_until = time.monotonic() + PAUSE_AFTER_ERROR_SECONDS
         raise last_error
 
 

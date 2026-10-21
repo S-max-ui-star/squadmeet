@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { searchPlaces, type PlaceSearchHit } from '../api/places'
 
 type Props = {
@@ -55,9 +55,16 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [resultDismissRequest, setResultDismissRequest] = useState(dismissRequest)
   const requestNumber = useRef(0)
+  const pending = useRef(false)
+  const searchRequest = useRef<AbortController | null>(null)
+
+  useEffect(() => () => searchRequest.current?.abort(), [])
 
   function closeResults() {
     requestNumber.current += 1
+    searchRequest.current?.abort()
+    searchRequest.current = null
+    pending.current = false
     setHits([])
     setSearched(false)
     setBusy(false)
@@ -66,24 +73,31 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
 
   async function submit() {
     const trimmed = query.trim()
-    if (!trimmed) return
+    if (!trimmed || pending.current) return
+    pending.current = true
     const currentRequest = ++requestNumber.current
+    const request = new AbortController()
+    searchRequest.current = request
     setBusy(true)
     setError(null)
     try {
-      const answer = await searchPlaces(trimmed)
-      if (currentRequest !== requestNumber.current) return
+      const answer = await searchPlaces(trimmed, request.signal)
+      if (request.signal.aborted || currentRequest !== requestNumber.current) return
       setHits(answer)
       setSearched(true)
       setResultDismissRequest(dismissRequest)
     } catch (caught) {
-      if (currentRequest !== requestNumber.current) return
+      if (request.signal.aborted || currentRequest !== requestNumber.current) return
       setHits([])
       setSearched(false)
       setError((caught as Error).message)
       setResultDismissRequest(dismissRequest)
     } finally {
-      if (currentRequest === requestNumber.current) setBusy(false)
+      if (currentRequest === requestNumber.current) {
+        pending.current = false
+        searchRequest.current = null
+        setBusy(false)
+      }
     }
   }
 
@@ -96,6 +110,7 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
     <div className="place-search">
       <form
         role="search"
+        aria-busy={busy}
         onSubmit={(event) => {
           event.preventDefault()
           submit()

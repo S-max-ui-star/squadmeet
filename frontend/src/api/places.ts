@@ -33,6 +33,13 @@ export const REPORT_REASONS: Record<PlaceReportReason, string> = {
 // From this many users a reported Place leaves the map until an Admin decides.
 export const REPORTS_TO_HIDE = 3
 
+// Off the map after REPORTS_TO_HIDE reports: only an Admin can open it, to review it. Until the
+// decision the backend refuses Ratings, Photos, Meetups and more reports (PlaceUse.REVIEW in
+// backend/app/place_status.py), so the detail only shows it (SCRUM-158).
+export function underReview(place: Pick<Place, 'is_suggestion' | 'waiting_for_admin' | 'open_reports'>): boolean {
+  return !place.is_suggestion && !place.waiting_for_admin && (place.open_reports ?? 0) >= REPORTS_TO_HIDE
+}
+
 /** "Melden" (SCRUM-57). A second open report of the same user answers 409. */
 export async function reportPlace(token: string, placeId: number, reason: PlaceReportReason): Promise<void> {
   const response = await fetch(`/api/places/${placeId}/reports`, {
@@ -60,11 +67,41 @@ export type PlaceSearchHit = {
 // Leaflet reports longitudes beyond ±180 when the map shows the world more than once; the API
 // accepts only real coordinates.
 export function clampArea(area: MapArea): MapArea {
+  const longitudeSpan = area.east - area.west
+  let west = area.west
+  let east = area.east
+
+  if (longitudeSpan >= 360 || longitudeSpan <= 0) {
+    west = -180
+    east = 180
+  } else {
+    const worldCopies = Math.floor((west + 180) / 360)
+    west -= worldCopies * 360
+    east -= worldCopies * 360
+    if (east > 180) {
+      west -= 360
+      east -= 360
+    }
+    west = Math.max(-180, Math.min(180, west))
+    east = Math.max(-180, Math.min(180, east))
+    if (west >= east) {
+      west = -180
+      east = 180
+    }
+  }
+
+  let south = Math.max(-90, Math.min(90, area.south))
+  let north = Math.max(-90, Math.min(90, area.north))
+  if (south >= north) {
+    south = -90
+    north = 90
+  }
+
   return {
-    west: Math.max(-180, area.west),
-    south: Math.max(-90, area.south),
-    east: Math.min(180, area.east),
-    north: Math.min(90, area.north),
+    west,
+    south,
+    east,
+    north,
   }
 }
 
@@ -95,8 +132,8 @@ export async function fetchPlace(id: number, token?: string | null): Promise<Pla
   return response.json()
 }
 
-export async function searchPlaces(query: string): Promise<PlaceSearchHit[]> {
-  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+export async function searchPlaces(query: string, signal?: AbortSignal): Promise<PlaceSearchHit[]> {
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal })
   if (!response.ok) {
     throw new Error(`GET /api/search failed: ${response.status}`)
   }

@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth import current_user
@@ -95,6 +96,11 @@ def occurrence_times(
     return found
 
 
+def occurrence_dates(session: Session, series: MeetupSeries) -> set[date]:
+    """The Berlin dates that have an Occurrence of the Series."""
+    return set(session.exec(select(Meetup.series_date).where(Meetup.series_id == series.id)))
+
+
 def fill_series(
     session: Session, series: MeetupSeries, now: datetime, new_series: bool = False
 ) -> int:
@@ -105,11 +111,15 @@ def fill_series(
 
     Each date counts on its own for the limit of Meetups at one moment (SCRUM-80): a
     `new_series` with a full date is refused (Conflict), a later fill skips that date and
-    tries it again next time."""
+    tries it again next time.
+
+    Two requests at the same moment can both find a date missing (SCRUM-123). Each insert has
+    its own savepoint, so the unique key uq_meetup_series_date stops only the later one, and
+    that date is skipped without a Notification."""
     if series.cancelled_at is not None:
         return 0
     slots = [Slot.model_validate(slot) for slot in series.slots]
-    have = set(session.exec(select(Meetup.series_date).where(Meetup.series_id == series.id)))
+    have = occurrence_dates(session, series)
     created = []
     for start, day, hours in occurrence_times(slots, now, now + timedelta(days=WINDOW_DAYS), series.until):
         if day in have:
@@ -127,18 +137,22 @@ def fill_series(
             series_id=series.id,
             series_date=day,
         )
-        session.add(meetup)
+        try:
+            with session.begin_nested():
+                session.add(meetup)
+        except IntegrityError:
+            continue
         created.append(meetup)
-    session.flush()
     created.sort(key=lambda meetup: meetup.starts_at)
     for index, meetup in enumerate(created):
         notify_new_meetup(session, meetup, now, first=new_series and index == 0)
     return len(created)
 
 
-def fill_open_series(session: Session, now: datetime, place_id: int | None = None) -> None:
-    """Fills every running Series (of one Place, or all) at a Place that may have Meetups, and
-    commits when something was made."""
+def fill_open_series(session: Session, now: datetime, *where) -> None:
+    """Fills the running Series at a Place that may have Meetups, and commits when something
+    was made. `where` limits them (on MeetupSeries or Place), so a request fills only the
+    Series it shows (SCRUM-72): one Place, the map area, or the user's own."""
     query = (
         select(MeetupSeries)
         .join(Place, Place.id == MeetupSeries.place_id)
@@ -146,10 +160,9 @@ def fill_open_series(session: Session, now: datetime, place_id: int | None = Non
             MeetupSeries.cancelled_at.is_(None),
             or_(MeetupSeries.until.is_(None), MeetupSeries.until >= now.astimezone(BERLIN).date()),
             allowed_in(PlaceUse.MEETUP),
+            *where,
         )
     )
-    if place_id is not None:
-        query = query.where(MeetupSeries.place_id == place_id)
     if sum(fill_series(session, series, now) for series in session.exec(query).all()):
         session.commit()
 
@@ -185,10 +198,16 @@ def create_series(
     session.add(series)
     session.flush()
     try:
-        fill_series(session, series, now, new_series=True)
+        created = fill_series(session, series, now, new_series=True)
     except LifecycleError:
         session.rollback()
         raise
+    if created == 0:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Die Auswahl enthält keinen zukünftigen Termin",
+        )
     session.commit()
     session.refresh(series)
     return to_read(series)
@@ -201,7 +220,8 @@ def cancel_series(
     session: Session = Depends(get_session),
 ):
     """The Host of the Series cancels it: every Occurrence that has not started is cancelled,
-    and no new ones are made. A running Occurrence goes on (it can be ended)."""
+    and no new ones are made. A running Occurrence goes on (it can be ended). An Occurrence
+    that a handover gave to another Host stays as it is (SCRUM-125)."""
     series = session.get(MeetupSeries, series_id)
     if series is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Serie nicht gefunden")
@@ -213,7 +233,9 @@ def cancel_series(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Die Serie ist schon abgesagt")
     now = datetime.now(UTC)
     series.cancelled_at = now
-    for meetup in session.exec(select(Meetup).where(Meetup.series_id == series.id)):
+    for meetup in session.exec(
+        select(Meetup).where(Meetup.series_id == series.id, Meetup.host_id == series.host_id)
+    ):
         # Upcoming ones are cancelled, a running one goes on (SCRUM-61: one transition).
         call_off(session, meetup, now, user.id, end_running=False)
     session.commit()

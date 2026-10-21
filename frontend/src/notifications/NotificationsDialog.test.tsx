@@ -69,6 +69,20 @@ describe('NotificationsDialog (SCRUM-40)', () => {
     expect(items[1].classList.contains('unread')).toBe(false)
   })
 
+  // SCRUM-147: offline for a moment, the tap still opens the Place.
+  it('opens the Place also when marking as read fails', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(notices))
+      .mockRejectedValueOnce(new TypeError('offline'))
+    const { container, onOpenMeetup } = await render(fetchMock)
+
+    await act(async () => container.querySelector<HTMLButtonElement>('.notification-open')!.click())
+
+    expect(onOpenMeetup).toHaveBeenCalledWith(notices[0].place_id)
+    expect(container.querySelector('.form-error')).toBeNull()
+  })
+
   it('marks a Notification as read and opens its Meetup', async () => {
     const fetchMock = vi
       .fn()

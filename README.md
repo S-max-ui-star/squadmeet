@@ -7,17 +7,18 @@ Final project of the Syntax course, Modul 4 (Fullstack, Backend & DevOps). Team 
 Work ends **Fri 23.10.2026**; presentation with live demo: **Mon 26.10.2026**.
 
 > **State:** live at https://squadmeet.duckdns.org (`SCRUM-20`, AWS host). A merge into `main`
-> deploys automatically (`SCRUM-23`). Sprint 1 (walking skeleton) is done. Sprint 2 (features)
-> runs until the feature freeze on **Wed 21.10.** evening; Thu–Fri 22.–23.10. are for fixes,
-> the manual test (`SCRUM-50`), the review (`SCRUM-49`), docs and the presentation.
+> deploys automatically (`SCRUM-23`). Sprints 1 (walking skeleton) and 2 (features) are done.
+> Sprint 3 (fixes from the test run and the code review `SCRUM-49`) runs until Fri 23.10. Feature
+> freeze since **Wed 21.10.** evening: Thu–Fri are for fixes, the manual test (`SCRUM-50`), docs
+> and the presentation.
 
 ## Team
 
 | Person | Area |
 |--------|------|
 | Steven Tanu | DevOps (Docker, CI/CD, AWS, HTTPS), login and MFA, Admin, Place suggestions |
-| Stefan Kallinich | Product owner, Meetup workflow, privacy, ratings, photos, contacts |
-| Dominik Fischer | Finding (search, addresses, Meetup list), Home area, notifications, manual test |
+| Stefan Kallinich | Product owner, Meetup workflow, privacy, ratings, photos, contacts, Home area; owns the repo and the AWS host since 2026-10-15 |
+| Dominik Fischer | Finding (search, addresses, Meetup list), notifications, manual test |
 
 Dominik joined on 2026-10-12 (`SCRUM-51`). David Ludwig-Erbs left the project on 2026-10-08
 (`SCRUM-46`). Who does what is in [TICKETS.md](TICKETS.md).
@@ -41,6 +42,7 @@ Dominik joined on 2026-10-12 (`SCRUM-51`). David Ludwig-Erbs left the project on
 | [DIARY.md](DIARY.md) | What each person did each day |
 | [CONTEXT.md](CONTEXT.md) | Glossary: the domain terms we use |
 | [docs/adr/](docs/adr/) | Architecture decisions |
+| [docs/testlauf.md](docs/testlauf.md) | Checklist for the manual test of the whole app (`SCRUM-50`) |
 | [deploy/README.md](deploy/README.md) | How the app runs on AWS, the setup wizard, the move to the NAS |
 | [BRIEF.md](BRIEF.md) | The original course brief |
 
@@ -114,7 +116,7 @@ docker compose exec backend python -m app.admin revoke <Nickname>
 The Admin functions work only after the Admin turns on two-factor login (MFA) in the app
 ("Konto" → "Zwei-Faktor-Anmeldung").
 
-What an Admin can do (`SCRUM-39`):
+What an Admin can do (`SCRUM-39`, `SCRUM-56`, `SCRUM-57`):
 
 - **Lock a Place** ("Platz sperren" in the Place detail): it leaves the map and the search.
   Meetups that have not started are cancelled; running ones end at once.
@@ -125,17 +127,24 @@ What an Admin can do (`SCRUM-39`):
 - **Reported Places** ("Konto" → "Gemeldete Plätze"): Places that users reported, the ones off
   the map first. "Verwerfen" closes the reports, and the Place is back on the map. "Sperren"
   locks it as above.
+- **Approve Place suggestions** ("Konto" → "Platzvorschläge freigeben"): a suggestion with 3
+  Confirmations becomes a Place, at the earliest 24 h after it was suggested; "Ablehnen" removes
+  it. An OSM hint (building, private ground, residential area) helps decide.
+- **Approve Photos** ("Konto" → "Fotos freigeben"): only while Photos are on (`SCRUM-94`).
 
 ### Tests
 
 ```sh
 docker compose exec backend pytest        # backend (pytest)
+docker compose exec backend ruff check .  # backend lint (only real errors, as in CI)
 cd frontend && npm install && npm test    # frontend (Vitest)
 ```
 
 The backend tests need the running, migrated database. Each test runs in one transaction that
 is rolled back at the end, so the tests leave no data behind
-([backend/tests/conftest.py](backend/tests/conftest.py)).
+([backend/tests/conftest.py](backend/tests/conftest.py)). The tests look only at their own rows,
+so they also pass on a local database with your own accounts. After new migrations on `dev`, run
+`docker compose exec backend alembic upgrade head` first, or many tests fail.
 
 ### Database schema changes (Alembic)
 

@@ -140,7 +140,12 @@ def test_recovery_code_works_once_for_login(client, session, mfa_user):
 
     assert login(client, typed).status_code == 200
     assert login(client, codes[0]).status_code == 401
-    used = session.exec(select(RecoveryCode).where(RecoveryCode.used_at.is_not(None))).all()
+    user = session.exec(select(User).where(User.nickname == "Pingpong_Paula")).one()
+    used = session.exec(
+        select(RecoveryCode).where(
+            RecoveryCode.user_id == user.id, RecoveryCode.used_at.is_not(None)
+        )
+    ).all()
     assert len(used) == 1
 
 
@@ -239,7 +244,7 @@ def test_admin_with_mfa_is_allowed(client, session, mfa_user):
 
 
 def test_normal_user_is_not_an_admin(client, session, mfa_user):
-    user = session.exec(select(User)).one()
+    user = session.exec(select(User).where(User.nickname == "Pingpong_Paula")).one()
 
     with pytest.raises(HTTPException) as blocked:
         require_admin(user)

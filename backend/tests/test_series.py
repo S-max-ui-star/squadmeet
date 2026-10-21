@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app import series as series_module
-from app.models import Meetup
+from app.models import Meetup, MeetupSeries
 from tests.test_auth import auth_header, register
 from tests.test_meetups import join, leave, meetups_seen_by, people_now, place  # noqa: F401
 
@@ -172,6 +172,22 @@ def test_the_host_may_cancel_the_series_only_while_it_runs(client, place, host):
     assert client.post(f"/api/meetup-series/{series_id}/cancel", headers=auth_header(host[0])).status_code == 409
 
 
+def test_cancelling_the_series_leaves_an_occurrence_handed_to_another_host(client, place, host, guest):
+    series_id = create_series(client, host[0], place.id, [slot(d) for d in range(7)]).json()["id"]
+    handed, *rest = sorted(occurrences(client, host[0], place.id), key=lambda m: m["starts_at"])
+    join(client, guest[0], handed["id"])
+    # The Series Host Leaves, so the guest becomes Host of this Occurrence (SCRUM-37).
+    assert leave(client, host[0], handed["id"]).status_code == 204
+
+    seen = {m["id"]: m for m in occurrences(client, host[0], place.id)}
+    assert "cancel_series" not in seen[handed["id"]]["actions"]
+    assert client.post(f"/api/meetup-series/{series_id}/cancel", headers=auth_header(host[0])).status_code == 200
+
+    after = {m["id"]: m for m in occurrences(client, guest[0], place.id)}
+    assert not after[handed["id"]]["cancelled"]
+    assert all(after[m["id"]]["cancelled"] for m in rest)
+
+
 def test_an_occurrence_shows_whether_the_viewer_may_cancel_the_series(client, place, host, guest):
     create_series(client, host[0], place.id, [slot(0)])
 
@@ -197,6 +213,24 @@ def test_an_end_date_in_the_past_is_rejected(client, place, host):
     yesterday = (datetime.now(BERLIN) - timedelta(days=1)).date()
 
     assert create_series(client, host[0], place.id, [slot(0)], until=yesterday.isoformat()).status_code == 422
+
+
+def test_a_series_without_a_future_occurrence_is_not_created(session, client, place, host):
+    now = datetime.now(BERLIN)
+    response = create_series(
+        client,
+        host[0],
+        place.id,
+        [slot(now.weekday(), now.strftime("%H:%M"))],
+        until=now.date().isoformat(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Die Auswahl enthält keinen zukünftigen Termin"
+    created = series_module.select(MeetupSeries).where(
+        MeetupSeries.place_id == place.id, MeetupSeries.host_id == host[1]
+    )
+    assert session.exec(created).all() == []
 
 
 def test_creating_needs_a_login(client, place):
@@ -264,3 +298,71 @@ def test_a_later_fill_skips_a_full_date(session, client, place, host):
     session.flush()
 
     assert series_module.fill_series(session, third, now) == 0
+
+
+def emptied(session, series_id):
+    """The Series with all its Occurrences deleted, so the next fill makes them again."""
+    series = session.get(series_module.MeetupSeries, series_id)
+    session.exec(series_module.delete_future_of(series))
+    session.commit()
+    return series
+
+
+def count_of(session, series):
+    return len(session.exec(series_module.select(Meetup.id).where(Meetup.series_id == series.id)).all())
+
+
+def test_the_map_fills_only_the_series_in_its_area(session, client, place, host):
+    # SCRUM-72: a map load does not fill every Series of every user.
+    series = emptied(session, create_series(client, host[0], place.id, [slot(0)]).json()["id"])
+
+    client.get("/api/places", params={"bbox": "10,50,11,51"})
+    assert count_of(session, series) == 0
+
+    client.get("/api/places", params={"bbox": "-31,0,-30,1"})
+    assert count_of(session, series) > 0
+
+
+def test_my_meetups_fill_only_the_users_own_series(session, client, place, host, guest):
+    series = emptied(session, create_series(client, host[0], place.id, [slot(0)]).json()["id"])
+
+    client.get("/api/meetups/mine", headers=auth_header(guest[0]))
+    assert count_of(session, series) == 0
+
+    client.get("/api/meetups/mine", headers=auth_header(host[0]))
+    assert count_of(session, series) > 0
+
+
+def favorite_notices(session, user_id):
+    from app.models import Notification
+
+    return len(
+        session.exec(
+            series_module.select(Notification.id).where(
+                Notification.user_id == user_id, Notification.kind == "favorite_meetup_created"
+            )
+        ).all()
+    )
+
+
+def test_a_fill_that_meets_an_existing_occurrence_goes_on(session, client, place, host, guest, monkeypatch):
+    # SCRUM-123: two map loads at the same moment read the same dates; the second insert of an
+    # Occurrence must not fail, and the Favorite gets one Notification per Occurrence.
+    from tests.test_favorites import add_favorite
+
+    add_favorite(client, guest[0], place.id)
+    series_id = create_series(client, host[0], place.id, [slot(0)]).json()["id"]
+    series = session.get(series_module.MeetupSeries, series_id)
+    first = min(occurrences(client, host[0], place.id), key=lambda m: m["starts_at"])
+    session.exec(series_module.delete(Meetup).where(Meetup.id == first["id"]))
+    session.commit()
+    total = count_of(session, series)
+    notices = favorite_notices(session, guest[1])
+    # The other request has not committed yet when this one reads: no date is known.
+    monkeypatch.setattr(series_module, "occurrence_dates", lambda session, series: set())
+
+    added = series_module.fill_series(session, series, datetime.now(UTC))
+
+    assert added == 1
+    assert count_of(session, series) == total + 1
+    assert favorite_notices(session, guest[1]) == notices + 1

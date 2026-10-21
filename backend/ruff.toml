@@ -1,0 +1,10 @@
+# Lint (SCRUM-49 review): only real errors (syntax, undefined or unused names), so CI catches
+# bugs without a style debate. pytest fixtures are imported into test modules on purpose.
+target-version = "py313"
+line-length = 100
+
+[lint]
+select = ["E9", "F"]
+
+[lint.per-file-ignores]
+"tests/*" = ["F811"]

@@ -414,8 +414,8 @@ pause
 # ── 6 ─────────────────────────────────────────────────────────────────────
 stage "EC2 server and fixed IP"
 say "This starts, if it does not exist yet:"
-step "EC2 '$INSTANCE_TYPE' with Amazon Linux 2023 (x86_64), 20 GB disk, Docker and a 2 GB swap file."
-step "An Elastic IP (fixed address, about 3.60 USD a month from the credit)."
+step "EC2 '$INSTANCE_TYPE' with Amazon Linux 2023 (x86_64), 20 GB encrypted disk, Docker and a 2 GB swap file."
+step "An Elastic IP (fixed address; a public IPv4 address costs about 3.60 USD a month)."
 note "CPU credits are 'standard', so a busy CPU slows down instead of costing extra."
 free_tier=$(aws ec2 describe-instance-types --instance-types "$INSTANCE_TYPE" \
   --query 'InstanceTypes[0].FreeTierEligible' --output text 2>/dev/null || echo unknown)
@@ -439,7 +439,7 @@ if [[ "$INSTANCE_ID" == "None" ]]; then
       --security-group-ids "$SG_ID" --iam-instance-profile Name="$NAME-ec2" \
       --credit-specification CpuCredits=standard \
       --metadata-options HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=2 \
-      --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3"}}]' \
+      --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3","Encrypted":true}}]' \
       --user-data file://deploy/ec2-user-data.sh \
       --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$NAME}]" \
       --query 'Instances[0].InstanceId' --output text 2>/dev/null) && break
@@ -515,8 +515,9 @@ stage "Check https://$DOMAIN"
 say "Caddy gets the Let's Encrypt certificate on the first request (up to a minute) …"
 healthy=n
 for _ in $(seq 1 30); do
-  # curl checks the certificate: an invalid one fails here.
-  if curl -fsS "https://$DOMAIN/api/health" 2>/dev/null | grep -q '"ok"'; then healthy=y; break; fi
+  # curl checks the certificate: an invalid one fails here. grep without -q: with pipefail,
+  # -q can stop curl early and make the pipe fail although the answer was right.
+  if curl -fsS "https://$DOMAIN/api/health" 2>/dev/null | grep '"ok"' >/dev/null; then healthy=y; break; fi
   sleep 10
 done
 [[ "$healthy" == y ]] || die "https://$DOMAIN/api/health does not answer. Logs: see deploy/README.md → Troubleshooting."

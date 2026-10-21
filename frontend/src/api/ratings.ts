@@ -43,16 +43,31 @@ export async function fetchReasons(placeId: number): Promise<Reason[]> {
   return answer(await fetch(`/api/places/${placeId}/reasons`), 'GET reasons')
 }
 
+// The optional token, and the signal that aborts an outdated load (SCRUM-156).
+function readInit(token?: string | null, signal?: AbortSignal): RequestInit | undefined {
+  if (!token && !signal) return undefined
+  return {
+    ...(signal ? { signal } : {}),
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  }
+}
+
 /** With the token of an Admin, also for a Place that users reported (SCRUM-57). */
-export async function fetchRatingSummary(placeId: number, token?: string | null): Promise<RatingSummary> {
-  const init = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-  return answer(await fetch(`/api/places/${placeId}/ratings`, init), 'GET ratings')
+export async function fetchRatingSummary(
+  placeId: number,
+  token?: string | null,
+  signal?: AbortSignal,
+): Promise<RatingSummary> {
+  return answer(await fetch(`/api/places/${placeId}/ratings`, readInit(token, signal)), 'GET ratings')
 }
 
 /** Every anonymous Rating of the Place, newest change first. */
-export async function fetchRatingList(placeId: number, token?: string | null): Promise<RatingListItem[]> {
-  const init = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-  return answer(await fetch(`/api/places/${placeId}/ratings/list`, init), 'GET rating list')
+export async function fetchRatingList(
+  placeId: number,
+  token?: string | null,
+  signal?: AbortSignal,
+): Promise<RatingListItem[]> {
+  return answer(await fetch(`/api/places/${placeId}/ratings/list`, readInit(token, signal)), 'GET rating list')
 }
 
 /** The user's own Rating of the Place, or null. */

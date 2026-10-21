@@ -6,10 +6,11 @@ Before saving, the app asks for Places of the same Activity type within DUPLICAT
 is_suggestion = true, so the map, the Place detail and its URL work for it as for any Place.
 The suggester's own Confirmation is the first of CONFIRMATIONS_NEEDED; at CONFIRMATIONS_NEEDED
 the suggestion waits for an Admin (confirmed_at, SCRUM-56, app.admin_suggestions), who makes it
-active. Suggesting and confirming require an account that is at least MIN_ACCOUNT_AGE old.
+active. Suggesting and confirming require an account that is at least 7 days old
+(app.account_age).
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from geoalchemy2 import Geography
@@ -18,7 +19,9 @@ from sqlalchemy import cast, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
+from app.account_age import require_account_age
 from app.activities import LABELS, ActivityType
+from app.audit import record
 from app.auth import current_user
 from app.db import get_session
 from app.models import Place, PlaceConfirmation, PlaceRead, User
@@ -29,7 +32,6 @@ from app.rate_limit import RateLimit
 DUPLICATE_RADIUS_M = 50
 CONFIRM_RADIUS_M = 100
 CONFIRMATIONS_NEEDED = 3
-MIN_ACCOUNT_AGE = timedelta(days=7)
 MAX_NAME_LENGTH = 60
 
 router = APIRouter(prefix="/place-suggestions", tags=["place suggestions"])
@@ -57,15 +59,6 @@ class ConfirmInput(BaseModel):
 
 def point(lat: float, lon: float):
     return func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
-
-
-def require_account_age(user: User, now: datetime) -> None:
-    """Only accounts at least MIN_ACCOUNT_AGE old may suggest or confirm a Place (SCRUM-36)."""
-    if now - user.created_at < MIN_ACCOUNT_AGE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Dein Konto muss mindestens 7 Tage alt sein, um Plätze vorzuschlagen oder zu bestätigen.",
-        )
 
 
 @router.get("/nearby", response_model=list[NearbyPlace])
@@ -151,9 +144,10 @@ def confirm_place(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Du musst am Platz sein (höchstens {CONFIRM_RADIUS_M} m entfernt), um ihn zu bestätigen.",
         )
+    values = {"place_id": place_id, "user_id": user.id, "created_at": now}
     inserted = session.exec(
         insert(PlaceConfirmation)
-        .values(place_id=place_id, user_id=user.id, created_at=now)
+        .values(**values)
         .on_conflict_do_nothing(constraint="uq_place_confirmation_place_user")
         .returning(PlaceConfirmation.id)
     ).first()
@@ -162,6 +156,8 @@ def confirm_place(
             status_code=status.HTTP_409_CONFLICT,
             detail="Du hast diesen Platzvorschlag schon bestätigt.",
         )
+    # The insert is no ORM change, so the audit log hears of it here (SCRUM-115).
+    record(session, "place_confirmation", inserted.id, "insert", values)
     total = session.exec(
         select(func.count()).where(PlaceConfirmation.place_id == place_id)
     ).one()

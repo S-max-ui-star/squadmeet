@@ -18,36 +18,38 @@ export default function PlaceShareButton({ placeId, placeName }: Props) {
     if (state === 'busy') return
     setState('busy')
     const url = publicPlaceUrl(placeId)
-    try {
-      if (typeof navigator.share === 'function') {
+    if (typeof navigator.share === 'function') {
+      try {
         await navigator.share({ title: placeName, text: placeName, url })
         setState('idle')
         return
+      } catch (error) {
+        // The user closed the share sheet: nothing more to do.
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          setState('idle')
+          return
+        }
+        // The browser refused the share sheet: copy the link instead (SCRUM-163).
       }
+    }
+    try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
       await navigator.clipboard.writeText(url)
       setState('copied')
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setState('idle')
-      } else {
-        setState('failed')
-      }
+    } catch {
+      setState('failed')
     }
   }
 
   return (
     <>
-      <button
-        type="button"
-        className="link-button place-detail-share"
-        disabled={state === 'busy'}
-        aria-live="polite"
-        onClick={share}
-      >
+      <button type="button" className="link-button place-detail-share" disabled={state === 'busy'} onClick={share}>
         {state === 'copied' ? 'Link kopiert' : 'Teilen'}
       </button>
-      {state === 'failed' && <span className="form-error">Teilen nicht möglich.</span>}
+      {/* Always in the page, so a screen reader reads the result out (SCRUM-160). */}
+      <span role="status" className={state === 'failed' ? 'form-error' : 'visually-hidden'}>
+        {state === 'copied' ? 'Link kopiert.' : state === 'failed' ? 'Teilen nicht möglich.' : ''}
+      </span>
     </>
   )
 }

@@ -73,7 +73,7 @@ export const CITY_REPORTS: CityReport[] = [
 ]
 
 // Further than this from every city center: no City report (a Place outside the five cities).
-export const MAX_DISTANCE_KM = 25
+const MAX_DISTANCE_KM = 25
 
 function distanceKm([lat1, lon1]: [number, number], [lat2, lon2]: [number, number]): number {
   const rad = Math.PI / 180

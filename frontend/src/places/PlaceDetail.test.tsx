@@ -8,8 +8,11 @@ import PlaceDetail from './PlaceDetail'
 
 const here = { coords: { latitude: 51.3001, longitude: 12.3001, accuracy: 6 } }
 const user = { id: 1, nickname: 'Stefan', avatar: 'fox', is_admin: false, mfa_enabled: false }
+const roots = new Set<ReturnType<typeof createRoot>>()
 
 afterEach(() => {
+  for (const root of roots) act(() => root.unmount())
+  roots.clear()
   document.body.innerHTML = ''
   localStorage.clear()
   vi.unstubAllGlobals()
@@ -18,8 +21,10 @@ afterEach(() => {
 function render(props: Parameters<typeof PlaceDetail>[0]) {
   const container = document.createElement('div')
   document.body.append(container)
-  act(() => createRoot(container).render(<PlaceDetail {...props} />))
-  return container
+  const root = createRoot(container)
+  roots.add(root)
+  act(() => root.render(<PlaceDetail {...props} />))
+  return { container, root }
 }
 
 const place = {
@@ -36,7 +41,7 @@ const place = {
 
 describe('PlaceDetail', () => {
   it('shows name, Activity type and the stored address', () => {
-    const container = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+    const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
     const text = container.textContent
 
     expect(text).toContain('Korbanlage')
@@ -52,14 +57,14 @@ describe('PlaceDetail', () => {
 
   it('marks a Place that came from a suggestion with "Von Nutzern hinzugefügt"', () => {
     const userAdded = { ...place, is_suggestion: false, confirmations: 3 }
-    const text = render({ place: userAdded, error: null, onRetry: () => {}, onClose: () => {} }).textContent
+    const text = render({ place: userAdded, error: null, onRetry: () => {}, onClose: () => {} }).container.textContent
 
     expect(text).toContain('Von Nutzern hinzugefügt')
   })
 
   it('marks a Place suggestion and hides Meetups and Ratings', () => {
     const suggestion = { ...place, is_suggestion: true, confirmations: 1 }
-    const container = render({
+    const { container } = render({
       place: suggestion,
       error: null,
       onRetry: () => {},
@@ -79,7 +84,7 @@ describe('PlaceDetail', () => {
 
   it('shows a suggestion with 3 Confirmations as waiting for an Admin, without the confirm button', () => {
     const waiting = { ...place, is_suggestion: true, confirmations: 3, waiting_for_admin: true }
-    const container = render({
+    const { container } = render({
       place: waiting,
       error: null,
       onRetry: () => {},
@@ -104,7 +109,7 @@ describe('PlaceDetail', () => {
     vi.stubGlobal('fetch', fetchMock)
     const onConfirmed = vi.fn()
     const suggestion = { ...place, is_suggestion: true, confirmations: 2 }
-    const container = render({
+    const { container } = render({
       place: suggestion,
       error: null,
       onRetry: () => {},
@@ -126,7 +131,7 @@ describe('PlaceDetail', () => {
   it('asks for a login when a guest taps confirm, and shows a server error when too far away', async () => {
     const onLoginNeeded = vi.fn()
     const suggestion = { ...place, is_suggestion: true, confirmations: 1 }
-    const guestContainer = render({
+    const { container: guestContainer } = render({
       place: suggestion,
       error: null,
       onRetry: () => {},
@@ -152,7 +157,7 @@ describe('PlaceDetail', () => {
         ),
       ),
     )
-    const loggedInContainer = render({
+    const { container: loggedInContainer } = render({
       place: suggestion,
       error: null,
       onRetry: () => {},
@@ -174,24 +179,43 @@ describe('PlaceDetail', () => {
       { place: null, error: 'GET failed: 500' },
     ]) {
       const onClose = vi.fn()
-      const container = render({ ...props, onRetry: () => {}, onClose })
+      const { container, root } = render({ ...props, onRetry: () => {}, onClose })
       const close = container.querySelector<HTMLButtonElement>('.place-detail-head button[aria-label="Schließen"]')!
 
       act(() => close.click())
 
       expect(onClose).toHaveBeenCalledOnce()
-      document.body.innerHTML = ''
+      act(() => root.unmount())
+      roots.delete(root)
+      container.remove()
     }
   })
 
   it('offers to try again after an error', () => {
     const onRetry = vi.fn()
-    const container = render({ place: null, error: 'GET failed: 500', onRetry, onClose: () => {} })
+    const { container } = render({ place: null, error: 'GET failed: 500', onRetry, onClose: () => {} })
     const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Nochmal versuchen')!
 
     act(() => retry.click())
 
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('moves focus to close, closes with Escape and restores the opener', () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const onClose = vi.fn()
+    const { container, root } = render({ place, error: null, onRetry: () => {}, onClose })
+    const close = container.querySelector<HTMLButtonElement>('.place-detail-close')!
+
+    expect(document.activeElement).toBe(close)
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    expect(onClose).toHaveBeenCalledOnce()
+
+    act(() => root.unmount())
+    roots.delete(root)
+    expect(document.activeElement).toBe(opener)
   })
 })
 

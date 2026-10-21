@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.meetups import time_span_end
-from app.models import Meetup, Place
+from app.models import Meetup, Place, PlaceReport, User
 from tests.test_auth import PASSWORD, auth_header, register
 
 
@@ -743,6 +743,63 @@ def test_an_unknown_answer_is_rejected(client, third, moved):
     old_id, _ = moved
 
     assert answer_move(client, third[0], old_id, "maybe").status_code == 422
+
+
+def test_a_cancelled_old_meetup_has_no_offer(client, place, guest, third, moved):
+    # SCRUM-72: Leave refuses a cancelled Meetup, so the move answer ends with the cancel.
+    old_id, _ = moved
+    assert cancel(client, guest[0], old_id).status_code == 200  # Karl is its Host now
+
+    assert only(meetups_seen_by(client, third[0], place.id), old_id)["move_offer"] is None
+    assert answer_move(client, third[0], old_id, "go").status_code == 409
+
+
+def test_a_user_the_new_host_blocked_has_no_offer_and_cannot_go(client, place, host, third, moved):
+    # SCRUM-124: the Block keeps Mia's Join in the old Meetup, because Karl hosts it now.
+    old_id, new_id = moved
+    blocked = client.post("/api/blocks", json={"nickname": "Mia_Matte"}, headers=auth_header(host[0]))
+    assert blocked.status_code == 201
+
+    assert only(meetups_seen_by(client, third[0], place.id), old_id)["move_offer"] is None
+    assert answer_move(client, third[0], old_id, "go").status_code == 409
+    assert answer_move(client, third[0], old_id, "stay").status_code == 200
+    participants = only(meetups_seen_by(client, host[0], place.id), new_id)["participants"]
+    assert participants == []
+
+
+def hide(session, place):
+    """Three open reports: the Place is hidden from users (SCRUM-57)."""
+    for n in range(3):
+        user = User(nickname=f"Melder_{n}", password_hash="-", avatar="fox", created_at=datetime.now(UTC))
+        session.add(user)
+        session.flush()
+        session.add(PlaceReport(place_id=place.id, user_id=user.id, reason="dangerous", created_at=datetime.now(UTC)))
+    session.commit()
+
+
+def test_no_join_at_a_hidden_place(client, session, place, host, guest):
+    # SCRUM-72: the Meetups of a reported Place stay, but take no new Joins.
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    hide(session, place)
+
+    assert join(client, guest[0], meetup["id"]).status_code == 404
+    assert leave(client, host[0], meetup["id"]).status_code == 204
+
+
+def test_no_move_at_a_hidden_place(client, session, place, host):
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    hide(session, place)
+
+    assert change_time(client, host[0], meetup["id"], later(days=2)).status_code == 404
+    assert cancel(client, host[0], meetup["id"]).status_code == 200
+
+
+def test_no_going_along_at_a_hidden_place(client, session, place, third, moved):
+    old_id, _ = moved
+    hide(session, place)
+
+    assert answer_move(client, third[0], old_id, "go").status_code == 404
+    assert answer_move(client, third[0], old_id, "stay").status_code == 200
 
 
 def test_a_third_meetup_at_the_same_time_is_refused(client, place, host):

@@ -2,7 +2,9 @@
 
 from datetime import UTC, datetime, timedelta
 
-from app.models import Notification
+from sqlmodel import select
+
+from app.models import Meetup, Notification
 
 from tests.test_admin_places import admin, lock  # noqa: F401 (fixture)
 from tests.test_auth import auth_header
@@ -232,9 +234,45 @@ def test_notifications_are_newest_first(client, session, place, host, guest):
     assert kinds(client, guest[0]) == ["host_handover", "meetup_cancelled"]
 
 
+def ended(session, meetup_id, ago):
+    """Moves a Meetup into the past, so it ended `ago` before now."""
+    meetup = session.get(Meetup, meetup_id)
+    meetup.ends_at = datetime.now(UTC) - ago
+    meetup.starts_at = meetup.ends_at - timedelta(hours=1)
+    session.add(meetup)
+    session.commit()
+
+
+def test_a_notification_goes_14_days_after_its_meetup_ended(client, session, place, host, guest):
+    """Stefan's rule (SCRUM-141): the 14 days count from the Meetup's end, not from the
+    Notification; read or unread does not matter."""
+    gone, kept, ahead = (
+        create(client, host[0], place.id, starts_at=later(days=days)).json()["id"]
+        for days in (1, 2, 3)
+    )
+    ended(session, gone, timedelta(days=14, hours=1))
+    ended(session, kept, timedelta(days=13))
+    made = datetime.now(UTC) - timedelta(days=40)
+    session.add_all(
+        Notification(user_id=guest[1], meetup_id=meetup_id, kind="meetup_moved", created_at=made)
+        for meetup_id in (gone, kept, ahead)
+    )
+    session.commit()
+
+    assert sorted(n["meetup_id"] for n in notifications(client, guest[0]).json()) == [kept, ahead]
+    session.expire_all()
+    assert session.exec(select(Notification).where(Notification.meetup_id == gone)).all() == []
+
+
 def test_notifications_need_a_login(client):
     assert client.get("/api/notifications").status_code == 401
     assert client.delete("/api/notifications/1").status_code == 401
     assert client.delete("/api/notifications").status_code == 401
     assert client.post("/api/notifications/read").status_code == 401
     assert client.delete("/api/notifications/read").status_code == 401
+
+
+def test_a_too_big_notification_id_is_not_found(client, host):
+    headers = auth_header(host[0])
+    assert client.post("/api/notifications/9999999999/read", headers=headers).status_code == 404
+    assert client.delete("/api/notifications/9999999999", headers=headers).status_code == 404
