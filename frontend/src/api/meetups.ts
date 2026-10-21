@@ -73,6 +73,21 @@ export async function fetchMeetups(placeId: number, token: string | null = null)
   return answer(response, 'GET meetups')
 }
 
+// "Meine Treffen" (SCRUM-102): a Meetup of the user, with its Place.
+export type MyMeetup = Meetup & {
+  place: { id: number; name: string; activity_type: string }
+  // true: the user is the Host; false: the user joined.
+  hosting: boolean
+}
+
+// The user's upcoming, live and cancelled Meetups, as Host and as Join; the soonest first.
+export async function fetchMyMeetups(token: string): Promise<MyMeetup[]> {
+  return answer(
+    await fetch('/api/meetups/mine', { headers: { Authorization: `Bearer ${token}` } }),
+    'GET my meetups',
+  )
+}
+
 export async function createMeetup(token: string, input: MeetupInput): Promise<Meetup> {
   const response = await fetch('/api/meetups', {
     method: 'POST',
