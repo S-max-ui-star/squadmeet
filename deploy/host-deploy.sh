@@ -3,15 +3,18 @@
 # pulls the images and (re)starts the stack in /opt/squadmeet.
 # The secrets come from SSM Parameter Store (/squadmeet/*); the host's IAM role may read them.
 #
-# Usage: host-deploy.sh <domain> <image-tag> [<image-owner>]
+# Before the new stack starts, it dumps the database into backups/ (the last KEEP_BACKUPS stay),
+# because the new backend migrates the schema at its start (SCRUM-49 review).
+#
+# Usage: host-deploy.sh <domain> <image-tag> <image-owner>
 #   image-tag: a commit SHA, or "main" / "dev"; image-owner: the GHCR account, lowercase.
 set -euo pipefail
 
-DOMAIN="$1"
-IMAGE_TAG="${2:?Usage: host-deploy.sh <domain> <image-tag> [<image-owner>]}"
-# SSM documents made before SCRUM-48 pass no owner; they run on the old host, whose
-# images are in the old repo owner's GHCR.
-IMAGE_OWNER="${3:-gitgitrice}"
+USAGE="Usage: host-deploy.sh <domain> <image-tag> <image-owner>"
+DOMAIN="${1:?$USAGE}"
+IMAGE_TAG="${2:?$USAGE}"
+IMAGE_OWNER="${3:?$USAGE}"
+KEEP_BACKUPS=10
 cd /opt/squadmeet
 
 # The AWS CLI on the host needs the region; the instance metadata (IMDSv2) knows it.
@@ -47,6 +50,22 @@ EOF
 param /squadmeet/ghcr-token | docker login ghcr.io -u "$(param /squadmeet/ghcr-user)" --password-stdin
 
 docker compose pull
+
+# A dump of the running database (custom format, for pg_restore), before the new backend
+# migrates it. Not on the first deploy, when no database runs yet. Restore: deploy/README.md.
+if [[ -n "$(docker compose ps --status running --quiet db)" ]]; then
+  mkdir -p backups
+  dump="backups/$(date -u +%Y-%m-%dT%H%M%SZ).dump"
+  docker compose exec -T db sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$dump.part"
+  mv "$dump.part" "$dump"
+  echo "Database dump: /opt/squadmeet/$dump ($(du -h "$dump" | cut -f1))"
+  # Only the newest KEEP_BACKUPS; the names sort by time.
+  # shellcheck disable=SC2012  # our own names, no spaces
+  ls -1 backups/*.dump | head -n -"$KEEP_BACKUPS" | xargs -r rm --
+fi
+
 docker compose up -d --remove-orphans
-docker image prune -f
+# -a: also the images of older tags, so they do not fill the disk; the running ones stay. A
+# rollback pulls its images from GHCR again.
+docker image prune -af
 docker compose ps

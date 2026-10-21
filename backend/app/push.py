@@ -13,7 +13,6 @@ from sqlmodel import Session, select
 from app.auth import current_user
 from app.db import get_session
 from app.models import PushSubscription, User
-from app.push_delivery import send_web_push
 
 router = APIRouter(prefix="/push", tags=["push"])
 

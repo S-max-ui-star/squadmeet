@@ -19,12 +19,13 @@ browser ──HTTPS──▶ web (Caddy: built React app + /api/* → backend) �
 | [setup-aws.sh](setup-aws.sh) | Wizard for the first setup. You run it on your laptop; it uses the AWS CLI |
 | [handover.sh](handover.sh) | Wizard for the handover to Stefan's accounts (`SCRUM-48`). It runs `setup-turnstile.sh` and `setup-aws.sh` |
 | [compose.yml](compose.yml) | The production stack. It pulls the images from GHCR; nothing is built on the host |
-| [host-deploy.sh](host-deploy.sh) | Runs on the host: writes `.env`, logs in to GHCR, pulls the images, restarts the stack |
+| [host-deploy.sh](host-deploy.sh) | Runs on the host: writes `.env`, logs in to GHCR, pulls the images, dumps the database, restarts the stack |
 | [deploy.sh](deploy.sh) | Runs on your laptop or in CI: sends the SSM document `squadmeet-deploy` with one image tag, then the smoke test |
 | [Dockerfile](Dockerfile) | The image `squadmeet-deploy`: only `compose.yml` + `host-deploy.sh`. CI pushes it with the same tags as the app images |
 | [setup-deploy-document.sh](setup-deploy-document.sh) | Creates the SSM document `squadmeet-deploy`: pull the `squadmeet-deploy` image of one tag, copy its two files to `/opt/squadmeet`, run `host-deploy.sh` |
 | [setup-github-deploy.sh](setup-github-deploy.sh) | Creates the GitHub OIDC provider and the IAM role `squadmeet-github-deploy` for the automatic deploy |
 | [setup-photos.sh](setup-photos.sh) | Photo storage (`SCRUM-42`): private S3 bucket, the host role's permission for it, its name in SSM, IMDS hop limit 2 |
+| [setup-backup.sh](setup-backup.sh) | Daily EBS snapshot of the host (Data Lifecycle Manager, the newest 7 stay). See [Backups](#backups) |
 | [setup-turnstile.sh](setup-turnstile.sh) | Wizard: makes the Cloudflare Turnstile widget (captcha, `SCRUM-27`) and stores its keys in SSM |
 | [ec2-user-data.sh](ec2-user-data.sh) | First boot of the EC2 host: Docker, Compose plugin (fixed version, checksum checked), 2 GB swap file |
 | [../frontend/Caddyfile](../frontend/Caddyfile) | Caddy: HTTPS certificate, the static files, the proxy to the API |
@@ -100,9 +101,21 @@ deploy/deploy.sh dev               # try the newest dev images on the server
 ```
 
 The values are in the GitHub variables (`gh variable list`). The images of every pushed commit
-stay in GHCR, so you can deploy each older SHA again. **Limit:** only commits from `SCRUM-47` on
-have the `squadmeet-deploy` image. An older SHA fails at `docker pull`. Database migrations do not go back by
-themselves: a rollback over a migration needs `alembic downgrade` first.
+stay in GHCR, so you can deploy each older SHA again (the host keeps only the running images and
+pulls the old ones again). **Limit:** only commits from `SCRUM-47` on have the `squadmeet-deploy`
+image. An older SHA fails at `docker pull`.
+
+**Rollback over a migration.** Each start runs `alembic upgrade head`. An older image does not
+know a newer migration, so its backend stops at the start and the smoke test fails. Go back in
+this order:
+
+1. Find the newest migration of the old commit: `git show <old SHA>:backend/alembic/versions/`
+   (the highest number, for example `0024`).
+2. On the host, with the **new** image still running (it knows both migrations):
+   `docker compose exec backend alembic downgrade <that number>`.
+3. Then `deploy/deploy.sh <old SHA>`.
+
+If a downgrade loses data or fails, restore the dump from before the deploy ([Backups](#backups)).
 
 ## Handover to Stefan (SCRUM-48)
 
@@ -146,6 +159,29 @@ In a shell on the host, in `/opt/squadmeet`:
 | No certificate? (DNS must point to the host, port 80 must be open) | `docker compose logs web` |
 | Did the first boot finish? | `cloud-init status` and `/var/log/cloud-init-output.log` |
 | Memory? | `free -h` (the swap file must show 2 GB) |
+| Disk? | `df -h /` and `docker system df` (each deploy removes the images that do not run) |
+| Deploy fails at `docker login`? The GHCR token may have expired | `t=$(aws ssm get-parameter --name /squadmeet/ghcr-token --with-decryption --query Parameter.Value --output text); curl -sI -H "Authorization: Bearer $t" https://api.github.com/user \| grep -i -e '^HTTP' -e expiration`; a new token: [setup-aws.sh](setup-aws.sh) stage 4 |
+
+## Backups
+
+Two kinds, for two cases (`SCRUM-49` review):
+
+- **Before each deploy** `host-deploy.sh` dumps the database to `/opt/squadmeet/backups/<UTC
+  time>.dump` (the newest 10 stay). It helps when a migration goes wrong. It is on the same disk,
+  so it does not help when the host is gone.
+- **Every day at 03:00 UTC** a snapshot of the whole disk, the newest 7 stay. Set it up once per
+  AWS account: `AWS_REGION=eu-central-1 deploy/setup-backup.sh`. It helps when the host is gone.
+
+Restore a dump on the host, in `/opt/squadmeet` (this replaces the data in the database):
+
+```sh
+docker compose stop backend
+docker compose exec -T db sh -c 'pg_restore --clean --if-exists -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/<file>.dump
+docker compose start backend
+```
+
+Restore a snapshot: EC2 → Snapshots → the snapshot → *Create volume* in the instance's zone,
+stop the instance, detach its root volume, attach the new one as `/dev/xvda`, start it.
 
 ## Audit log (SCRUM-66)
 
@@ -219,6 +255,11 @@ role `squadmeet-ec2` put, get and delete objects under `places/`, stores the buc
 `/squadmeet/photo-bucket`, and sets the IMDS hop limit of the instance to 2: the backend runs in
 a container, one network hop behind the host, and IMDSv2 answers only within the hop limit.
 `setup-aws.sh` starts new instances with hop limit 2.
+
+**Accepted risk (`SCRUM-49` review):** with hop limit 2, every container on the host can get the
+role's credentials, not only the backend. A container that is taken over could read all
+`/squadmeet/*` secrets and the Photos. We accept it: the containers are our own images plus the
+official Caddy and Postgres images, and only Caddy has open ports.
 
 Without the parameter the deploy still works and Photos are off (upload answers 503).
 

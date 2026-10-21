@@ -1,6 +1,6 @@
 # Abschlussprojekt
 
-Team final project (2 people since 2026-10-08), tracked in Jira.
+Team final project (3 people since 2026-10-12), tracked in Jira.
 
 ## Handoff
 
