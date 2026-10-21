@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchPushConfig, removePushSubscription, savePushSubscription } from '../api/push'
 import { applicationServerKey, needsIosHomeScreen, pushSupported, runsStandalone } from './push'
+import Dialog from '../Dialog'
 
 type Props = { token: string; onClose: () => void }
 type State = 'loading' | 'off' | 'on' | 'unsupported' | 'server-disabled'
@@ -77,27 +78,24 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-label="Push-Benachrichtigungen">
-        <h2>Push-Benachrichtigungen</h2>
-        {state === 'loading' && <p>Laden …</p>}
-        {state === 'server-disabled' && <p>Push ist auf diesem Server noch nicht eingerichtet.</p>}
-        {iosNeedsInstall && (
-          <p>Auf dem iPhone musst du SquadMeet zuerst zum Home-Bildschirm hinzufügen und von dort öffnen.</p>
-        )}
-        {state === 'unsupported' && !iosNeedsInstall && <p>Dieser Browser unterstützt keine Push-Benachrichtigungen.</p>}
-        {state === 'off' && (
-          <button type="button" onClick={enable}>Push einschalten</button>
-        )}
-        {state === 'on' && (
-          <>
-            <p>Push ist eingeschaltet.</p>
-            <button type="button" onClick={disable}>Push ausschalten</button>
-          </>
-        )}
-        {error && <p className="error-text">{error}</p>}
-        <button type="button" className="link" onClick={onClose}>Schließen</button>
-      </div>
-    </div>
+    <Dialog title="Push-Benachrichtigungen" onClose={onClose}>
+      {state === 'loading' && <p>Laden …</p>}
+      {state === 'server-disabled' && <p>Push ist auf diesem Server noch nicht eingerichtet.</p>}
+      {iosNeedsInstall && (
+        <p>Auf dem iPhone musst du SquadMeet zuerst zum Home-Bildschirm hinzufügen und von dort öffnen.</p>
+      )}
+      {state === 'unsupported' && !iosNeedsInstall && <p>Dieser Browser unterstützt keine Push-Benachrichtigungen.</p>}
+      {state === 'off' && (
+        <button type="button" onClick={enable}>Push einschalten</button>
+      )}
+      {state === 'on' && (
+        <>
+          <p>Push ist eingeschaltet.</p>
+          <button type="button" onClick={disable}>Push ausschalten</button>
+        </>
+      )}
+      {error && <p className="error-text">{error}</p>}
+      <button type="button" className="link" onClick={onClose}>Schließen</button>
+    </Dialog>
   )
 }

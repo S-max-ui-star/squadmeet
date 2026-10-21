@@ -8,6 +8,7 @@ import {
   type Favorite,
   type FavoriteTimeRule,
 } from '../api/favorites'
+import Dialog from '../Dialog'
 
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const dayNames = (days: number[]) => days.map((day) => DAYS[day]).join(', ')
@@ -99,66 +100,63 @@ export default function FavoritesDialog({ token, onOpenPlace, onClose }: Props) 
   }
 
   return (
-    <div className="dialog-backdrop">
-      <div className="dialog favorites-dialog" role="dialog" aria-label="Favoriten">
-        <h2>Favoriten</h2>
-        <p className="hint">
-          Ohne Zeitfenster erhältst du immer eine Benachrichtigung. Mit Zeitfenstern nur, wenn ein Treffen darin beginnt.
-        </p>
-        {error && <p className="form-error">{error}</p>}
-        {favorites === null && !error && <p>Lädt …</p>}
-        {favorites?.length === 0 && <p>Noch keine Favoriten gespeichert.</p>}
-        {favorites?.map((favorite) => (
-          <section className="favorite-card" key={favorite.id}>
-            <h3>{favorite.place.name}</h3>
-            {favorite.place.address && <p>{favorite.place.address}</p>}
-            <div className="button-row">
-              <button type="button" onClick={() => onOpenPlace(favorite.place.id)}>Auf Karte</button>
-              <button type="button" disabled={busy} onClick={() => removePlace(favorite)}>Entfernen</button>
-            </div>
-            {favorite.rules.length === 0 && <p className="hint">Immer aktiv</p>}
-            <ul className="favorite-rules">
-              {favorite.rules.map((rule) => (
-                <li key={rule.id}>
-                  <span>{dayNames(rule.weekdays)}, {shortTime(rule.start)}–{shortTime(rule.end)} Uhr</span>
-                  <button type="button" disabled={busy} onClick={() => begin(favorite.id, rule)}>Bearbeiten</button>
-                  <button type="button" disabled={busy} onClick={() => removeRule(favorite.id, rule.id)}>Löschen</button>
-                </li>
-              ))}
-            </ul>
-            <button type="button" disabled={busy} onClick={() => begin(favorite.id)}>＋ Zeitfenster</button>
-          </section>
-        ))}
-        {editing && (
-          <form className="favorite-rule-form" onSubmit={save}>
-            <h3>{editing.rule ? 'Zeitfenster bearbeiten' : 'Zeitfenster hinzufügen'}</h3>
-            <fieldset>
-              <legend>Wochentage</legend>
-              {DAYS.map((day, index) => (
-                <label className="checkbox" key={day}>
-                  <input
-                    type="checkbox"
-                    checked={weekdays.includes(index)}
-                    onChange={(event) => setWeekdays((current) =>
-                      event.target.checked ? [...current, index].sort() : current.filter((item) => item !== index),
-                    )}
-                  />
-                  {day}
-                </label>
-              ))}
-            </fieldset>
-            <div className="favorite-times">
-              <label>Von<input type="time" value={start} onChange={(event) => setStart(event.target.value)} /></label>
-              <label>Bis<input type="time" value={end} onChange={(event) => setEnd(event.target.value)} /></label>
-            </div>
-            <div className="button-row">
-              <button type="submit" disabled={busy}>Speichern</button>
-              <button type="button" disabled={busy} onClick={() => setEditing(null)}>Abbrechen</button>
-            </div>
-          </form>
-        )}
-        <button type="button" className="link" onClick={onClose}>Schließen</button>
-      </div>
-    </div>
+    <Dialog title="Favoriten" className="favorites-dialog" onClose={onClose}>
+      <p className="hint">
+        Ohne Zeitfenster erhältst du immer eine Benachrichtigung. Mit Zeitfenstern nur, wenn ein Treffen darin beginnt.
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {favorites === null && !error && <p>Lädt …</p>}
+      {favorites?.length === 0 && <p>Noch keine Favoriten gespeichert.</p>}
+      {favorites?.map((favorite) => (
+        <section className="favorite-card" key={favorite.id}>
+          <h3>{favorite.place.name}</h3>
+          {favorite.place.address && <p>{favorite.place.address}</p>}
+          <div className="button-row">
+            <button type="button" onClick={() => onOpenPlace(favorite.place.id)}>Auf Karte</button>
+            <button type="button" disabled={busy} onClick={() => removePlace(favorite)}>Entfernen</button>
+          </div>
+          {favorite.rules.length === 0 && <p className="hint">Immer aktiv</p>}
+          <ul className="favorite-rules">
+            {favorite.rules.map((rule) => (
+              <li key={rule.id}>
+                <span>{dayNames(rule.weekdays)}, {shortTime(rule.start)}–{shortTime(rule.end)} Uhr</span>
+                <button type="button" disabled={busy} onClick={() => begin(favorite.id, rule)}>Bearbeiten</button>
+                <button type="button" disabled={busy} onClick={() => removeRule(favorite.id, rule.id)}>Löschen</button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" disabled={busy} onClick={() => begin(favorite.id)}>＋ Zeitfenster</button>
+        </section>
+      ))}
+      {editing && (
+        <form className="favorite-rule-form" onSubmit={save}>
+          <h3>{editing.rule ? 'Zeitfenster bearbeiten' : 'Zeitfenster hinzufügen'}</h3>
+          <fieldset>
+            <legend>Wochentage</legend>
+            {DAYS.map((day, index) => (
+              <label className="checkbox" key={day}>
+                <input
+                  type="checkbox"
+                  checked={weekdays.includes(index)}
+                  onChange={(event) => setWeekdays((current) =>
+                    event.target.checked ? [...current, index].sort() : current.filter((item) => item !== index),
+                  )}
+                />
+                {day}
+              </label>
+            ))}
+          </fieldset>
+          <div className="favorite-times">
+            <label>Von<input type="time" value={start} onChange={(event) => setStart(event.target.value)} /></label>
+            <label>Bis<input type="time" value={end} onChange={(event) => setEnd(event.target.value)} /></label>
+          </div>
+          <div className="button-row">
+            <button type="submit" disabled={busy}>Speichern</button>
+            <button type="button" disabled={busy} onClick={() => setEditing(null)}>Abbrechen</button>
+          </div>
+        </form>
+      )}
+      <button type="button" className="link" onClick={onClose}>Schließen</button>
+    </Dialog>
   )
 }

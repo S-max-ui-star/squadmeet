@@ -46,7 +46,7 @@ describe('PushSettingsDialog (SCRUM-44)', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
     const container = await renderDialog(fetchMock)
 
-    await act(async () => (container.querySelector('button') as HTMLButtonElement).click())
+    await act(async () => [...container.querySelectorAll('button')].find((b) => b.textContent === 'Push einschalten')!.click())
 
     expect(Notification.requestPermission).toHaveBeenCalled()
     expect(subscribe).toHaveBeenCalledWith({ userVisibleOnly: true, applicationServerKey: new Uint8Array([1, 2, 3]) })
