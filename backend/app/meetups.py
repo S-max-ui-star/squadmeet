@@ -191,6 +191,10 @@ def move_offer(session: Session, meetup: Meetup, user: User | None, joins, now: 
     target = session.get(Meetup, meetup.moved_to_id) if pending else None
     if target is None or not is_open(target, now):
         return None
+    # The target's Host blocked the user after the move. The Block did not remove this Join,
+    # because the old Meetup has another Host now; a blocker stays unnamed (SCRUM-124).
+    if target.host_id in blockers_of(session, user.id):
+        return None
     host = session.get(User, target.host_id)
     return MoveOfferRead(
         meetup_id=target.id,

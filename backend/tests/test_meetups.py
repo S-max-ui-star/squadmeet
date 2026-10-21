@@ -754,6 +754,19 @@ def test_a_cancelled_old_meetup_has_no_offer(client, place, guest, third, moved)
     assert answer_move(client, third[0], old_id, "go").status_code == 409
 
 
+def test_a_user_the_new_host_blocked_has_no_offer_and_cannot_go(client, place, host, third, moved):
+    # SCRUM-124: the Block keeps Mia's Join in the old Meetup, because Karl hosts it now.
+    old_id, new_id = moved
+    blocked = client.post("/api/blocks", json={"nickname": "Mia_Matte"}, headers=auth_header(host[0]))
+    assert blocked.status_code == 201
+
+    assert only(meetups_seen_by(client, third[0], place.id), old_id)["move_offer"] is None
+    assert answer_move(client, third[0], old_id, "go").status_code == 409
+    assert answer_move(client, third[0], old_id, "stay").status_code == 200
+    participants = only(meetups_seen_by(client, host[0], place.id), new_id)["participants"]
+    assert participants == []
+
+
 def hide(session, place):
     """Three open reports: the Place is hidden from users (SCRUM-57)."""
     for n in range(3):
