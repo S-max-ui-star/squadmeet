@@ -118,6 +118,16 @@ describe('searchPlaces', () => {
 
     await expect(searchPlaces('Karl-Liebknecht-Str. 20')).resolves.toEqual([])
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Karl-Liebknecht-Str.%2020')
+    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Karl-Liebknecht-Str.%2020', { signal: undefined })
+  })
+
+  it('passes an abort signal to search', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json([]))
+    vi.stubGlobal('fetch', fetchMock)
+    const request = new AbortController()
+
+    await searchPlaces('Park', request.signal)
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/search?q=Park', { signal: request.signal })
   })
 })

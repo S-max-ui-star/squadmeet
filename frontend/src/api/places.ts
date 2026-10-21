@@ -125,8 +125,8 @@ export async function fetchPlace(id: number, token?: string | null): Promise<Pla
   return response.json()
 }
 
-export async function searchPlaces(query: string): Promise<PlaceSearchHit[]> {
-  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+export async function searchPlaces(query: string, signal?: AbortSignal): Promise<PlaceSearchHit[]> {
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal })
   if (!response.ok) {
     throw new Error(`GET /api/search failed: ${response.status}`)
   }
