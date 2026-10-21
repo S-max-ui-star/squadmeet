@@ -42,6 +42,7 @@ afterEach(() => {
 function render(
   span: 'now' | '3h' | '6h' | 'today' | null = null,
   meetups: Meetup[] = span ? [meetup] : [],
+  state: { loading?: boolean; error?: boolean } = {},
 ) {
   const container = document.createElement('div')
   document.body.append(container)
@@ -55,6 +56,7 @@ function render(
         places={span ? [place] : []}
         onSpanChange={onSpanChange}
         onOpenPlace={onOpenPlace}
+        {...state}
       />,
     ),
   )
@@ -83,6 +85,16 @@ describe('MeetupMap', () => {
 
   it('does not show a Meetup list while the Time filter is off', () => {
     expect(render().container.querySelector('.map-meetup-list')).toBeNull()
+  })
+
+  it('does not report an empty result while the selected filter is loading or failed', () => {
+    const loading = render('now', [], { loading: true }).container
+    expect(loading.textContent).toContain('Treffen werden geladen')
+    expect(loading.textContent).not.toContain('Keine Treffen')
+
+    const failed = render('now', [], { error: true }).container
+    expect(failed.textContent).toContain('Treffen konnten nicht geladen werden')
+    expect(failed.textContent).not.toContain('Keine Treffen')
   })
 
   it('shows a participating Contact with avatar and Nickname', () => {

@@ -17,6 +17,8 @@ type Props = {
   onSpanChange: (span: TimeSpan | null) => void
   onOpenPlace: (placeId: number) => void
   showList?: boolean
+  loading?: boolean
+  error?: boolean
 }
 
 function ContactSummary({ contacts }: { contacts: NonNullable<Meetup['contacts']> }) {
@@ -39,6 +41,8 @@ export default function MeetupMap({
   onSpanChange,
   onOpenPlace,
   showList = true,
+  loading = false,
+  error = false,
 }: Props) {
   const placesById = new Map(places.map((place) => [place.id, place]))
   const visibleMeetups = meetups.filter((meetup) => placesById.has(meetup.place_id))
@@ -61,7 +65,11 @@ export default function MeetupMap({
       {span && showList && (
         <section className="map-meetup-list" aria-label="Treffen im Kartenausschnitt">
           <h2>Treffen</h2>
-          {visibleMeetups.length === 0 ? (
+          {loading ? (
+            <p role="status">Treffen werden geladen …</p>
+          ) : error ? (
+            <p>Treffen konnten nicht geladen werden.</p>
+          ) : visibleMeetups.length === 0 ? (
             <p>Keine Treffen in diesem Kartenausschnitt.</p>
           ) : (
             <ul>

@@ -116,6 +116,7 @@ export default function App() {
   const [startView] = useState(() => loadMapView(MIN_ZOOM))
   const [places, setPlaces] = useState<Place[]>([])
   const [mapMeetups, setMapMeetups] = useState<Meetup[]>([])
+  const [mapLoading, setMapLoading] = useState(false)
   const [timeSpan, setTimeSpan] = useState<TimeSpan | null>(null)
   const [truncated, setTruncated] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -193,9 +194,15 @@ export default function App() {
     placesRequest.current?.abort()
     const request = new AbortController()
     placesRequest.current = request
+    setPlaces([])
+    setMapMeetups([])
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
+    const token = user ? loadToken() : null
     const answer = timeSpan
-      ? fetchMapMeetups(area, timeSpan, request.signal, loadToken())
-      : fetchPlaces(area, request.signal, loadToken()).then((placesAnswer) => ({
+      ? fetchMapMeetups(area, timeSpan, request.signal, token)
+      : fetchPlaces(area, request.signal, token).then((placesAnswer) => ({
           ...placesAnswer,
           meetups: [] as Meetup[],
         }))
@@ -205,14 +212,28 @@ export default function App() {
         setTruncated(answer.truncated)
         setMapMeetups(answer.meetups)
         setError(null)
+        setMapLoading(false)
       })
       .catch((err: Error) => {
-        if (!request.signal.aborted) setError(err.message)
+        if (!request.signal.aborted && placesRequest.current === request) {
+          setError(err.message)
+          setMapLoading(false)
+        }
       })
   }, [timeSpan])
 
   function reloadPlaces() {
     if (lastArea.current) loadPlaces(lastArea.current)
+  }
+
+  function changeTimeSpan(span: TimeSpan | null) {
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
+    setTimeSpan(span)
   }
 
   function pickSearchHit(hit: PlaceSearchHit) {
@@ -588,9 +609,11 @@ export default function App() {
         span={timeSpan}
         meetups={mapMeetups}
         places={visiblePlaces}
-        onSpanChange={setTimeSpan}
+        onSpanChange={changeTimeSpan}
         onOpenPlace={openPlace}
         showList={selectedId === null}
+        loading={mapLoading}
+        error={Boolean(error)}
       />
       <ActivityFilter chosen={chosen} onChange={setChosen} />
       {selectedId !== null && (
