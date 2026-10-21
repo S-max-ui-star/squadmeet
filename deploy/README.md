@@ -215,9 +215,12 @@ docker compose exec db psql -U squadmeet -d squadmeet -c "
   ORDER BY a.id"
 ```
 
-`entity` is the table name (`place`, `meetup`, `app_user`, ...). Not in the log: secrets
+`entity` is the table name (`place`, `meetup`, `app_user`, `rating`, ...). Not in the log: secrets
 (password hash, MFA secret, Recovery codes, login sessions), Notifications, rows that the
 database deletes by cascade (for example the Meetups of a deleted account), and edits in `psql`.
+A new password or new Recovery codes show only as `{"password": "changed"}` or
+`{"recovery_codes": "changed"}`, without the value (`SCRUM-69`). Ratings and Place
+Confirmations are logged (`SCRUM-115`).
 An empty `nickname` with `actor_kind = user` means that the account was deleted.
 
 ## Move to the NAS later

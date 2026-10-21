@@ -137,6 +137,7 @@ _Avoid_: group, guests
 
 **Rating** (Bewertung):
 A user's 1–5 star judgement of a Place, with at least one Reason. One per user per Place.
+Everyone sees each Rating without a name: stars, Reasons and the date of the last change.
 _Avoid_: review, comment
 
 **Reason** (Begründung):
@@ -201,7 +202,8 @@ list while the Block lasts.
 _Avoid_: mute, report
 
 **Admin**:
-A team member who moderates Photos and can lock or delete Places.
+A team member who approves or rejects Place suggestions and Photos, handles Place reports, and
+can lock, unlock or delete Places. The Admin functions need MFA.
 _Avoid_: moderator, owner
 
 ## Notifications
@@ -250,7 +252,7 @@ _Avoid_: request, invite link
 
 **Push subscription** (Push-Abo):
 One browser endpoint plus its encryption keys, stored for one user after browser permission. It is
-private account data and disappears when the user turns Push off, the provider reports it expired,
-or the account is deleted. The VAPID private key is only server configuration. Only endpoints of
+private account data and disappears when the user turns Push off, logs out in that browser, the
+provider reports it expired, or the account is deleted. The VAPID private key is only server configuration. Only endpoints of
 the browsers' push services are accepted, at most 5 per user; a sixth replaces the oldest.
 _Avoid_: device token, Notification
