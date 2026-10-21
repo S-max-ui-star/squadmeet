@@ -1298,7 +1298,8 @@ body {
 }
 
 /* SCRUM-82: the city report folds out from this button, closed at first. */
-.city-report-toggle {
+.city-report-toggle,
+.rating-list-toggle {
   padding: 4px 0;
   font: inherit;
   font-weight: 700;
@@ -1332,6 +1333,44 @@ body {
   font-size: 1.2rem;
   letter-spacing: 1px;
   color: #c98a00;
+}
+
+.rating-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rating-list-item {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  background: #f6f7f9;
+  border-radius: 8px;
+}
+
+.rating-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rating-list-head .stars {
+  color: #c98a00;
+  letter-spacing: 1px;
+}
+
+.rating-list-head time,
+.rating-list-reasons {
+  font-size: 0.85rem;
+}
+
+.rating-list-head time {
+  color: #646b78;
+  white-space: nowrap;
 }
 
 .reason-chips {
