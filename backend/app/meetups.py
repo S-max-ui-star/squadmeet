@@ -33,7 +33,7 @@ from app.contact_notifications import (
 )
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
 from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
-from app.place_status import PlaceUse, require, view_use
+from app.place_status import PlaceUse, in_db, require, view_use
 from app.series import fill_open_series
 
 MIN_HOURS = 1
@@ -288,7 +288,7 @@ def to_read(session: Session, meetup: Meetup, user: User | None) -> MeetupRead:
 
 
 def get_meetup(session: Session, meetup_id: int) -> Meetup:
-    meetup = session.get(Meetup, meetup_id)
+    meetup = session.get(Meetup, meetup_id) if in_db(meetup_id) else None
     if meetup is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meetup not found")
     return meetup
@@ -474,8 +474,10 @@ def invite_contacts(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ):
-    """Kontakte einladen (SCRUM-43): the chosen Contacts get an invitation Notification."""
+    """Kontakte einladen (SCRUM-43): the chosen Contacts get an invitation Notification. Not at
+    a hidden Place, as for Join (SCRUM-74)."""
     meetup = get_meetup(session, meetup_id)
+    require(session, meetup.place_id, PlaceUse.MEETUP)
     count = invite(session, meetup, user.id, set(body.user_ids), datetime.now(UTC))
     session.commit()
     return InviteResult(invited=count)

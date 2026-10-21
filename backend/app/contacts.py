@@ -19,13 +19,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth import current_user
-from app.blocks import blocked_by, blockers_of  # noqa: F401  (blockers_of: used by others)
+from app.blocks import blocked_by
 from app.db import get_session
 from app.models import ContactRequest, Meetup, MeetupJoin, User, UserBlock
+from app.place_status import in_db
+from app.rate_limit import RateLimit
 
 router = APIRouter(tags=["contacts"])
 
 NOT_POSSIBLE = "Anfrage nicht möglich"
+
+# Requests and Blocks by Nickname: more per hour is spam after a decline, or a script that
+# tests which Nicknames exist.
+nickname_lookup_per_user = RateLimit(limit=20, window_seconds=60 * 60)
 
 
 class NicknameBody(BaseModel):
@@ -55,8 +61,10 @@ def brief(user: User) -> ContactUser:
     return ContactUser(id=user.id, nickname=user.nickname, avatar=user.avatar)
 
 
-def find_user(session: Session, nickname: str) -> User:
-    """The user with exactly this Nickname (case does not matter, as at registration)."""
+def find_user(session: Session, nickname: str, by: User) -> User:
+    """The user with exactly this Nickname (case does not matter, as at registration). Counts
+    against the lookup limit of `by`."""
+    nickname_lookup_per_user.hit(by.id)
     found = session.exec(
         select(User).where(func.lower(User.nickname) == nickname.strip().lower())
     ).first()
@@ -108,7 +116,7 @@ def ask_for_contact(
     session: Session = Depends(get_session),
 ):
     """A Contact request by exact Nickname. A request back accepts the open one."""
-    other = find_user(session, body.nickname)
+    other = find_user(session, body.nickname, user)
     if other.id == user.id:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Das bist du selbst")
     if session.exec(
@@ -154,7 +162,7 @@ def ask_for_contact(
 
 
 def incoming_request(session: Session, request_id: int, user: User) -> ContactRequest:
-    row = session.get(ContactRequest, request_id)
+    row = session.get(ContactRequest, request_id) if in_db(request_id) else None
     if row is None or row.addressee_id != user.id or row.status != "pending":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keine offene Anfrage")
     return row
@@ -187,7 +195,7 @@ def withdraw_request(
     request_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
     """The asker takes back an open request, or clears a declined one from their list."""
-    row = session.get(ContactRequest, request_id)
+    row = session.get(ContactRequest, request_id) if in_db(request_id) else None
     if row is None or row.requester_id != user.id or row.status == "accepted":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keine Anfrage")
     session.delete(row)
@@ -199,12 +207,12 @@ def withdraw_request(
 def remove_contact(
     user_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    row = session.exec(
+    row = in_db(user_id) and session.exec(
         select(ContactRequest).where(
             between(user.id, user_id), ContactRequest.status == "accepted"
         )
     ).first()
-    if row is None:
+    if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kein Kontakt")
     session.delete(row)
     session.commit()
@@ -219,7 +227,7 @@ def block_user(
 ):
     """Block: the Contact and open requests go, and the blocked user's Joins of Meetups this
     user hosts are removed. Blocking twice changes nothing."""
-    other = find_user(session, body.nickname)
+    other = find_user(session, body.nickname, user)
     if other.id == user.id:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Das bist du selbst")
     now = datetime.now(UTC)
@@ -246,10 +254,10 @@ def block_user(
 def unblock_user(
     user_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    row = session.exec(
+    row = in_db(user_id) and session.exec(
         select(UserBlock).where(UserBlock.blocker_id == user.id, UserBlock.blocked_id == user_id)
     ).first()
-    if row is None:
+    if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nicht blockiert")
     session.delete(row)
     session.commit()

@@ -188,13 +188,16 @@ _Avoid_: friend, follower, connection
 
 **Contact request** (Kontaktanfrage):
 A request to become a Contact, sent by the exact Nickname. The other user must accept it. If they
-decline, the asker sees that and may ask again.
+decline, the asker sees that and may ask again. A user makes at most 20 Contact requests and
+Blocks by Nickname per hour.
 _Avoid_: friend request, invite
 
 **Block** (Blockieren):
 A user's choice that works in one direction: the blocked user can no longer send them requests,
 does not see the Meetups they host, and does not see their Nickname in other Meetups. The
 blocking user still sees the blocked user and is warned when they are in the same Meetup.
+The blocked user's older Notifications about the blocker or the blocker's Meetups leave their
+list while the Block lasts.
 _Avoid_: mute, report
 
 **Admin**:
@@ -240,11 +243,13 @@ _Avoid_: friend alert, follow
 **Invitation** (Einladung):
 A Notification that someone in a Meetup (the Host or a Join) sends to chosen Contacts of their
 own. It names the inviter and offers "Ich komme mit" (Party size 1). At most one per user and
-Meetup; nobody already in the Meetup, nobody blocked with the inviter or the Host.
+Meetup; nobody already in the Meetup, nobody blocked with the inviter or the Host. Not at a
+hidden Place.
 _Avoid_: request, invite link
 
 **Push subscription** (Push-Abo):
 One browser endpoint plus its encryption keys, stored for one user after browser permission. It is
 private account data and disappears when the user turns Push off, the provider reports it expired,
-or the account is deleted. The VAPID private key is only server configuration.
+or the account is deleted. The VAPID private key is only server configuration. Only endpoints of
+the browsers' push services are accepted, at most 5 per user; a sixth replaces the oldest.
 _Avoid_: device token, Notification

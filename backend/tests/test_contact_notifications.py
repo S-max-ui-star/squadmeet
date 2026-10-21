@@ -23,6 +23,7 @@ from tests.test_meetups import (  # noqa: F401 (fixtures)
     third,
 )
 from tests.test_notifications import kinds, notifications
+from tests.test_place_reports import report, users
 from tests.test_series import create_series, slot
 
 
@@ -289,3 +290,44 @@ def test_after_the_inviters_account_delete_the_invitation_has_no_name(
     found = notifications(client, guest[0]).json()
     assert {"contact_meetup_created", "meetup_invitation"} <= {n["kind"] for n in found}
     assert all(n["actor_nickname"] is None for n in found)
+
+
+def test_no_invitation_at_a_hidden_place(client, session, place, third):
+    """Like Join and move (SCRUM-72): a hidden Place stays unknown to the invited Contact."""
+    *reporters, host_token = users(client, session, 4)
+    meetup = create(client, host_token, place.id, starts_at=later(days=1)).json()
+    request_id = ask(client, host_token, "Mia_Matte").json()["id"]
+    assert answer(client, third[0], request_id, "accept").status_code == 200
+    for token in reporters:
+        report(client, token, place.id)
+
+    assert invite(client, host_token, meetup["id"], [third[1]]).status_code == 404
+    assert kinds(client, third[0]) == []
+
+
+def test_a_too_big_meetup_id_is_not_found(client, host):
+    big = 9_999_999_999
+    response = client.get(f"/api/meetups/{big}/invite", headers=auth_header(host[0]))
+    assert response.status_code == 404
+    assert invite(client, host[0], big, [1]).status_code == 404
+
+
+def test_a_block_hides_the_blockers_notifications_until_the_unblock(
+    client, place, host, guest, third
+):
+    """Karl no longer sees Paula's Meetups nor her Nickname (SCRUM-32), also in old notices."""
+    befriend(client, host, guest, "Korb_Karl")
+    befriend(client, third, guest, "Korb_Karl")
+    paulas = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    join(client, third[0], paulas["id"])
+    invite(client, third[0], paulas["id"], [guest[1]])
+    mias = create(client, third[0], place.id, starts_at=later(days=2)).json()
+    assert len(notifications(client, guest[0]).json()) == 3
+
+    block(client, host[0], "Korb_Karl")
+
+    [left] = notifications(client, guest[0]).json()
+    assert (left["meetup_id"], left["actor_nickname"]) == (mias["id"], "Mia_Matte")
+
+    client.delete(f"/api/blocks/{guest[1]}", headers=auth_header(host[0]))
+    assert len(notifications(client, guest[0]).json()) == 3
