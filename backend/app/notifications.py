@@ -1,9 +1,9 @@
 """The signed-in user's in-app Notification list (SCRUM-40)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import delete, or_
 from sqlmodel import Session, select
 
 from app.auth import current_user
@@ -14,6 +14,9 @@ from app.notification_text import NotificationKind, notification_text
 from app.place_status import in_db
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+# Stefan's rule (SCRUM-141): a Notification stays until 14 days after its Meetup's end.
+KEEP_AFTER_END = timedelta(days=14)
 
 
 class NotificationRead(BaseModel):
@@ -28,6 +31,18 @@ class NotificationRead(BaseModel):
     read: bool
     # The person who caused the event; null after that account was deleted.
     actor_nickname: str | None = None
+
+
+def delete_old_notifications(session: Session, user_id: int, now: datetime) -> None:
+    """Delete the user's Notifications whose Meetup ended more than KEEP_AFTER_END ago, read or
+    not (SCRUM-141). Runs at each list request, like the Series fill; there is no daily job."""
+    ended = select(Meetup.id).where(Meetup.ends_at < now - KEEP_AFTER_END)
+    session.exec(
+        delete(Notification).where(
+            Notification.user_id == user_id, Notification.meetup_id.in_(ended)
+        )
+    )
+    session.commit()
 
 
 def own_notification(session: Session, notification_id: int, user_id: int) -> Notification:
@@ -45,9 +60,11 @@ def own_notification(session: Session, notification_id: int, user_id: int) -> No
 def list_notifications(
     user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    """Newest first; a Notification stays until the account or Meetup is deleted. Notices of
-    users who blocked the viewer, as actor or as Host, are left out while the Block lasts
-    (SCRUM-32: the blocked user sees neither their Meetups nor their Nickname)."""
+    """Newest first; a Notification stays until 14 days after its Meetup ended, or until the
+    account or Meetup is deleted. Notices of users who blocked the viewer, as actor or as
+    Host, are left out while the Block lasts (SCRUM-32: the blocked user sees neither their
+    Meetups nor their Nickname)."""
+    delete_old_notifications(session, user.id, datetime.now(UTC))
     blockers = blockers_of(session, user.id)
     rows = session.exec(
         select(
