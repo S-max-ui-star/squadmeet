@@ -12,7 +12,7 @@ import {
   type User,
 } from './api/auth'
 import { fetchContacts, type Contacts } from './api/contacts'
-import { announceMeetupChange, announceTopicChange, connectLive } from './api/live'
+import { announceMeetupChange, announceRatingChange, announceTopicChange, connectLive } from './api/live'
 import { fetchNotifications, type Notification } from './api/notifications'
 import { fetchPhotosEnabled } from './api/photos'
 import { countFor, type RequestCount } from './auth/requestCount'
@@ -319,6 +319,9 @@ export default function App() {
         if (!pageVisible()) return
         setMeetupEvents((count) => count + 1)
         announceMeetupChange(placeId)
+      },
+      onRatings: (placeId) => {
+        if (pageVisible()) announceRatingChange(placeId)
       },
     })
     return () => {

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, select
 
+from app import live
 from app.auth import current_user
 from app.db import get_session
 from app.models import ConditionVote, Place, Rating, User
@@ -253,6 +254,8 @@ def rate_place(
         .values(place_id=place_id, user_id=user.id, created_at=now, **values)
         .on_conflict_do_update(constraint="uq_rating_place_user", set_=values)
     )
+    # The upsert is no ORM change, so the open pages hear of it here (SCRUM-98).
+    live.note(session, None, f"ratings:{place_id}")
     session.commit()
     rating = session.exec(
         select(Rating).where(Rating.place_id == place_id, Rating.user_id == user.id)

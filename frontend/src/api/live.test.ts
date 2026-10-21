@@ -20,6 +20,7 @@ function setVisibility(state: DocumentVisibilityState) {
 let onOpen: ReturnType<typeof vi.fn<() => void>>
 let onTopic: ReturnType<typeof vi.fn<(topic: LiveTopic) => void>>
 let onMeetups: ReturnType<typeof vi.fn<(placeId: number) => void>>
+let onRatings: ReturnType<typeof vi.fn<(placeId: number) => void>>
 let stop: () => void = () => {}
 
 beforeEach(() => {
@@ -27,6 +28,7 @@ beforeEach(() => {
   onOpen = vi.fn()
   onTopic = vi.fn()
   onMeetups = vi.fn()
+  onRatings = vi.fn()
 })
 
 afterEach(() => {
@@ -40,7 +42,7 @@ describe('connectLive', () => {
     const fetch = vi.fn().mockResolvedValue(new Response(body(['data: rea', 'dy\n\n: ping\n\ndata: contacts\n\n', 'data: notifications\n\n'])))
     vi.stubGlobal('fetch', fetch)
 
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.waitFor(() => expect(onTopic).toHaveBeenCalledTimes(2))
 
     expect(fetch).toHaveBeenCalledWith('/api/live', expect.objectContaining({ headers: { Authorization: 'Bearer t' } }))
@@ -51,10 +53,19 @@ describe('connectLive', () => {
   it('reports a Meetup change with its Place', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body(['data: ready\n\ndata: meetups:42\n\n']))))
 
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.waitFor(() => expect(onMeetups).toHaveBeenCalledWith(42))
 
     expect(onTopic).not.toHaveBeenCalled()
+  })
+
+  it('reports a Rating change with its Place (SCRUM-98)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body(['data: ready\n\ndata: ratings:7\n\n']))))
+
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
+    await vi.waitFor(() => expect(onRatings).toHaveBeenCalledWith(7))
+
+    expect(onMeetups).not.toHaveBeenCalled()
   })
 
   it('connects again after the stream ends, and then reports ready again', async () => {
@@ -64,7 +75,7 @@ describe('connectLive', () => {
       .mockResolvedValueOnce(new Response(body(['data: ready\n\n'])))
     vi.stubGlobal('fetch', fetch)
 
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     // Not vi.waitFor here: it moves the fake clock forward.
     await vi.advanceTimersByTimeAsync(0)
     expect(onOpen).toHaveBeenCalledTimes(1)
@@ -79,7 +90,7 @@ describe('connectLive', () => {
     const fetch = vi.fn().mockRejectedValue(new TypeError('offline'))
     vi.stubGlobal('fetch', fetch)
 
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.advanceTimersByTimeAsync(2_000)
     expect(fetch).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(3_999)
@@ -92,7 +103,7 @@ describe('connectLive', () => {
     const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }))
     vi.stubGlobal('fetch', fetch)
 
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.advanceTimersByTimeAsync(60_000)
 
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -101,7 +112,7 @@ describe('connectLive', () => {
   it('opens a fresh stream at once when the page becomes visible again', async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(body(['data: ready\n\n']))))
     vi.stubGlobal('fetch', fetch)
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1))
     const firstSignal: AbortSignal = fetch.mock.calls[0][1].signal
 
@@ -115,7 +126,7 @@ describe('connectLive', () => {
   it('stop closes the stream and does not connect again', async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(body(['data: ready\n\n']))))
     vi.stubGlobal('fetch', fetch)
-    stop = connectLive('t', { onOpen, onTopic, onMeetups })
+    stop = connectLive('t', { onOpen, onTopic, onMeetups, onRatings })
     await vi.waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1))
 
     stop()

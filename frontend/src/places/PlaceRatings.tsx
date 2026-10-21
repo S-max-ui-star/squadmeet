@@ -13,8 +13,10 @@ import {
   type Reason,
   type ReasonCount,
 } from '../api/ratings'
+import { onRatingChange } from '../api/live'
 import type { Place } from '../api/places'
 import { findCityReport, mailtoLink, placeText, telLink } from './cityReport'
+import { usePlaceReloads } from './usePlaceReloads'
 
 type Props = {
   placeId: number
@@ -226,7 +228,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
       .catch((err: Error) => setError(err.message))
   }, [placeId])
 
-  useEffect(reload, [reload])
+  // Other users' Ratings and votes show without a reload (SCRUM-98).
+  usePlaceReloads(reload, placeId, onRatingChange)
 
   // The own Rating, so the form starts with it. App gives this part a new key per user.
   useEffect(() => {
