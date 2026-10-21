@@ -15,7 +15,7 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ## Mi 21.10.2026 — Tag 11
 
-- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails; `SCRUM-100` ergänzt die anonyme Liste einzelner Bewertungen. Mit `SCRUM-104` und `SCRUM-105` die ersten beiden Teile des Frontend-Reviews abgeschlossen; die Befunde `SCRUM-111`, `SCRUM-112` und `SCRUM-116`–`SCRUM-122` test-first behoben.
+- **Dominik:** `SCRUM-95` ergänzt „Teilen“ in den Platzdetails; `SCRUM-100` ergänzt die anonyme Liste einzelner Bewertungen. Mit `SCRUM-104`, `SCRUM-105` und `SCRUM-110` die ersten drei Teile des Frontend-Reviews abgeschlossen; die Befunde einschließlich `SCRUM-126`–`SCRUM-131` test-first behoben.
 
 ## Di 20.10.2026 — Tag 10
 

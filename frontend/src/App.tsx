@@ -116,6 +116,7 @@ export default function App() {
   const [startView] = useState(() => loadMapView(MIN_ZOOM))
   const [places, setPlaces] = useState<Place[]>([])
   const [mapMeetups, setMapMeetups] = useState<Meetup[]>([])
+  const [mapLoading, setMapLoading] = useState(false)
   const [timeSpan, setTimeSpan] = useState<TimeSpan | null>(null)
   const [truncated, setTruncated] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -143,20 +144,25 @@ export default function App() {
   const [requests, setRequests] = useState<RequestCount | null>(null)
   const [notificationState, setNotificationState] = useState<NotificationState | null>(null)
   const [chosen, setChosen] = useState<Set<ActivityType>>(() => new Set(ACTIVITY_TYPES))
-  const [path, navigate] = usePath()
+  const [path, navigate, closePlace] = usePath()
   const selectedId = placeIdFromPath(path)
   // Set by a tap on a Notification: the map zooms in on that Place (SCRUM-90).
   const [focus, focusOn] = useFocusRequest()
   const legalPage = legalPageFromPath(path)
   // The answer for the Place in the detail URL. It keeps its id, so an old answer never shows.
-  const [detail, setDetail] = useState<{ id: number; place?: Place; error?: string } | null>(null)
+  const [detail, setDetail] = useState<{
+    id: number
+    viewerId: number | null
+    place?: Place
+    error?: string
+  } | null>(null)
   // Counts the tries for the open Place, so "Nochmal versuchen" or a new tap loads it again.
   const [detailTry, setDetailTry] = useState(0)
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
   const [searchDismissRequest, setSearchDismissRequest] = useState(0)
   // Photos are deferred (SCRUM-94): hidden until the server switch PHOTOS_ENABLED is on.
   const [photos, setPhotos] = useState(false)
-  const current = detail && detail.id === selectedId ? detail : null
+  const current = detail && detail.id === selectedId && detail.viewerId === (user?.id ?? null) ? detail : null
   const selected = current?.place ?? null
 
   useEffect(() => {
@@ -167,13 +173,14 @@ export default function App() {
   useEffect(() => {
     if (selectedId === null) return
     let stillWanted = true
-    fetchPlace(selectedId, loadToken())
-      .then((place) => stillWanted && setDetail({ id: selectedId, place }))
-      .catch((err: Error) => stillWanted && setDetail({ id: selectedId, error: err.message }))
+    const viewerId = user?.id ?? null
+    fetchPlace(selectedId, user ? loadToken() : null)
+      .then((place) => stillWanted && setDetail({ id: selectedId, viewerId, place }))
+      .catch((err: Error) => stillWanted && setDetail({ id: selectedId, viewerId, error: err.message }))
     return () => {
       stillWanted = false
     }
-  }, [selectedId, detailTry])
+  }, [selectedId, detailTry, user])
 
   // A tap on the open Place loads it again (helps after a network error); otherwise it opens it.
   function openPlace(id: number) {
@@ -193,26 +200,47 @@ export default function App() {
     placesRequest.current?.abort()
     const request = new AbortController()
     placesRequest.current = request
+    setPlaces([])
+    setMapMeetups([])
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
+    const token = user ? loadToken() : null
     const answer = timeSpan
-      ? fetchMapMeetups(area, timeSpan, request.signal, loadToken())
-      : fetchPlaces(area, request.signal, loadToken()).then((placesAnswer) => ({
+      ? fetchMapMeetups(area, timeSpan, request.signal, token)
+      : fetchPlaces(area, request.signal, token).then((placesAnswer) => ({
           ...placesAnswer,
           meetups: [] as Meetup[],
         }))
     answer
       .then((answer) => {
+        if (request.signal.aborted || placesRequest.current !== request) return
         setPlaces(answer.places)
         setTruncated(answer.truncated)
         setMapMeetups(answer.meetups)
         setError(null)
+        setMapLoading(false)
       })
       .catch((err: Error) => {
-        if (!request.signal.aborted) setError(err.message)
+        if (!request.signal.aborted && placesRequest.current === request) {
+          setError(err.message)
+          setMapLoading(false)
+        }
       })
-  }, [timeSpan])
+  }, [timeSpan, user])
 
   function reloadPlaces() {
     if (lastArea.current) loadPlaces(lastArea.current)
+  }
+
+  function changeTimeSpan(span: TimeSpan | null) {
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
+    setTimeSpan(span)
   }
 
   function pickSearchHit(hit: PlaceSearchHit) {
@@ -223,7 +251,7 @@ export default function App() {
 
   function closeOnMapTap() {
     setSearchDismissRequest((request) => request + 1)
-    if (selectedId !== null) navigate('/')
+    if (selectedId !== null) closePlace()
   }
 
   // Not in the background; once when the page comes back to the front (SCRUM-78).
@@ -333,6 +361,13 @@ export default function App() {
 
   function handleLoggedIn(result: LoginResult) {
     saveToken(result.token)
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setDetail(null)
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
     setUser(result.user)
     setShowAuth(false)
   }
@@ -365,6 +400,13 @@ export default function App() {
     setHomeAreaCenter(null)
     setRequests(null)
     setNotificationState(null)
+    placesRequest.current?.abort()
+    setPlaces([])
+    setMapMeetups([])
+    setDetail(null)
+    setTruncated(false)
+    setError(null)
+    setMapLoading(true)
   }
 
   async function handleLogout() {
@@ -380,7 +422,6 @@ export default function App() {
     clearToken()
     setUser(null)
     resetUserUi()
-    reloadPlaces()
   }
 
   return (
@@ -588,9 +629,11 @@ export default function App() {
         span={timeSpan}
         meetups={mapMeetups}
         places={visiblePlaces}
-        onSpanChange={setTimeSpan}
+        onSpanChange={changeTimeSpan}
         onOpenPlace={openPlace}
         showList={selectedId === null}
+        loading={mapLoading}
+        error={Boolean(error)}
       />
       <ActivityFilter chosen={chosen} onChange={setChosen} />
       {selectedId !== null && (
@@ -598,15 +641,16 @@ export default function App() {
           place={selected}
           error={current?.error ?? null}
           onRetry={() => setDetailTry((n) => n + 1)}
-          onClose={() => navigate('/')}
+          key={selectedId}
+          onClose={closePlace}
           user={user}
           onLoginNeeded={() => setShowAuth(true)}
           onConfirmed={(updated) => {
-            setDetail({ id: updated.id, place: updated })
+            setDetail({ id: updated.id, viewerId: user?.id ?? null, place: updated })
             reloadPlaces()
           }}
           onRemoved={() => {
-            navigate('/')
+            closePlace()
             reloadPlaces()
           }}
           // Only the map: the detail stays open with the thanks, even when the Place leaves the map.
@@ -648,6 +692,9 @@ export default function App() {
         center={startView?.center ?? LEIPZIG}
         zoom={startView?.zoom ?? 13}
         minZoom={MIN_ZOOM}
+        maxBounds={[[-90, -180], [90, 180]]}
+        maxBoundsViscosity={1}
+        worldCopyJump
         style={{ height: '100%' }}
       >
         <TileLayer

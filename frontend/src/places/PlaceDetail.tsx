@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
 import { canModerate } from '../api/admin'
 import type { User } from '../api/auth'
 import type { Place } from '../api/places'
@@ -26,9 +26,12 @@ type Props = {
   children?: ReactNode
 }
 
-type HeadProps = Pick<Props, 'place' | 'error' | 'onClose'>
+type HeadProps = Pick<Props, 'place' | 'error' | 'onClose'> & {
+  titleId: string
+  closeRef: RefObject<HTMLButtonElement | null>
+}
 
-function PlaceDetailHead({ place, error, onClose }: HeadProps) {
+function PlaceDetailHead({ place, error, onClose, titleId, closeRef }: HeadProps) {
   const activity = place && activityOf(place.activity_type)
   return (
     <div className="place-detail-head">
@@ -38,11 +41,11 @@ function PlaceDetailHead({ place, error, onClose }: HeadProps) {
         </span>
       )}
       <div className="place-detail-title">
-        <h2>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
+        <h2 id={titleId}>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
         {activity && <span>{activity.label}</span>}
       </div>
       {/* At the top, so a phone user need not scroll down to "Zurück zur Karte" (SCRUM-76). */}
-      <button type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
+      <button ref={closeRef} type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
         ×
       </button>
     </div>
@@ -119,9 +122,28 @@ export default function PlaceDetail({
   onReported,
   children,
 }: Props) {
+  const titleId = useId()
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [onClose])
+
   return (
-    <section className="place-detail" aria-label={place?.name ?? 'Platz'}>
-      <PlaceDetailHead place={place} error={error} onClose={onClose} />
+    <section className="place-detail" aria-labelledby={titleId}>
+      <PlaceDetailHead place={place} error={error} onClose={onClose} titleId={titleId} closeRef={closeRef} />
 
       {place && (
         <PlaceDetailContent
