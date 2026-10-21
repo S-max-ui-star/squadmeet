@@ -1,9 +1,12 @@
 """Web Push subscriptions and delivery (SCRUM-44)."""
 
 import json
+import threading
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import get_args
 
+import pytest
 from app.models import PushSubscription
 from app.notification_text import NotificationKind, REASONS
 from app.push_delivery import send_web_push
@@ -18,6 +21,42 @@ SUBSCRIPTION = {
     "endpoint": "https://fcm.googleapis.com/fcm/send/one",
     "keys": {"p256dh": "public-browser-key", "auth": "browser-auth-secret"},
 }
+
+
+class Queue:
+    """Stands in for the worker: keeps each job, so a test runs it when it wants."""
+
+    def __init__(self):
+        self.jobs = []
+
+    def submit(self, fn, *args):
+        self.jobs.append((fn, args))
+
+    def run(self):
+        for fn, args in self.jobs:
+            fn(*args)
+        self.jobs.clear()
+
+
+@pytest.fixture
+def queued(session, monkeypatch):
+    queue = Queue()
+    monkeypatch.setattr("app.push_delivery.worker", queue)
+    # The worker opens its own session; in a test it must see the test's rows.
+    monkeypatch.setattr("app.push_delivery.open_session", lambda: nullcontext(session))
+    return queue
+
+
+def add_subscription(session, user_id, endpoint=SUBSCRIPTION["endpoint"]):
+    session.add(
+        PushSubscription(
+            user_id=user_id,
+            endpoint=endpoint,
+            p256dh="public-browser-key",
+            auth="browser-auth-secret",
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
 def test_every_notification_kind_has_a_push_message():
@@ -77,20 +116,14 @@ def test_subscription_rejects_non_https_and_local_endpoints(client, guest):
         assert client.put("/api/push/subscription", json=body, headers=headers).status_code == 422
 
 
-def test_new_notification_is_sent_to_each_subscription(client, session, place, host, guest, monkeypatch):
+def test_new_notification_is_sent_to_each_subscription(
+    client, session, place, host, guest, queued, monkeypatch
+):
     sent = []
     monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
     monkeypatch.setenv("VAPID_SUBJECT", "mailto:test@squadmeet.example")
     monkeypatch.setattr("app.push_delivery.webpush", lambda **kwargs: sent.append(kwargs))
-    session.add(
-        PushSubscription(
-            user_id=guest[1],
-            endpoint=SUBSCRIPTION["endpoint"],
-            p256dh="public-browser-key",
-            auth="browser-auth-secret",
-            created_at=datetime.now(UTC),
-        )
-    )
+    add_subscription(session, guest[1])
     place.address = "Karl-Heine-Straße 12–14, 04229 Leipzig"
     session.add(place)
     session.commit()
@@ -98,6 +131,7 @@ def test_new_notification_is_sent_to_each_subscription(client, session, place, h
     join(client, guest[0], meetup["id"])
 
     response = client.post(f"/api/meetups/{meetup['id']}/cancel", headers=auth_header(host[0]))
+    queued.run()
 
     assert response.status_code == 200
     assert len(sent) == 1
@@ -109,24 +143,18 @@ def test_new_notification_is_sent_to_each_subscription(client, session, place, h
     )
 
 
-def test_expired_subscription_is_removed(session, guest, monkeypatch):
+def test_expired_subscription_is_removed(session, guest, queued, monkeypatch):
     class Gone(Exception):
         response = type("Response", (), {"status_code": 410})()
 
     monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
     monkeypatch.setattr("app.push_delivery.webpush", lambda **_kwargs: (_ for _ in ()).throw(Gone()))
-    subscription = PushSubscription(
-        user_id=guest[1],
-        endpoint=SUBSCRIPTION["endpoint"],
-        p256dh="public-browser-key",
-        auth="browser-auth-secret",
-        created_at=datetime.now(UTC),
-    )
-    session.add(subscription)
+    add_subscription(session, guest[1])
     session.commit()
 
     send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
     session.commit()
+    queued.run()
 
     assert session.exec(select(PushSubscription)).all() == []
 
@@ -161,21 +189,75 @@ def test_a_sixth_subscription_replaces_the_oldest(client, session, guest):
     assert sorted(stored) == [f"{SUBSCRIPTION['endpoint']}{n}" for n in range(1, 6)]
 
 
-def test_an_old_subscription_of_another_host_is_not_called(session, guest, monkeypatch):
+def test_an_old_subscription_of_another_host_is_not_called(session, guest, queued, monkeypatch):
     sent = []
     monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
     monkeypatch.setattr("app.push_delivery.webpush", lambda **kwargs: sent.append(kwargs))
-    session.add(
-        PushSubscription(
-            user_id=guest[1],
-            endpoint="https://127.0.0.1.nip.io/x",
-            p256dh="public-browser-key",
-            auth="browser-auth-secret",
-            created_at=datetime.now(UTC),
-        )
-    )
+    add_subscription(session, guest[1], endpoint="https://127.0.0.1.nip.io/x")
     session.commit()
 
     send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
+    session.commit()
+    queued.run()
 
     assert sent == []
+
+
+def test_no_push_before_the_commit_and_none_after_a_rollback(session, guest, queued, monkeypatch):
+    sent = []
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
+    monkeypatch.setattr("app.push_delivery.webpush", lambda **kwargs: sent.append(kwargs))
+    add_subscription(session, guest[1])
+    session.commit()
+
+    send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
+    with session.begin_nested():  # A savepoint (SCRUM-123, SCRUM-139) is not the commit.
+        pass
+    queued.run()
+    assert sent == []
+
+    session.rollback()
+    session.commit()
+    queued.run()
+    assert sent == []
+
+
+def test_a_failed_savepoint_keeps_the_push_of_the_transaction(session, guest, queued, monkeypatch):
+    sent = []
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
+    monkeypatch.setattr("app.push_delivery.webpush", lambda **kwargs: sent.append(kwargs))
+    add_subscription(session, guest[1])
+    session.commit()
+
+    send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
+    session.begin_nested().rollback()
+    session.commit()
+    queued.run()
+
+    assert len(sent) == 1
+
+
+def test_the_request_does_not_wait_for_the_push_services(
+    client, session, place, host, guest, monkeypatch
+):
+    release, finished = threading.Event(), threading.Event()
+
+    def slow_push_service(**_kwargs):
+        release.wait(5)
+        finished.set()
+
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
+    monkeypatch.setattr("app.push_delivery.webpush", slow_push_service)
+    add_subscription(session, guest[1])
+    session.commit()
+    meetup = create(client, host[0], place.id, starts_at=later(days=1)).json()
+    join(client, guest[0], meetup["id"])
+
+    try:
+        response = client.post(f"/api/meetups/{meetup['id']}/cancel", headers=auth_header(host[0]))
+        assert response.status_code == 200
+        # The answer came while the push service still holds the Push.
+        assert not finished.is_set()
+    finally:
+        release.set()
+    assert finished.wait(5)
