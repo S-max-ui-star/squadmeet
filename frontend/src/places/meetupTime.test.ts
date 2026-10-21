@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_DAYS_AHEAD, fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
+import {
+  MAX_DAYS_AHEAD,
+  berlinDateValue,
+  fromInputValue,
+  inputBounds,
+  slot,
+  startChoice,
+  toInputValue,
+} from './meetupTime'
 
 const now = new Date(2026, 9, 12, 10, 30) // Mon 12.10.2026 10:30, local time
 
@@ -36,6 +44,19 @@ describe('the date and time field', () => {
   it(`allows the next minute up to ${MAX_DAYS_AHEAD} days ahead`, () => {
     const { min, max } = inputBounds(now)
     expect(min).toBe('2026-10-12T10:31')
-    expect(max).toBe('2026-11-11T10:30')
+    expect(max).toBe('2026-11-11T09:30')
+  })
+
+  it('uses an exact 30-day duration across a daylight-saving change (SCRUM-153)', () => {
+    const beforeWinterTime = new Date('2026-10-24T10:30:00+02:00')
+    const { max } = inputBounds(beforeWinterTime)
+
+    expect(new Date(fromInputValue(max)).getTime() - beforeWinterTime.getTime()).toBe(
+      MAX_DAYS_AHEAD * 24 * 3_600_000,
+    )
+  })
+
+  it('derives Series dates in Europe/Berlin, not the browser timezone (SCRUM-153)', () => {
+    expect(berlinDateValue(new Date('2026-10-20T22:30:00Z'))).toBe('2026-10-21')
   })
 })
