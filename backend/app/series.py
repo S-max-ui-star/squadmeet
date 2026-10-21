@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth import current_user
@@ -95,6 +96,11 @@ def occurrence_times(
     return found
 
 
+def occurrence_dates(session: Session, series: MeetupSeries) -> set[date]:
+    """The Berlin dates that have an Occurrence of the Series."""
+    return set(session.exec(select(Meetup.series_date).where(Meetup.series_id == series.id)))
+
+
 def fill_series(
     session: Session, series: MeetupSeries, now: datetime, new_series: bool = False
 ) -> int:
@@ -105,11 +111,15 @@ def fill_series(
 
     Each date counts on its own for the limit of Meetups at one moment (SCRUM-80): a
     `new_series` with a full date is refused (Conflict), a later fill skips that date and
-    tries it again next time."""
+    tries it again next time.
+
+    Two requests at the same moment can both find a date missing (SCRUM-123). Each insert has
+    its own savepoint, so the unique key uq_meetup_series_date stops only the later one, and
+    that date is skipped without a Notification."""
     if series.cancelled_at is not None:
         return 0
     slots = [Slot.model_validate(slot) for slot in series.slots]
-    have = set(session.exec(select(Meetup.series_date).where(Meetup.series_id == series.id)))
+    have = occurrence_dates(session, series)
     created = []
     for start, day, hours in occurrence_times(slots, now, now + timedelta(days=WINDOW_DAYS), series.until):
         if day in have:
@@ -127,9 +137,12 @@ def fill_series(
             series_id=series.id,
             series_date=day,
         )
-        session.add(meetup)
+        try:
+            with session.begin_nested():
+                session.add(meetup)
+        except IntegrityError:
+            continue
         created.append(meetup)
-    session.flush()
     created.sort(key=lambda meetup: meetup.starts_at)
     for index, meetup in enumerate(created):
         notify_new_meetup(session, meetup, now, first=new_series and index == 0)
