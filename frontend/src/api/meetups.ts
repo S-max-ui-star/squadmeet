@@ -67,9 +67,17 @@ export async function fetchMapMeetups(
 }
 
 // With a login token the answer names the Host and the participants.
-export async function fetchMeetups(placeId: number, token: string | null = null): Promise<Meetup[]> {
+export async function fetchMeetups(
+  placeId: number,
+  token: string | null = null,
+  signal?: AbortSignal,
+): Promise<Meetup[]> {
   const url = `/api/places/${placeId}/meetups`
-  const response = token ? await fetch(url, { headers: { Authorization: `Bearer ${token}` } }) : await fetch(url)
+  const options = {
+    ...(signal ? { signal } : {}),
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  }
+  const response = Object.keys(options).length > 0 ? await fetch(url, options) : await fetch(url)
   return answer(response, 'GET meetups')
 }
 

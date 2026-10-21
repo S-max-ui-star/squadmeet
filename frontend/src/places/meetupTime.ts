@@ -4,6 +4,7 @@
 // A copy of the server's limit for a later Meetup (MAX_DAYS_AHEAD in
 // backend/app/meetup_lifecycle.py), only for the date picker; the server always checks.
 export const MAX_DAYS_AHEAD = 30
+const BERLIN = 'Europe/Berlin'
 
 type Span = { starts_at: string; ends_at: string }
 
@@ -35,12 +36,37 @@ export function fromInputValue(value: string): string {
   return new Date(value).toISOString()
 }
 
+// Series are defined in Berlin wall-clock time on the server. Keep their date fields independent
+// from the browser's own timezone (SCRUM-153).
+export function berlinDateValue(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BERLIN,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)!.value
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
+
+export function berlinTimeValue(now: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: BERLIN,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)!.value
+  return `${value('hour')}:${value('minute')}`
+}
+
 // The field allows the next full minute up to MAX_DAYS_AHEAD days ahead, as the server does.
 export function inputBounds(now: Date): { min: string; max: string } {
   const min = new Date(now)
   min.setSeconds(0, 0)
   min.setMinutes(min.getMinutes() + 1)
-  const max = new Date(now)
-  max.setDate(max.getDate() + MAX_DAYS_AHEAD)
+  // The backend uses `now + timedelta(days=30)`, an exact duration. Calendar-day mutation is
+  // one hour too early/late when daylight-saving time changes (SCRUM-153).
+  const max = new Date(now.getTime() + MAX_DAYS_AHEAD * 24 * 3_600_000)
   return { min: toInputValue(min), max: toInputValue(max) }
 }

@@ -38,3 +38,30 @@ export function emptySlots(): SlotFields[] {
 export function slotsInput(fields: SlotFields[]): { weekday: number; time: string; hours: number }[] {
   return fields.flatMap((f, weekday) => (f.on ? [{ weekday, time: f.time, hours: f.hours }] : []))
 }
+
+const addDays = (isoDate: string, days: number) => {
+  const date = new Date(`${isoDate}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+const weekdayOf = (isoDate: string) => {
+  const sundayFirst = new Date(`${isoDate}T12:00:00Z`).getUTCDay()
+  return (sundayFirst + 6) % 7
+}
+
+// At least one selected Berlin wall-clock slot must still be in the creation window. Without an
+// end date every selected weekday necessarily occurs within the next week (SCRUM-152).
+export function hasSeriesOccurrence(
+  fields: SlotFields[],
+  until: string,
+  berlinDate: string,
+  berlinTime: string,
+): boolean {
+  if (!until) return fields.some((field) => field.on)
+  for (let date = berlinDate; date <= until; date = addDays(date, 1)) {
+    const field = fields[weekdayOf(date)]
+    if (field.on && (date > berlinDate || field.time > berlinTime)) return true
+  }
+  return false
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { loadToken } from '../api/auth'
 import { joinMeetup, type Meetup } from '../api/meetups'
 import { slot } from './meetupTime'
@@ -21,12 +21,15 @@ export default function SeriesJoin({ dates, onDone }: Props) {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [partySize, setPartySize] = useState(1)
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const [result, setResult] = useState<{ joined: number; failed: string[] } | null>(null)
   const open = dates.filter(canJoin)
 
   async function join(targets: Meetup[]) {
+    if (busyRef.current) return
     const token = loadToken()
     if (!token || targets.length === 0) return
+    busyRef.current = true
     setBusy(true)
     let joined = 0
     const failed: string[] = []
@@ -38,10 +41,14 @@ export default function SeriesJoin({ dates, onDone }: Props) {
         failed.push(`${slot(date)}: ${(err as Error).message}`)
       }
     }
-    setResult({ joined, failed })
-    setPicked(new Set())
-    setBusy(false)
-    onDone()
+    try {
+      setResult({ joined, failed })
+      setPicked(new Set())
+      onDone()
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
   }
 
   function toggle(id: number) {
