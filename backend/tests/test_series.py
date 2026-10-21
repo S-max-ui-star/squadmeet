@@ -297,3 +297,38 @@ def test_my_meetups_fill_only_the_users_own_series(session, client, place, host,
 
     client.get("/api/meetups/mine", headers=auth_header(host[0]))
     assert count_of(session, series) > 0
+
+
+def favorite_notices(session, user_id):
+    from app.models import Notification
+
+    return len(
+        session.exec(
+            series_module.select(Notification.id).where(
+                Notification.user_id == user_id, Notification.kind == "favorite_meetup_created"
+            )
+        ).all()
+    )
+
+
+def test_a_fill_that_meets_an_existing_occurrence_goes_on(session, client, place, host, guest, monkeypatch):
+    # SCRUM-123: two map loads at the same moment read the same dates; the second insert of an
+    # Occurrence must not fail, and the Favorite gets one Notification per Occurrence.
+    from tests.test_favorites import add_favorite
+
+    add_favorite(client, guest[0], place.id)
+    series_id = create_series(client, host[0], place.id, [slot(0)]).json()["id"]
+    series = session.get(series_module.MeetupSeries, series_id)
+    first = min(occurrences(client, host[0], place.id), key=lambda m: m["starts_at"])
+    session.exec(series_module.delete(Meetup).where(Meetup.id == first["id"]))
+    session.commit()
+    total = count_of(session, series)
+    notices = favorite_notices(session, guest[1])
+    # The other request has not committed yet when this one reads: no date is known.
+    monkeypatch.setattr(series_module, "occurrence_dates", lambda session, series: set())
+
+    added = series_module.fill_series(session, series, datetime.now(UTC))
+
+    assert added == 1
+    assert count_of(session, series) == total + 1
+    assert favorite_notices(session, guest[1]) == notices + 1
