@@ -231,10 +231,13 @@ def block_user(
     if other.id == user.id:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Das bist du selbst")
     now = datetime.now(UTC)
-    if not session.exec(
-        select(UserBlock.id).where(UserBlock.blocker_id == user.id, UserBlock.blocked_id == other.id)
-    ).first():
-        session.add(UserBlock(blocker_id=user.id, blocked_id=other.id, created_at=now))
+    if other.id not in blocked_by(session, user.id):
+        try:
+            with session.begin_nested():
+                session.add(UserBlock(blocker_id=user.id, blocked_id=other.id, created_at=now))
+        except IntegrityError:
+            # A second Block of the same pair at the same moment; the database keeps one row.
+            pass
     hosted = select(Meetup.id).where(Meetup.host_id == user.id, Meetup.ends_at > now)
     # ORM deletes, not one DELETE statement, so the audit log sees each row (SCRUM-66).
     for row in [
