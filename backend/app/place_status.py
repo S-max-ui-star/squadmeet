@@ -176,6 +176,11 @@ RULES: dict[PlaceUse, dict[PlaceStatus, Refusal | None]] = {
 MAX_DB_INT = 2_147_483_647
 
 
+def in_db(row_id: int) -> bool:
+    """A bigger number than a PostgreSQL integer would make the query fail."""
+    return 1 <= row_id <= MAX_DB_INT
+
+
 def view_use(user: User | None) -> PlaceUse:
     """VIEW, or REVIEW for an Admin with MFA on (the rule of auth.require_admin), who may open a
     reported Place."""

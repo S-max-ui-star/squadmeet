@@ -346,3 +346,28 @@ def test_two_requests_at_the_same_moment_answer_409(client, paula, karl, monkeyp
 
     assert response.status_code == 409
     assert len(contacts(client, paula[0])["outgoing"]) == 1
+
+
+def test_too_big_ids_are_not_found(client, paula):
+    headers = auth_header(paula[0])
+    big = 9_999_999_999
+    assert client.post(f"/api/contacts/requests/{big}/accept", headers=headers).status_code == 404
+    assert client.post(f"/api/contacts/requests/{big}/decline", headers=headers).status_code == 404
+    assert client.delete(f"/api/contacts/requests/{big}", headers=headers).status_code == 404
+    assert client.delete(f"/api/contacts/{big}", headers=headers).status_code == 404
+    assert client.delete(f"/api/blocks/{big}", headers=headers).status_code == 404
+
+
+def test_at_most_20_nickname_lookups_per_hour(client, paula, karl):
+    """Ask again after a decline, unknown Nicknames and Blocks count together."""
+    for _ in range(9):
+        request_id = ask(client, paula[0], "Korb_Karl").json()["id"]
+        answer(client, karl[0], request_id, "decline")
+    for n in range(10):
+        assert ask(client, paula[0], f"Niemand_{n}").status_code == 404
+    assert block(client, paula[0], "Mia_Nobody").status_code == 404
+
+    assert ask(client, paula[0], "Korb_Karl").status_code == 429
+    assert block(client, paula[0], "Korb_Karl").status_code == 429
+    # Another user has their own count.
+    assert ask(client, karl[0], "Pingpong_Paula").status_code == 201

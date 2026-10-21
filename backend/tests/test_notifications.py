@@ -238,3 +238,9 @@ def test_notifications_need_a_login(client):
     assert client.delete("/api/notifications").status_code == 401
     assert client.post("/api/notifications/read").status_code == 401
     assert client.delete("/api/notifications/read").status_code == 401
+
+
+def test_a_too_big_notification_id_is_not_found(client, host):
+    headers = auth_header(host[0])
+    assert client.post("/api/notifications/9999999999/read", headers=headers).status_code == 404
+    assert client.delete("/api/notifications/9999999999", headers=headers).status_code == 404

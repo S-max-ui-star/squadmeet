@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 from app.auth import current_user
 from app.db import get_session
 from app.models import Favorite, FavoriteTimeRule, Place, User
-from app.place_status import MAX_DB_INT, allowed_in, require, view_use
+from app.place_status import allowed_in, in_db, require, view_use
 
 # Each rule is read on every new Meetup at the Place (app.favorite_notifications).
 MAX_RULES = 10
@@ -54,11 +54,6 @@ class FavoriteRead(BaseModel):
     id: int
     place: FavoritePlaceRead
     rules: list[TimeRuleRead]
-
-
-def in_db(row_id: int) -> bool:
-    """A bigger number than a PostgreSQL integer would make the query fail."""
-    return 1 <= row_id <= MAX_DB_INT
 
 
 def owned(session: Session, favorite_id: int, user_id: int) -> Favorite:

@@ -15,7 +15,7 @@ from tests.test_meetups import create, guest, host, join, later, place  # noqa: 
 
 
 SUBSCRIPTION = {
-    "endpoint": "https://push.example.test/send/one",
+    "endpoint": "https://fcm.googleapis.com/fcm/send/one",
     "keys": {"p256dh": "public-browser-key", "auth": "browser-auth-secret"},
 }
 
@@ -129,3 +129,53 @@ def test_expired_subscription_is_removed(session, guest, monkeypatch):
     session.commit()
 
     assert session.exec(select(PushSubscription)).all() == []
+
+
+def put_subscription(client, token, endpoint):
+    body = SUBSCRIPTION | {"endpoint": endpoint}
+    return client.put("/api/push/subscription", json=body, headers=auth_header(token))
+
+
+def test_only_the_push_services_of_the_browsers_are_accepted(client, guest):
+    for endpoint in (
+        "https://fcm.googleapis.com/fcm/send/abc",
+        "https://updates.push.services.mozilla.com/wpush/v2/abc",
+        "https://web.push.apple.com/abc",
+        "https://wns2-par02p.notify.windows.com/w/?token=abc",
+    ):
+        assert put_subscription(client, guest[0], endpoint).status_code == 204
+    for endpoint in (
+        "https://push.example.test/send",
+        "https://127.0.0.1.nip.io/x",
+        "https://fcm.googleapis.com.attacker.example/x",
+        "https://notfcm.googleapis.com/x",
+    ):
+        assert put_subscription(client, guest[0], endpoint).status_code == 422
+
+
+def test_a_sixth_subscription_replaces_the_oldest(client, session, guest):
+    for n in range(6):
+        assert put_subscription(client, guest[0], f"{SUBSCRIPTION['endpoint']}{n}").status_code == 204
+
+    stored = session.exec(select(PushSubscription.endpoint)).all()
+    assert sorted(stored) == [f"{SUBSCRIPTION['endpoint']}{n}" for n in range(1, 6)]
+
+
+def test_an_old_subscription_of_another_host_is_not_called(session, guest, monkeypatch):
+    sent = []
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private-key")
+    monkeypatch.setattr("app.push_delivery.webpush", lambda **kwargs: sent.append(kwargs))
+    session.add(
+        PushSubscription(
+            user_id=guest[1],
+            endpoint="https://127.0.0.1.nip.io/x",
+            p256dh="public-browser-key",
+            auth="browser-auth-secret",
+            created_at=datetime.now(UTC),
+        )
+    )
+    session.commit()
+
+    send_web_push(session, {guest[1]}, meetup_id=7, place_id=3, kind="meetup_cancelled", body="Test")
+
+    assert sent == []
