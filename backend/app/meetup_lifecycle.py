@@ -341,6 +341,9 @@ def answer_move(
             found.move_pending = False
         return
     if answer == "go":
+        # The target's Host blocked `by` after the move: no offer, as in move_offer (SCRUM-124).
+        if target.host_id in blockers_of(session, by):
+            raise Conflict("Hier gibt es nichts zu beantworten")
         require_open(target, now)
         if target.host_id != by and find_join(session, target, by) is None:
             require_room(session, by, target.starts_at, target.ends_at, now, leaving=frozenset({meetup.id}))
