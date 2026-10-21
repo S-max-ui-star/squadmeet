@@ -47,6 +47,7 @@ describe('PlaceDetail', () => {
     const route = container.querySelector<HTMLAnchorElement>('a[href*="maps/dir"]')
     expect(route?.href).toContain('destination=51.3,12.3')
     expect(route?.target).toBe('_blank')
+    expect([...container.querySelectorAll('button')].some((button) => button.textContent === 'Teilen')).toBe(true)
   })
 
   it('marks a Place that came from a suggestion with "Von Nutzern hinzugefügt"', () => {
