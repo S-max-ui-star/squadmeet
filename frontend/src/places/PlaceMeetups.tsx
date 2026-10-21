@@ -16,12 +16,12 @@ import {
   type MeetupAction,
 } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
-import { whileVisible } from '../whileVisible'
 import { askForContact, blockUser } from '../api/contacts'
 import { AVATARS } from '../auth/avatars'
 import InviteContacts from './InviteContacts'
 import PartySizeStepper from './PartySizeStepper'
 import SeriesJoin from './SeriesJoin'
+import { usePlaceReloads } from './usePlaceReloads'
 import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 import { WEEKDAYS, emptySlots, groupSeries, slotsInput, type SlotFields } from './seriesGroups'
 
@@ -34,8 +34,6 @@ type Props = {
 }
 
 const HOURS = [1, 2, 3, 4]
-// A Meetup that ends while the panel is open leaves the list within this time.
-const REFRESH_MS = 60_000
 
 const time = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
 
@@ -73,22 +71,6 @@ function MeetupDeepLink({ meetups }: { meetups: Meetup[] }) {
 
 // The Meetups part of the Place detail, as in the prototype (SCRUM-17): the active and later
 // Meetups, the "Ich bin jetzt hier" form (SCRUM-29), "Später treffen" (SCRUM-35), and
-// Loads now, every REFRESH_MS while the page is visible, once when it comes back to the front
-// (SCRUM-78), and again on each live event for this Place (SCRUM-93).
-function useReloads(reload: () => void, placeId: number) {
-  useEffect(() => {
-    reload()
-    const stopTimer = whileVisible(reload, REFRESH_MS)
-    const stop = onMeetupChange((changed) => {
-      if (changed === placeId) reload()
-    })
-    return () => {
-      stopTimer()
-      stop()
-    }
-  }, [reload, placeId])
-}
-
 // "Ich komme mit" / "Verlassen" (SCRUM-34). Guests see only the number of people.
 // The Host can cancel before the start, Leave (handover), and move a Meetup with Joins; the
 // users who were in then choose go along / stay / leave (SCRUM-37).
@@ -130,7 +112,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
       .catch((err: Error) => setError(err.message))
   }, [placeId, user])
 
-  useReloads(reload, placeId)
+  usePlaceReloads(reload, placeId, onMeetupChange)
 
   // True when the action worked, so a caller can show its own message.
   async function run(action: (token: string) => Promise<unknown>): Promise<boolean> {

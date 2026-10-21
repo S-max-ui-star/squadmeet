@@ -20,6 +20,7 @@ from tests.test_meetups import (  # noqa: F401 (fixtures)
     place,
     third,
 )
+from tests.test_ratings import rate, vote
 
 
 @pytest.fixture
@@ -122,6 +123,26 @@ def test_a_cancelled_meetup_reaches_every_open_page_with_its_place(
     assert cancel(client, host[0], meetup["id"]).status_code == 200
 
     assert to_third == [f"meetups:{place.id}"]
+
+
+def test_a_rating_reaches_every_open_page_with_its_place(client, heard, place, host, third):
+    """SCRUM-98: the open Place detail loads its Ratings and Condition again."""
+    to_third = heard(third[1])
+
+    assert rate(client, host[0], place.id, reasons=["net_missing"]).status_code == 200
+
+    assert to_third == [f"ratings:{place.id}"]
+
+
+def test_a_condition_vote_reaches_every_open_page_with_its_place(
+    client, heard, place, host, guest, third
+):
+    rate(client, host[0], place.id, reasons=["net_missing"])
+    to_third = heard(third[1])
+
+    assert vote(client, guest[0], place.id, still_there=False).status_code == 200
+
+    assert to_third == [f"ratings:{place.id}"]
 
 
 def test_nothing_is_sent_before_the_commit_or_after_a_rollback(client, session, heard):

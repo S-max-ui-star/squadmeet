@@ -1,7 +1,8 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { saveToken, type User } from '../api/auth'
+import { announceRatingChange } from '../api/live'
 import type { RatingSummary } from '../api/ratings'
 import PlaceRatings from './PlaceRatings'
 
@@ -50,7 +51,11 @@ const reasons = [
   { key: 'net_missing', label: 'Netz fehlt oder ist kaputt', positive: false },
 ]
 
+// Unmounted after each test, so an old panel does not answer a later live event.
+const roots: Root[] = []
+
 afterEach(() => {
+  act(() => roots.splice(0).forEach((root) => root.unmount()))
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
   localStorage.clear()
@@ -80,8 +85,10 @@ const leipzigPlace = { name: 'Tischtennis', lat: 51.33261, lon: 12.35673, addres
 async function render(user: User | null, onLoginNeeded = () => {}, place: typeof leipzigPlace | null = null) {
   const container = document.createElement('div')
   document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
   await act(async () =>
-    createRoot(container).render(
+    root.render(
       <PlaceRatings placeId={3} place={place} user={user} onLoginNeeded={onLoginNeeded} />,
     ),
   )
@@ -96,6 +103,33 @@ async function click(element: HTMLElement | undefined) {
 }
 
 describe('PlaceRatings', () => {
+  it('loads the Ratings and the Condition again on a live event for its own Place (SCRUM-98)', async () => {
+    const fetch = api(empty)
+    const container = await render(null)
+    expect(container.textContent).toContain('Noch keine Bewertungen')
+
+    fetch.mockImplementation(async () => Response.json(rated))
+    await act(async () => announceRatingChange(4))
+    expect(container.textContent).toContain('Noch keine Bewertungen')
+    await act(async () => announceRatingChange(3))
+
+    expect(container.textContent).toContain('2 Bewertungen')
+    expect(container.textContent).toContain('Mängel gemeldet')
+  })
+
+  it('loads again when the page comes back to the front (SCRUM-98)', async () => {
+    const fetch = api(empty)
+    await render(null)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // jsdom says "prerender"; a real page in front says "visible".
+    const visible = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    visible.mockRestore()
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('shows average stars, top Reasons and the Condition', async () => {
     api(rated)
 

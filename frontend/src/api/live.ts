@@ -1,6 +1,7 @@
 // Live updates (SCRUM-93): one open stream to GET /api/live per signed-in page. The server sends
-// a topic when the user's Notifications or Contacts change, and "meetups:<place id>" when any
-// Meetup or Join changes. The page then loads that data again.
+// a topic when the user's Notifications or Contacts change, "meetups:<place id>" when any
+// Meetup or Join changes, and "ratings:<place id>" when any Rating or Condition vote changes
+// (SCRUM-98). The page then loads that data again.
 // fetch, not EventSource: EventSource cannot send the Authorization header, and the token must
 // not go into a URL.
 
@@ -11,10 +12,18 @@ type Handlers = {
   onOpen: () => void
   onTopic: (topic: LiveTopic) => void
   onMeetups: (placeId: number) => void
+  onRatings: (placeId: number) => void
 }
 
 const FIRST_RETRY_MS = 2_000
 const MAX_RETRY_MS = 30_000
+
+// The Place id of "<prefix>:<place id>", or null.
+function placeOf(data: string, prefix: 'meetups' | 'ratings'): number | null {
+  if (!data.startsWith(`${prefix}:`)) return null
+  const placeId = Number(data.slice(prefix.length + 1))
+  return Number.isInteger(placeId) ? placeId : null
+}
 
 // Calls onData with the `data:` value of each event.
 async function readEvents(body: ReadableStream<Uint8Array>, onData: (data: string) => void) {
@@ -39,7 +48,7 @@ async function readEvents(body: ReadableStream<Uint8Array>, onData: (data: strin
 // Connects, and connects again after a break (2 s, then longer up to 30 s). A phone stops the
 // stream of a page in the background, so a page that becomes visible opens a fresh one at once.
 // Returns the function that closes the stream for good (logout).
-export function connectLive(token: string, { onOpen, onTopic, onMeetups }: Handlers): () => void {
+export function connectLive(token: string, { onOpen, onTopic, onMeetups, onRatings }: Handlers): () => void {
   let stopped = false
   let controller: AbortController | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -62,12 +71,13 @@ export function connectLive(token: string, { onOpen, onTopic, onMeetups }: Handl
           if (data === 'ready') {
             retryMs = FIRST_RETRY_MS
             onOpen()
-          } else if (data === 'notifications' || data === 'contacts') {
-            onTopic(data)
-          } else if (data.startsWith('meetups:')) {
-            const placeId = Number(data.slice('meetups:'.length))
-            if (Number.isInteger(placeId)) onMeetups(placeId)
+            return
           }
+          if (data === 'notifications' || data === 'contacts') onTopic(data)
+          const meetups = placeOf(data, 'meetups')
+          if (meetups !== null) onMeetups(meetups)
+          const ratings = placeOf(data, 'ratings')
+          if (ratings !== null) onRatings(ratings)
         })
       }
     } catch {
@@ -96,16 +106,23 @@ export function connectLive(token: string, { onOpen, onTopic, onMeetups }: Handl
 // the Notifications and Contacts dialogs) listen, so they need no extra prop.
 const changes = new EventTarget()
 
-export function announceMeetupChange(placeId: number) {
-  changes.dispatchEvent(new CustomEvent<number>('meetups', { detail: placeId }))
+type PlaceTopic = 'meetups' | 'ratings'
+
+function announcePlaceChange(topic: PlaceTopic, placeId: number) {
+  changes.dispatchEvent(new CustomEvent<number>(topic, { detail: placeId }))
 }
 
 // Returns the function that stops listening.
-export function onMeetupChange(listener: (placeId: number) => void): () => void {
+function onPlaceChange(topic: PlaceTopic, listener: (placeId: number) => void): () => void {
   const handle = (event: Event) => listener((event as CustomEvent<number>).detail)
-  changes.addEventListener('meetups', handle)
-  return () => changes.removeEventListener('meetups', handle)
+  changes.addEventListener(topic, handle)
+  return () => changes.removeEventListener(topic, handle)
 }
+
+export const announceMeetupChange = (placeId: number) => announcePlaceChange('meetups', placeId)
+export const onMeetupChange = (listener: (placeId: number) => void) => onPlaceChange('meetups', listener)
+export const announceRatingChange = (placeId: number) => announcePlaceChange('ratings', placeId)
+export const onRatingChange = (listener: (placeId: number) => void) => onPlaceChange('ratings', listener)
 
 export function announceTopicChange(topic: LiveTopic) {
   changes.dispatchEvent(new Event(topic))
