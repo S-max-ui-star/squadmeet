@@ -20,6 +20,7 @@ function suggestion(changes: Partial<WaitingSuggestion> = {}): WaitingSuggestion
     lon: 12.37,
     address: null,
     confirmations: 3,
+    open_reports: 0,
     suggested_at: '2026-10-12T10:00:00Z',
     confirmed_at: '2026-10-13T10:00:00Z',
     approvable_from: '2026-10-13T10:00:00Z',
@@ -67,6 +68,19 @@ describe('SuggestionApprovalDialog (SCRUM-56)', () => {
     })
     expect(onChanged).toHaveBeenCalled()
     expect(container.textContent).toContain('Kein Platzvorschlag wartet auf eine Freigabe.')
+  })
+
+  it('shows open Place reports (SCRUM-71), and nothing without them', async () => {
+    const { container } = await render([
+      suggestion({ id: 1, name: 'Gemeldet', open_reports: 2 }),
+      suggestion({ id: 2, name: 'Einmal', open_reports: 1 }),
+      suggestion({ id: 3, name: 'Ruhig' }),
+    ])
+    const items = [...container.querySelectorAll('li')].map((li) => li.textContent)
+
+    expect(items[0]).toContain('2 offene Meldungen (Freigeben oder Ablehnen schließt sie)')
+    expect(items[1]).toContain('1 offene Meldung (')
+    expect(items[2]).not.toContain('Meldung')
   })
 
   it('says "kein Hinweis" when OSM found nothing or did not answer', async () => {

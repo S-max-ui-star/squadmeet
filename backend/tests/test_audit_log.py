@@ -214,6 +214,9 @@ def test_block_logs_the_removed_contact_and_join(client, session, place, host): 
 
 def test_place_reports_and_their_dismissal_are_logged(client, session, place, admin):  # noqa: F811
     token, user_id = user(client, "Korb_Karl")
+    # A report needs an account at least 7 days old (SCRUM-71).
+    session.get(User, user_id).created_at = datetime.now(UTC) - timedelta(days=8)
+    session.commit()
 
     report(client, token, place.id, "dangerous")
     dismiss(client, admin, place.id)

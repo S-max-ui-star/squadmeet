@@ -2,7 +2,8 @@
 
 A Place suggestion with 3 Confirmations waits for an Admin (app.suggestions sets confirmed_at).
 The Admin sees the waiting suggestions with their position, Confirmations and the OSM hint
-(app.osm_hint), and approves or rejects each one. Approval is possible only APPROVAL_DELAY after
+(app.osm_hint) and the open Place reports, and approves or rejects each one. Both close the open
+reports, as lock and delete do: the Admin saw them and decided. Approval is possible only APPROVAL_DELAY after
 the suggestion, so a group cannot invent a Place and make it active within one evening.
 Rejecting is a soft delete, as the Admin delete of SCRUM-39: the row stays with deleted_at.
 """
@@ -17,6 +18,7 @@ from app.auth import require_admin
 from app.db import get_session
 from app.models import Place, User
 from app.osm_hint import OverpassHinter, get_osm_hinter
+from app.place_reports import close_reports
 from app.place_status import STATUS, PlaceStatus, PlaceUse, require
 from app.places import select_place_reads
 
@@ -33,6 +35,8 @@ class WaitingSuggestion(BaseModel):
     lon: float
     address: str | None
     confirmations: int
+    # Open Place reports (SCRUM-57). Approval closes them, so 3 would not hide the new Place.
+    open_reports: int
     suggested_at: datetime
     confirmed_at: datetime
     # The earliest time of the approval, and whether it has come.
@@ -82,6 +86,7 @@ def list_waiting_suggestions(
                 lon=row.lon,
                 address=row.address,
                 confirmations=row.confirmations,
+                open_reports=row.open_reports,
                 suggested_at=row.suggested_at or now,
                 confirmed_at=row.confirmed_at,
                 approvable_from=start,
@@ -110,6 +115,7 @@ def approve_suggestion(
         )
     place.is_suggestion = False
     place.approved_at = now
+    close_reports(session, place_id, now)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -122,6 +128,8 @@ def reject_suggestion(
 ):
     """Ablehnen: the suggestion is gone, like an Admin delete. A suggestion has no Meetups."""
     place = require(session, place_id, PlaceUse.APPROVE)
-    place.deleted_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    place.deleted_at = now
+    close_reports(session, place_id, now)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
