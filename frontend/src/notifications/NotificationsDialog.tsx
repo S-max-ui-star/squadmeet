@@ -5,7 +5,9 @@ import { joinMeetup } from '../api/meetups'
 import {
   deleteAllNotifications,
   deleteNotification,
+  deleteReadNotifications,
   fetchNotifications,
+  markAllNotificationsRead,
   markNotificationRead,
   type Notification,
 } from '../api/notifications'
@@ -23,6 +25,33 @@ const when = new Intl.DateTimeFormat('de-DE', {
   hour: '2-digit',
   minute: '2-digit',
 })
+
+type ActionsProps = {
+  notices: Notification[]
+  busy: boolean
+  onReadAll: () => void
+  onRemoveRead: () => void
+  onRemoveAll: () => void
+}
+
+// Each button is off when it has nothing to do (SCRUM-101).
+function NotificationActions({ notices, busy, onReadAll, onRemoveRead, onRemoveAll }: ActionsProps) {
+  const anyUnread = notices.some((notice) => !notice.read)
+  const anyRead = notices.some((notice) => notice.read)
+  return (
+    <div className="notification-actions">
+      <button type="button" className="notification-read-all" disabled={busy || !anyUnread} onClick={onReadAll}>
+        Alle gelesen
+      </button>
+      <button type="button" className="notification-delete-read" disabled={busy || !anyRead} onClick={onRemoveRead}>
+        Gelesene löschen
+      </button>
+      <button type="button" className="danger notification-delete-all" disabled={busy} onClick={onRemoveAll}>
+        Alle löschen
+      </button>
+    </div>
+  )
+}
 
 export default function NotificationsDialog({ token, onChanged, onOpenMeetup, onClose }: Props) {
   const [data, setData] = useState<Notification[] | null>(null)
@@ -66,13 +95,14 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     }
   }
 
-  async function remove(notice: Notification) {
+  // Runs one request, then shows the changed list and passes it on for the unread count.
+  async function change(request: () => Promise<void>, next: (items: Notification[]) => Notification[]) {
     if (busy || data === null) return
     setBusy(true)
     setError(null)
     try {
-      await deleteNotification(token, notice.id)
-      const updated = data.filter((item) => item.id !== notice.id)
+      await request()
+      const updated = next(data)
       setData(updated)
       onChanged(updated)
     } catch (err) {
@@ -82,20 +112,29 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     }
   }
 
-  async function removeAll() {
+  const remove = (notice: Notification) =>
+    change(
+      () => deleteNotification(token, notice.id),
+      (items) => items.filter((item) => item.id !== notice.id),
+    )
+
+  function removeAll() {
     if (busy || data === null || !window.confirm('Alle Benachrichtigungen löschen?')) return
-    setBusy(true)
-    setError(null)
-    try {
-      await deleteAllNotifications(token)
-      setData([])
-      onChanged([])
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
+    return change(() => deleteAllNotifications(token), () => [])
   }
+
+  // SCRUM-101: "Alle gelesen" and "Gelesene löschen".
+  const readAll = () =>
+    change(
+      () => markAllNotificationsRead(token),
+      (items) => items.map((item) => ({ ...item, read: true })),
+    )
+
+  const removeRead = () =>
+    change(
+      () => deleteReadNotifications(token),
+      (items) => items.filter((item) => !item.read),
+    )
 
   // "Ich komme mit" right from an invitation, with Party size 1; then the Meetup opens.
   async function accept(notice: Notification) {
@@ -121,9 +160,13 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
       {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
       {data && data.length > 0 && (
         <>
-          <button type="button" className="danger notification-delete-all" disabled={busy} onClick={removeAll}>
-            Alle löschen
-          </button>
+          <NotificationActions
+            notices={data}
+            busy={busy}
+            onReadAll={readAll}
+            onRemoveRead={removeRead}
+            onRemoveAll={removeAll}
+          />
           <ul className="notification-list">
             {data.map((notice) => (
               <li key={notice.id}>

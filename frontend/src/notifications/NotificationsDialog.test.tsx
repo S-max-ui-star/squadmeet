@@ -123,6 +123,53 @@ describe('NotificationsDialog (SCRUM-40)', () => {
     expect(container.textContent).toContain('Noch keine Benachrichtigungen')
   })
 
+  it('marks all Notifications as read (SCRUM-101)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(notices))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const { container, onChanged } = await render(fetchMock)
+
+    await act(async () => (container.querySelector('.notification-read-all') as HTMLButtonElement).click())
+
+    expect(fetchMock.mock.calls[1]).toEqual([
+      '/api/notifications/read',
+      { method: 'POST', headers: { Authorization: 'Bearer tok' } },
+    ])
+    expect(onChanged).toHaveBeenLastCalledWith([{ ...notices[0], read: true }, notices[1]])
+    expect(container.querySelector('.notification-open.unread')).toBeNull()
+    expect((container.querySelector('.notification-read-all') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('deletes only the read Notifications (SCRUM-101)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(notices))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const { container, onChanged } = await render(fetchMock)
+
+    await act(async () => (container.querySelector('.notification-delete-read') as HTMLButtonElement).click())
+
+    expect(fetchMock.mock.calls[1]).toEqual([
+      '/api/notifications/read',
+      { method: 'DELETE', headers: { Authorization: 'Bearer tok' } },
+    ])
+    expect(onChanged).toHaveBeenLastCalledWith([notices[0]])
+    expect(container.querySelectorAll('.notification-open')).toHaveLength(1)
+    expect((container.querySelector('.notification-delete-read') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('disables "Alle gelesen" without unread and "Gelesene löschen" without read Notifications (SCRUM-101)', async () => {
+    const { container } = await render(vi.fn(async () => Response.json([notices[0]])))
+    expect((container.querySelector('.notification-read-all') as HTMLButtonElement).disabled).toBe(false)
+    expect((container.querySelector('.notification-delete-read') as HTMLButtonElement).disabled).toBe(true)
+
+    act(() => root?.unmount())
+    const { container: allRead } = await render(vi.fn(async () => Response.json([notices[1]])))
+    expect((allRead.querySelector('.notification-read-all') as HTMLButtonElement).disabled).toBe(true)
+    expect((allRead.querySelector('.notification-delete-read') as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('shows an empty state', async () => {
     const { container } = await render(vi.fn(async () => Response.json([])))
     expect(container.textContent).toContain('Noch keine Benachrichtigungen')

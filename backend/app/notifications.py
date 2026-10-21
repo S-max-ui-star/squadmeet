@@ -75,6 +75,38 @@ def list_notifications(
     ]
 
 
+@router.post("/read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_all_notifications_read(
+    user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    """Mark all unread Notifications of the signed-in user as read ("Alle gelesen", SCRUM-101)."""
+    now = datetime.now(UTC)
+    for notice in session.exec(
+        select(Notification).where(
+            Notification.user_id == user.id, Notification.read_at.is_(None)
+        )
+    ):
+        notice.read_at = now
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# Before DELETE /{notification_id}, so "read" is not taken for an id.
+@router.delete("/read", status_code=status.HTTP_204_NO_CONTENT)
+def delete_read_notifications(
+    user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    """Delete the signed-in user's read Notifications only ("Gelesene löschen", SCRUM-101)."""
+    for notice in session.exec(
+        select(Notification).where(
+            Notification.user_id == user.id, Notification.read_at.is_not(None)
+        )
+    ):
+        session.delete(notice)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
 def mark_notification_read(
     notification_id: int,
