@@ -143,7 +143,7 @@ export default function App() {
   const [requests, setRequests] = useState<RequestCount | null>(null)
   const [notificationState, setNotificationState] = useState<NotificationState | null>(null)
   const [chosen, setChosen] = useState<Set<ActivityType>>(() => new Set(ACTIVITY_TYPES))
-  const [path, navigate] = usePath()
+  const [path, navigate, closePlace] = usePath()
   const selectedId = placeIdFromPath(path)
   // Set by a tap on a Notification: the map zooms in on that Place (SCRUM-90).
   const [focus, focusOn] = useFocusRequest()
@@ -223,7 +223,7 @@ export default function App() {
 
   function closeOnMapTap() {
     setSearchDismissRequest((request) => request + 1)
-    if (selectedId !== null) navigate('/')
+    if (selectedId !== null) closePlace()
   }
 
   // Not in the background; once when the page comes back to the front (SCRUM-78).
@@ -598,7 +598,8 @@ export default function App() {
           place={selected}
           error={current?.error ?? null}
           onRetry={() => setDetailTry((n) => n + 1)}
-          onClose={() => navigate('/')}
+          key={selectedId}
+          onClose={closePlace}
           user={user}
           onLoginNeeded={() => setShowAuth(true)}
           onConfirmed={(updated) => {
@@ -606,7 +607,7 @@ export default function App() {
             reloadPlaces()
           }}
           onRemoved={() => {
-            navigate('/')
+            closePlace()
             reloadPlaces()
           }}
           // Only the map: the detail stays open with the thanks, even when the Place leaves the map.
