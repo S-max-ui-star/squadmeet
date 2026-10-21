@@ -38,10 +38,13 @@ def test_register_returns_token_and_recovery_codes(client):
 def test_password_and_recovery_codes_are_stored_only_as_hashes(client, session):
     codes = register(client).json()["recovery_codes"]
 
-    user = session.exec(select(User)).one()
+    # Only this test's user: a local database may hold other accounts.
+    user = session.exec(select(User).where(User.nickname == "Pingpong_Paula")).one()
     assert PASSWORD not in user.password_hash
     assert user.password_hash.startswith("$argon2")
-    stored = session.exec(select(RecoveryCode.code_hash)).all()
+    stored = session.exec(
+        select(RecoveryCode.code_hash).where(RecoveryCode.user_id == user.id)
+    ).all()
     assert len(stored) == RECOVERY_CODE_COUNT
     assert not set(codes) & set(stored)
 

@@ -227,7 +227,10 @@ def test_a_series_without_a_future_occurrence_is_not_created(session, client, pl
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Die Auswahl enthält keinen zukünftigen Termin"
-    assert session.exec(series_module.select(MeetupSeries)).all() == []
+    created = series_module.select(MeetupSeries).where(
+        MeetupSeries.place_id == place.id, MeetupSeries.host_id == host[1]
+    )
+    assert session.exec(created).all() == []
 
 
 def test_creating_needs_a_login(client, place):

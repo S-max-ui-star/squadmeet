@@ -6,6 +6,7 @@ import MeetupCard from './MeetupCard'
 import MeetupCreateForm from './MeetupCreateForm'
 import SeriesJoin from './SeriesJoin'
 import { groupSeries } from './seriesGroups'
+import { useLatestRequest } from './useLatestRequest'
 import { usePlaceReloads } from './usePlaceReloads'
 
 type Props = {
@@ -14,6 +15,8 @@ type Props = {
   onLoginNeeded: () => void
   // Called after a Meetup was created, moved or ended, so the map can show the new state.
   onChanged: () => void
+  // A reported Place under Admin review: the Meetups only show (SCRUM-158).
+  readOnly?: boolean
 }
 
 // A Push tap carries the exact Meetup as a fragment. The list loads asynchronously, so scroll
@@ -34,9 +37,40 @@ function MeetupDeepLink({ meetups, placeId }: { meetups: Meetup[]; placeId: numb
   return null
 }
 
+// The backend refuses every Meetup action at a Place under review: no card offers one, and
+// nobody joins a Series there (SCRUM-158).
+function reviewView(meetups: Meetup[] | null, user: User | null, readOnly: boolean) {
+  if (!readOnly) return { shown: meetups, seriesJoiner: user }
+  return { shown: meetups && meetups.map((meetup) => ({ ...meetup, actions: [] })), seriesJoiner: null }
+}
+
+type StartProps = {
+  readOnly: boolean
+  creating: 'now' | 'later' | null
+  placeId: number
+  busy: boolean
+  run: (action: (token: string) => Promise<unknown>) => Promise<boolean>
+  onStart: (kind: 'now' | 'later') => void
+  onClose: () => void
+}
+
+// "Ich bin jetzt hier" and "Später treffen", or the form of the chosen one.
+function MeetupStart({ readOnly, creating, placeId, busy, run, onStart, onClose }: StartProps) {
+  if (readOnly) return null
+  if (creating) {
+    return <MeetupCreateForm key={creating} kind={creating} placeId={placeId} busy={busy} run={run} onClose={onClose} />
+  }
+  return (
+    <>
+      <button type="button" className="now-button" onClick={() => onStart('now')}>📍 Ich bin jetzt hier</button>
+      <button type="button" className="later-button" onClick={() => onStart('later')}>🗓 Später treffen</button>
+    </>
+  )
+}
+
 // Meetup orchestration stays here; focused components own the creation form and each card
 // (SCRUM-154). Server-provided actions remain the authority for every lifecycle control.
-export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }: Props) {
+export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, readOnly = false }: Props) {
   const [meetups, setMeetups] = useState<Meetup[] | null>(null)
   const [loadedFor, setLoadedFor] = useState('')
   const [loading, setLoading] = useState(true)
@@ -50,37 +84,28 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
   const [now, setNow] = useState(() => new Date())
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
-  const reloadSequence = useRef(0)
-  const reloadController = useRef<AbortController | null>(null)
+  const { run: latest } = useLatestRequest()
   const viewerKey = `${placeId}:${user?.id ?? 'guest'}`
-  const visibleMeetups = loadedFor === viewerKey ? meetups : null
+  const loaded = loadedFor === viewerKey ? meetups : null
+  const { shown: visibleMeetups, seriesJoiner } = reviewView(loaded, user, readOnly)
 
   const reload = useCallback(() => {
-    reloadController.current?.abort()
-    const controller = new AbortController()
-    reloadController.current = controller
-    const sequence = ++reloadSequence.current
     setLoading(true)
     setError(null)
-    fetchMeetups(placeId, user ? loadToken() : null, controller.signal)
-      .then((found) => {
-        if (sequence !== reloadSequence.current) return
+    latest(
+      (signal) => fetchMeetups(placeId, user ? loadToken() : null, signal),
+      (found) => {
         setMeetups(found)
         setLoadedFor(viewerKey)
         setNow(new Date())
-      })
-      .catch((err: Error) => {
-        if (sequence === reloadSequence.current && err.name !== 'AbortError') setError(err.message)
-      })
-      .finally(() => {
-        if (sequence === reloadSequence.current) setLoading(false)
-      })
-  }, [placeId, user, viewerKey])
-
-  useEffect(() => () => {
-    reloadSequence.current += 1
-    reloadController.current?.abort()
-  }, [placeId, user])
+        setLoading(false)
+      },
+      (err) => {
+        setError(err.message)
+        setLoading(false)
+      },
+    )
+  }, [placeId, user, viewerKey, latest])
 
   usePlaceReloads(reload, placeId, onMeetupChange)
 
@@ -157,15 +182,16 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
 
   return (
     <div className="place-meetups">
-      <MeetupDeepLink meetups={visibleMeetups ?? []} placeId={placeId} />
-      {creating ? (
-        <MeetupCreateForm key={creating} kind={creating} placeId={placeId} busy={busy} run={run} onClose={() => setCreating(null)} />
-      ) : (
-        <>
-          <button type="button" className="now-button" onClick={() => startCreating('now')}>📍 Ich bin jetzt hier</button>
-          <button type="button" className="later-button" onClick={() => startCreating('later')}>🗓 Später treffen</button>
-        </>
-      )}
+      <MeetupDeepLink meetups={loaded ?? []} placeId={placeId} />
+      <MeetupStart
+        readOnly={readOnly}
+        creating={creating}
+        placeId={placeId}
+        busy={busy}
+        run={run}
+        onStart={startCreating}
+        onClose={() => setCreating(null)}
+      />
 
       {error && <p className="form-error">{error}</p>}
       {notice && !error && <p className="hint">{notice}</p>}
@@ -181,7 +207,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged }
           return (
             <Fragment key={meetup.id}>
               {card(meetup, laterOfSeries.length, cancellable?.series_id ?? null)}
-              {open && user && meetup.host?.id !== user.id && (
+              {open && seriesJoiner && meetup.host?.id !== seriesJoiner.id && (
                 <li className="series-join-item">
                   <SeriesJoin dates={dates} onDone={() => { reload(); onChanged() }} />
                 </li>

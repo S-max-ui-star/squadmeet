@@ -165,14 +165,16 @@ function Privacy({ photos }: { photos: boolean }) {
           <strong>Benachrichtigungen:</strong> welches Treffen dich betrifft, der Anlass, wann die
           Benachrichtigung entstand und ob du sie gelesen hast. Wenn jemand, den du blockiert hast,
           demselben Treffen beitritt, erhältst nur du einen neutralen Hinweis; die blockierte Person
-          erfährt dadurch nichts von der Blockierung.
+          erfährt dadurch nichts von der Blockierung. Eine Benachrichtigung löschen wir 14 Tage
+          nach dem Ende ihres Treffens, gelesen oder nicht.
           Wenn du ein Treffen erstellst, bekommen deine Kontakte eine Benachrichtigung mit deinem
           Nickname, wann und wo es stattfindet. Lädst du Kontakte zu einem Treffen ein, sehen sie
           in der Einladung deinen Nickname. Wir speichern, wer wen eingeladen hat. Personen, die du
           blockiert hast oder die dich blockiert haben, bekommen nichts davon. Wenn du Push
           einschaltest, speichern wir zusätzlich die Push-Adresse deines Browsers und seine
           Verschlüsselungsschlüssel. Beim
-          Ausschalten, bei Ablauf oder beim Löschen deines Kontos entfernen wir dieses Push-Abo.
+          Ausschalten, beim Abmelden, bei Ablauf oder beim Löschen deines Kontos entfernen wir
+          dieses Push-Abo.
           Wenn du einen Heimatbereich einschaltest, speichern wir den Punkt, den du auf der Karte
           gewählt hast, den Radius und die Sportarten, nie deinen aktuellen Standort. Damit melden
           wir dir neue Treffen in diesem Bereich. Nur du siehst diese Angaben, sie stehen nicht im
@@ -223,7 +225,7 @@ function Privacy({ photos }: { photos: boolean }) {
       </p>
       <p>
         <strong>Wie lange:</strong> bis du dein Konto löschst. Eine abgelaufene Anmeldung gilt
-        nicht mehr.
+        nicht mehr. Benachrichtigungen löschen wir schon 14 Tage nach dem Ende ihres Treffens.
       </p>
 
       <h2>In deinem Browser</h2>

@@ -59,4 +59,12 @@ describe('LegalPage reviewed account data', () => {
     expect(text).not.toContain('sobald es diese Funktion gibt')
     expect(text.match(/Heimatbereich/g)).toHaveLength(1)
   })
+
+  // SCRUM-141 and SCRUM-146.
+  it('names how long Notifications stay and that a logout removes the Push subscription', async () => {
+    const text = await privacyText(false)
+
+    expect(text).toContain('Eine Benachrichtigung löschen wir 14 Tage nach dem Ende ihres Treffens')
+    expect(text).toContain('beim Abmelden, bei Ablauf oder beim Löschen deines Kontos entfernen wir dieses Push-Abo')
+  })
 })

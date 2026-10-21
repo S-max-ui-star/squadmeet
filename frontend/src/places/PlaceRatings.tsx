@@ -16,8 +16,10 @@ import {
 import { onRatingChange } from '../api/live'
 import type { Place } from '../api/places'
 import { findCityReport, mailtoLink, placeText, telLink } from './cityReport'
+import { useLatestRequest } from './useLatestRequest'
 import { usePlaceReloads } from './usePlaceReloads'
 import PlaceRatingList from './PlaceRatingList'
+import RetryError from './RetryError'
 
 type Props = {
   placeId: number
@@ -25,6 +27,8 @@ type Props = {
   place?: Pick<Place, 'name' | 'lat' | 'lon' | 'address'> | null
   user: User | null
   onLoginNeeded: () => void
+  // A reported Place under Admin review (SCRUM-158).
+  readOnly?: boolean
 }
 
 type CityReportProps = {
@@ -67,9 +71,9 @@ type LinksProps = {
   onCopied: (copied: CopyState) => void
 }
 
-function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
-  const { office } = report
-  const text = placeText(place.name, place.lat, place.lon, place.address ?? null)
+type CopyProps = { text: string; copied: CopyState; onCopied: (copied: CopyState) => void }
+
+function CopyPlace({ text, copied, onCopied }: CopyProps) {
   function copy() {
     if (!navigator.clipboard?.writeText) {
       onCopied('failed')
@@ -80,6 +84,28 @@ function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
       .then(() => onCopied('copied'))
       .catch(() => onCopied('failed'))
   }
+  return (
+    <>
+      <button type="button" className="link-button" onClick={copy}>
+        {copied === 'copied' ? 'Ort kopiert ✓' : 'Ort für die Meldung kopieren'}
+      </button>
+      {/* Always in the page, so a screen reader reads the result out (SCRUM-162). */}
+      <span role="status" className={copied === 'failed' ? 'form-error' : 'visually-hidden'}>
+        {copied === 'copied' ? 'Ort kopiert.' : copied === 'failed' ? 'Kopieren ging nicht.' : ''}
+      </span>
+      {copied === 'failed' && (
+        <label className="city-report-copy">
+          Markiere den Text und kopiere ihn selbst:
+          <textarea readOnly rows={4} value={text} onFocus={(event) => event.target.select()} />
+        </label>
+      )}
+    </>
+  )
+}
+
+function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
+  const { office } = report
+  const text = placeText(place.name, place.lat, place.lon, place.address ?? null)
   return (
     <>
       <a href={report.portal.url} target="_blank" rel="noreferrer">
@@ -100,15 +126,7 @@ function CityReportLinks({ report, place, copied, onCopied }: LinksProps) {
           ☎️ <a href={telLink(office.phone.number)}>{office.phone.number}</a> ({office.phone.note})
         </span>
       )}
-      <button type="button" className="link-button" onClick={copy}>
-        {copied === 'copied' ? 'Ort kopiert ✓' : 'Ort für die Meldung kopieren'}
-      </button>
-      {copied === 'failed' && (
-        <label className="city-report-copy">
-          Kopieren ging nicht. Markiere den Text und kopiere ihn selbst:
-          <textarea readOnly rows={4} value={text} onFocus={(event) => event.target.select()} />
-        </label>
-      )}
+      <CopyPlace text={text} copied={copied} onCopied={onCopied} />
     </>
   )
 }
@@ -156,7 +174,8 @@ type CheckProps = {
   issue: Issue
   voted: boolean
   busy: boolean
-  onVote: (stillThere: boolean) => void
+  // Missing for a Place under Admin review: the votes only show (SCRUM-158).
+  onVote?: (stillThere: boolean) => void
 }
 
 // "Schon behoben?" (SCRUM-82): "Ja, behoben" for every issue, at any time; "Nein, noch nicht
@@ -176,7 +195,7 @@ function IssueCheck({ issue, voted, busy, onVote }: CheckProps) {
           </span>
         )
       )}
-      {voted ? (
+      {!onVote ? null : voted ? (
         <span className="hint">Danke für deine Antwort!</span>
       ) : (
         <span className="issue-check-buttons">
@@ -200,10 +219,12 @@ type ConditionProps = {
   summary: RatingSummary
   voted: Set<string>
   busy: boolean
+  // A Place under Admin review: the votes only show (SCRUM-158).
+  readOnly: boolean
   onVote: (issue: Issue, stillThere: boolean) => void
 }
 
-function ConditionLine({ summary, voted, busy, onVote }: ConditionProps) {
+function ConditionLine({ summary, voted, busy, readOnly, onVote }: ConditionProps) {
   const { state, issues } = summary.condition
   if (state === 'unknown') {
     return <p className="hint">Zustand: noch keine aktuellen Bewertungen.</p>
@@ -222,7 +243,7 @@ function ConditionLine({ summary, voted, busy, onVote }: ConditionProps) {
               issue={issue}
               voted={voted.has(issue.key)}
               busy={busy}
-              onVote={(stillThere) => onVote(issue, stillThere)}
+              onVote={readOnly ? undefined : (stillThere) => onVote(issue, stillThere)}
             />
           </li>
         ))}
@@ -316,12 +337,88 @@ function RatingEditor({
   )
 }
 
+// Average stars and the most chosen Reasons.
+function RatingOverview({ summary }: { summary: RatingSummary }) {
+  if (summary.average_stars === null) return <p className="hint">Noch keine Bewertungen.</p>
+  return (
+    <>
+      <p className="rating-average">
+        {/* Read out as "4,0 von 5 Sternen" (SCRUM-163); the stars alone mean nothing to a screen reader. */}
+        <span className="stars" role="img" aria-label={`${decimal.format(summary.average_stars)} von 5 Sternen`}>
+          {starText(Math.round(summary.average_stars))}
+        </span>{' '}
+        <strong>{decimal.format(summary.average_stars)}</strong> · {ratings(summary.count)}
+      </p>
+      {summary.top_reasons.length > 0 && <ReasonChips reasons={summary.top_reasons} />}
+    </>
+  )
+}
+
+type RateButtonProps = {
+  // A Place under Admin review: nobody can rate it (SCRUM-158).
+  readOnly: boolean
+  user: User | null
+  // undefined while it loads, null when the user has not rated the Place yet.
+  mine: Rating | null | undefined
+  mineError: string | null
+  onRate: () => void
+  onRetry: () => void
+}
+
+// "Bewertung erstellen" only once it is clear that the user has no Rating yet; otherwise a save
+// would replace the earlier Rating without the user seeing it (SCRUM-157).
+function RateButton({ readOnly, user, mine, mineError, onRate, onRetry }: RateButtonProps) {
+  if (readOnly) return null
+  if (user && mineError) return <RetryError message="Deine Bewertung konnte nicht geladen werden." onRetry={onRetry} />
+  if (user && mine === undefined) {
+    return (
+      <button type="button" className="rate-button" disabled>
+        Lädt …
+      </button>
+    )
+  }
+  return (
+    <button type="button" className="rate-button" onClick={onRate}>
+      {mine ? `Bewertung ändern (${starText(mine.stars)})` : '⭐ Bewertung erstellen'}
+    </button>
+  )
+}
+
+// The own Rating, so the form starts with it: undefined while it loads (SCRUM-157). App gives the
+// Ratings part a new key per user.
+function useMyRating(placeId: number, user: User | null) {
+  const [mine, setMine] = useState<Rating | null | undefined>(() => (user && loadToken() ? undefined : null))
+  const [mineError, setMineError] = useState<string | null>(null)
+
+  const loadMine = useCallback(() => {
+    const token = loadToken()
+    if (!user || !token) return
+    fetchMyRating(token, placeId)
+      .then(setMine)
+      .catch((err: Error) => setMineError(err.message))
+  }, [placeId, user])
+
+  useEffect(loadMine, [loadMine])
+
+  function retryMine() {
+    setMine(undefined)
+    setMineError(null)
+    loadMine()
+  }
+
+  return { mine, setMine, mineError, retryMine }
+}
+
 // The Ratings part of the Place detail (SCRUM-31): average stars, the most chosen Reasons, the
 // Condition, and the form to rate the Place or change the own Rating.
-export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Props) {
+// A Place under Admin review only shows its Ratings: no rate button, no votes (SCRUM-158).
+export default function PlaceRatings({ placeId, place, user, onLoginNeeded, readOnly = false }: Props) {
   const [summary, setSummary] = useState<RatingSummary | null>(null)
-  const [mine, setMine] = useState<Rating | null>(null)
+  const { mine, setMine, mineError, retryMine } = useMyRating(placeId, user)
   const [reasons, setReasons] = useState<Reason[] | null>(null)
+  // A failed load of the summary; the next good load clears it (SCRUM-156).
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // A failed save, vote or load of the Reasons.
   const [error, setError] = useState<string | null>(null)
   const [rating, setRating] = useState(false)
   const [stars, setStars] = useState(0)
@@ -331,30 +428,36 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
   const [voted, setVoted] = useState<Set<string>>(new Set())
   // The user just saved a Rating that names a Condition issue: ask about the City report.
   const [askReport, setAskReport] = useState(false)
+  // Polls, live events and the load after a save: only the newest answer is shown (SCRUM-156).
+  const { run, cancel } = useLatestRequest()
 
-  const reload = useCallback(() => {
-    fetchRatingSummary(placeId, loadToken())
-      .then(setSummary)
-      .catch((err: Error) => setError(err.message))
-  }, [placeId])
+  const load = useCallback(
+    (then: (fresh: RatingSummary) => void = () => {}) => {
+      run(
+        (signal) => fetchRatingSummary(placeId, loadToken(), signal),
+        (fresh) => {
+          setSummary(fresh)
+          setLoadError(null)
+          then(fresh)
+        },
+        (err) => setLoadError(err.message),
+      )
+    },
+    [placeId, run],
+  )
+  const reload = useCallback(() => load(), [load])
 
   // Other users' Ratings and votes show without a reload (SCRUM-98).
   usePlaceReloads(reload, placeId, onRatingChange)
 
-  // The own Rating, so the form starts with it. App gives this part a new key per user.
-  useEffect(() => {
-    const token = loadToken()
-    if (!user || !token) return
-    fetchMyRating(token, placeId)
-      .then(setMine)
-      .catch((err: Error) => setError(err.message))
-  }, [placeId, user])
 
   function startRating() {
     if (!user) {
       onLoginNeeded()
       return
     }
+    // Not before the own Rating is known (SCRUM-157).
+    if (mine === undefined) return
     setStars(mine?.stars ?? 0)
     setChosen(new Set(mine?.reasons ?? []))
     setError(null)
@@ -386,11 +489,9 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
       const keys = (reasons ?? []).map((r) => r.key).filter((key) => chosen.has(key))
       setMine(await saveRating(token, placeId, { stars, reasons: keys }))
       setRating(false)
-      // With the token, like every other load of the summary (SCRUM-163).
-      const fresh = await fetchRatingSummary(placeId, token)
-      setSummary(fresh)
+      // A poll that started before the save must not win over this load (SCRUM-156).
       // A chosen Reason that now shows as a Condition issue is something the city must fix.
-      setAskReport(fresh.condition.issues.some((issue) => keys.includes(issue.key)))
+      load((fresh) => setAskReport(fresh.condition.issues.some((issue) => keys.includes(issue.key))))
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -407,7 +508,11 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
     setBusy(true)
     setError(null)
     try {
-      setSummary(await voteOnIssue(token, placeId, issue.key, stillThere))
+      const fresh = await voteOnIssue(token, placeId, issue.key, stillThere)
+      // The vote answers with the newest summary: an open load is older (SCRUM-156).
+      cancel()
+      setSummary(fresh)
+      setLoadError(null)
       setVoted(new Set(voted).add(issue.key))
     } catch (err) {
       setError((err as Error).message)
@@ -421,23 +526,14 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
   return (
     <div className="place-ratings">
       <h3>Bewertungen</h3>
-      {summary &&
-        (summary.average_stars === null ? (
-          <p className="hint">Noch keine Bewertungen.</p>
-        ) : (
-          <p className="rating-average">
-            {/* Read out as "4,0 von 5 Sternen" (SCRUM-163); the stars alone mean nothing to a screen reader. */}
-            <span className="stars" role="img" aria-label={`${decimal.format(summary.average_stars)} von 5 Sternen`}>
-              {starText(Math.round(summary.average_stars))}
-            </span>{' '}
-            <strong>{decimal.format(summary.average_stars)}</strong> · {ratings(summary.count)}
-          </p>
-        ))}
-      {summary && summary.top_reasons.length > 0 && <ReasonChips reasons={summary.top_reasons} />}
-      {summary && <ConditionLine summary={summary} voted={voted} busy={busy} onVote={vote} />}
       {summary && (
-        <PlaceRatingList key={`${placeId}-${mine?.updated_at ?? 'none'}`} placeId={placeId} count={summary.count} />
+        <>
+          <RatingOverview summary={summary} />
+          <ConditionLine summary={summary} voted={voted} busy={busy} readOnly={readOnly} onVote={vote} />
+          <PlaceRatingList key={`${placeId}-${mine?.updated_at ?? 'none'}`} placeId={placeId} count={summary.count} />
+        </>
       )}
+      {loadError && <RetryError message={loadError} onRetry={reload} />}
       {rating ? (
         <RatingEditor
           stars={stars}
@@ -451,9 +547,7 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded }: Pr
           onCancel={() => setRating(false)}
         />
       ) : (
-        <button type="button" className="rate-button" onClick={startRating}>
-          {mine ? `Bewertung ändern (${starText(mine.stars)})` : '⭐ Bewertung erstellen'}
-        </button>
+        <RateButton readOnly={readOnly} user={user} mine={mine} mineError={mineError} onRate={startRating} onRetry={retryMine} />
       )}
 
       {/* Under the rate button (SCRUM-82). */}

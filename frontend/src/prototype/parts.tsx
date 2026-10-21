@@ -18,7 +18,7 @@ import {
 } from './data'
 
 // Party size 1–10 with big − / + buttons instead of a small select.
-export function PartySize({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+function PartySize({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <div className="pt-field">
       <span className="pt-label">Personenzahl (mit dir)</span>

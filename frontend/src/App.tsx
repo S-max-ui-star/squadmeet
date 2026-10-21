@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { fetchPlace, fetchPlaces, type MapArea, type Place, type PlaceSearchHit } from './api/places'
+import { fetchPlace, fetchPlaces, underReview, type MapArea, type Place, type PlaceSearchHit } from './api/places'
 import {
   clearToken,
   fetchMe,
@@ -21,14 +21,13 @@ import AccountDialog from './auth/AccountDialog'
 import ContactsDialog from './auth/ContactsDialog'
 import AuthDialog from './auth/AuthDialog'
 import DeleteAccountDialog from './auth/DeleteAccountDialog'
-import AdminDialog, { type AdminDialogKind } from './auth/AdminDialog'
+import type { AdminDialogKind } from './auth/AdminDialog'
 import MfaDialog from './auth/MfaDialog'
 import RecoveryCodesDialog from './auth/RecoveryCodesDialog'
 import FavoritesDialog from './auth/FavoritesDialog'
 import { AVATARS } from './auth/avatars'
 import { legalPageFromPath } from './legal/legal'
 import LegalLinks from './legal/LegalLinks'
-import LegalPage from './legal/LegalPage'
 import ActivityFilter from './places/ActivityFilter'
 import { ACTIVITY_TYPES, activityOf, type ActivityType } from './places/activities'
 import { filterPlaces } from './places/filter'
@@ -55,6 +54,10 @@ import { useFocusRequest } from './places/focus'
 import { groupBySpot } from './places/spots'
 import { pageVisible, whileVisible } from './whileVisible'
 import { loadMapView, saveMapView } from './places/mapView'
+
+// Rarely opened, so they load only when needed: a smaller first download (review 21.10.).
+const AdminDialog = lazy(() => import('./auth/AdminDialog'))
+const LegalPage = lazy(() => import('./legal/LegalPage'))
 
 const LEIPZIG: [number, number] = [51.3397, 12.3731]
 // Zoomed out further, an area could hold more Places than the API sends (MAX_PLACES).
@@ -102,6 +105,27 @@ function CloseOnMapTap({ onTap }: { onTap: () => void }) {
 
 type SearchTarget = { lat: number; lon: number; request: number }
 
+// At most one dialog is open at a time (review 21.10.: one state instead of a flag per dialog).
+type OpenDialog =
+  | {
+      kind:
+        | 'auth'
+        | 'account'
+        | 'mfa'
+        | 'suggest'
+        | 'delete'
+        | 'recoveryCodes'
+        | 'contacts'
+        | 'favorites'
+        | 'myMeetups'
+        | 'notifications'
+        | 'pushSettings'
+    }
+  | { kind: 'admin'; admin: AdminDialogKind }
+  // Where the Home area map starts (SCRUM-45).
+  | { kind: 'homeArea'; center: [number, number] }
+type DialogKind = OpenDialog['kind']
+
 function CenterOnSearch({ target }: { target: SearchTarget | null }) {
   const map = useMap()
   useEffect(() => {
@@ -127,20 +151,11 @@ export default function App() {
   // The last visible map area, to load it again after a Meetup changed or a minute passed.
   const lastArea = useRef<MapArea | null>(null)
   const [user, setUser] = useState<User | null>(null)
-  const [showAuth, setShowAuth] = useState(false)
-  const [showAccount, setShowAccount] = useState(false)
-  const [showMfa, setShowMfa] = useState(false)
-  const [showSuggest, setShowSuggest] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
-  const [showRecoveryCodes, setShowRecoveryCodes] = useState(false)
-  const [adminDialog, setAdminDialog] = useState<AdminDialogKind | null>(null)
-  const [showContacts, setShowContacts] = useState(false)
-  const [showFavorites, setShowFavorites] = useState(false)
-  const [showMyMeetups, setShowMyMeetups] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [showPushSettings, setShowPushSettings] = useState(false)
-  // Set while the Home area dialog is open: where its map starts (SCRUM-45).
-  const [homeAreaCenter, setHomeAreaCenter] = useState<[number, number] | null>(null)
+  const [dialog, setDialog] = useState<OpenDialog | null>(null)
+  const show = (kind: Exclude<DialogKind, 'admin' | 'homeArea'>) => setDialog({ kind })
+  const closeDialog = () => setDialog(null)
+  const isOpen = (kind: DialogKind) => dialog?.kind === kind
+  const loginNeeded = () => show('auth')
   // Contact requests waiting for the user's answer, shown on the "Konto" button (SCRUM-32).
   const [requests, setRequests] = useState<RequestCount | null>(null)
   const [notificationState, setNotificationState] = useState<NotificationState | null>(null)
@@ -165,6 +180,8 @@ export default function App() {
   const [photos, setPhotos] = useState(false)
   const current = detail && detail.id === selectedId && detail.viewerId === (user?.id ?? null) ? detail : null
   const selected = current?.place ?? null
+  // A reported Place that an Admin reviews: the detail only shows it (SCRUM-158).
+  const reviewOnly = selected !== null && underReview(selected)
 
   useEffect(() => {
     void fetchPhotosEnabled().then(setPhotos)
@@ -370,35 +387,22 @@ export default function App() {
     setError(null)
     setMapLoading(true)
     setUser(result.user)
-    setShowAuth(false)
+    closeDialog()
   }
 
   function startSuggesting() {
-    if (user) setShowSuggest(true)
-    else setShowAuth(true)
+    show(user ? 'suggest' : 'auth')
   }
 
   function openFromSuggest(id: number) {
-    setShowSuggest(false)
+    closeDialog()
     reloadPlaces()
     openPlace(id)
   }
 
   // No open overlay or cached account badge belongs to the next person who signs in.
   function resetUserUi() {
-    setShowAuth(false)
-    setShowAccount(false)
-    setShowNotifications(false)
-    setShowPushSettings(false)
-    setShowContacts(false)
-    setShowFavorites(false)
-    setShowMyMeetups(false)
-    setShowMfa(false)
-    setShowSuggest(false)
-    setShowDelete(false)
-    setShowRecoveryCodes(false)
-    setAdminDialog(null)
-    setHomeAreaCenter(null)
+    closeDialog()
     setRequests(null)
     setNotificationState(null)
     placesRequest.current?.abort()
@@ -442,11 +446,11 @@ export default function App() {
               type="button"
               className="notification-button"
               aria-label={`Benachrichtigungen${unreadNotifications ? `, ${unreadNotifications} ungelesen` : ''}`}
-              onClick={() => setShowNotifications(true)}
+              onClick={() => show('notifications')}
             >
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
-            <button type="button" onClick={() => setShowAccount(true)}>
+            <button type="button" onClick={() => show('account')}>
               Konto
             </button>
             <button type="button" onClick={handleLogout}>
@@ -454,178 +458,143 @@ export default function App() {
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => setShowAuth(true)}>
+          <button type="button" onClick={loginNeeded}>
             Anmelden
           </button>
         )}
       </div>
-      {showAuth && <AuthDialog onLoggedIn={handleLoggedIn} onClose={() => setShowAuth(false)} />}
-      {user && !showPushSettings && (
+      {isOpen('auth') && <AuthDialog onLoggedIn={handleLoggedIn} onClose={closeDialog} />}
+      {user && !isOpen('pushSettings') && (
         <PushOnboarding
           key={user.id}
           userId={user.id}
           token={loadToken() ?? ''}
-          onConfigure={() => setShowPushSettings(true)}
+          onConfigure={() => show('pushSettings')}
         />
       )}
-      {showNotifications && user && (
+      {isOpen('notifications') && user && (
         <NotificationsDialog
           key={user.id}
           token={loadToken() ?? ''}
           onChanged={updateNotifications}
           onOpenMeetup={(placeId) => {
-            setShowNotifications(false)
+            closeDialog()
             focusOn(placeId)
             openPlace(placeId)
           }}
-          onClose={() => setShowNotifications(false)}
+          onClose={closeDialog}
         />
       )}
-      {showPushSettings && user && (
-        <PushSettingsDialog
-          key={user.id}
-          token={loadToken() ?? ''}
-          onClose={() => setShowPushSettings(false)}
-        />
+      {isOpen('pushSettings') && user && (
+        <PushSettingsDialog key={user.id} token={loadToken() ?? ''} onClose={closeDialog} />
       )}
-      {homeAreaCenter && user && (
-        <HomeAreaDialog
-          token={loadToken() ?? ''}
-          fallbackCenter={homeAreaCenter}
-          onClose={() => setHomeAreaCenter(null)}
-        />
+      {dialog?.kind === 'homeArea' && user && (
+        <HomeAreaDialog token={loadToken() ?? ''} fallbackCenter={dialog.center} onClose={closeDialog} />
       )}
-      {showAccount && user && (
+      {isOpen('account') && user && (
         <AccountDialog
           user={user}
           photos={photos}
-          onPush={() => {
-            setShowAccount(false)
-            setShowPushSettings(true)
-          }}
-          onMfa={() => {
-            setShowAccount(false)
-            setShowMfa(true)
-          }}
-          onDelete={() => {
-            setShowAccount(false)
-            setShowDelete(true)
-          }}
-          onLockedPlaces={() => {
-            setShowAccount(false)
-            setAdminDialog('locked')
-          }}
-          onSuggestions={() => {
-            setShowAccount(false)
-            setAdminDialog('approvals')
-          }}
-          onReports={() => {
-            setShowAccount(false)
-            setAdminDialog('reports')
-          }}
-          onPhotos={() => {
-            setShowAccount(false)
-            setAdminDialog('photos')
-          }}
-          onClose={() => setShowAccount(false)}
+          onPush={() => show('pushSettings')}
+          onMfa={() => show('mfa')}
+          onDelete={() => show('delete')}
+          onLockedPlaces={() => setDialog({ kind: 'admin', admin: 'locked' })}
+          onSuggestions={() => setDialog({ kind: 'admin', admin: 'approvals' })}
+          onReports={() => setDialog({ kind: 'admin', admin: 'reports' })}
+          onPhotos={() => setDialog({ kind: 'admin', admin: 'photos' })}
+          onClose={closeDialog}
         />
       )}
-      {showContacts && user && (
+      {isOpen('contacts') && user && (
         <ContactsDialog
           token={loadToken() ?? ''}
           onChanged={updateRequests}
           onClose={() => {
-            setShowContacts(false)
+            closeDialog()
             // A Block changes which Meetups the user sees.
             reloadPlaces()
           }}
         />
       )}
-      {showFavorites && user && (
+      {isOpen('favorites') && user && (
         <FavoritesDialog
           token={loadToken() ?? ''}
           onOpenPlace={(id) => {
-            setShowFavorites(false)
+            closeDialog()
             openPlace(id)
           }}
-          onClose={() => setShowFavorites(false)}
+          onClose={closeDialog}
         />
       )}
-      {showMyMeetups && user && (
+      {isOpen('myMeetups') && user && (
         <MyMeetupsDialog
           token={loadToken() ?? ''}
           onOpenPlace={(placeId) => {
-            setShowMyMeetups(false)
+            closeDialog()
             focusOn(placeId)
             openPlace(placeId)
           }}
-          onClose={() => setShowMyMeetups(false)}
+          onClose={closeDialog}
         />
       )}
-      {adminDialog && user && (
-        <AdminDialog
-          kind={adminDialog}
-          token={loadToken() ?? ''}
-          onChanged={() => {
-            reloadPlaces()
-            // The open Place may be the one that just changed.
-            setDetailTry((n) => n + 1)
-          }}
-          onOpenPlace={(id) => {
-            setAdminDialog(null)
-            openPlace(id)
-          }}
-          onClose={() => setAdminDialog(null)}
-        />
+      {dialog?.kind === 'admin' && user && (
+        <Suspense fallback={null}>
+          <AdminDialog
+            kind={dialog.admin}
+            token={loadToken() ?? ''}
+            onChanged={() => {
+              reloadPlaces()
+              // The open Place may be the one that just changed.
+              setDetailTry((n) => n + 1)
+            }}
+            onOpenPlace={(id) => {
+              closeDialog()
+              openPlace(id)
+            }}
+            onClose={closeDialog}
+          />
+        </Suspense>
       )}
-      {showMfa && user && (
+      {isOpen('mfa') && user && (
         <MfaDialog
           token={loadToken() ?? ''}
           user={user}
           onChanged={setUser}
-          onNewRecoveryCodes={() => {
-            setShowMfa(false)
-            setShowRecoveryCodes(true)
-          }}
-          onClose={() => setShowMfa(false)}
+          onNewRecoveryCodes={() => show('recoveryCodes')}
+          onClose={closeDialog}
         />
       )}
-      {showSuggest && user && (
+      {isOpen('suggest') && user && (
         <SuggestPlaceDialog
           token={loadToken() ?? ''}
           onCreated={(place) => openFromSuggest(place.id)}
           onOpenPlace={openFromSuggest}
-          onClose={() => setShowSuggest(false)}
+          onClose={closeDialog}
         />
       )}
       <button type="button" className="suggest-button" onClick={startSuggesting}>
         ＋ Platz vorschlagen
       </button>
-      {showDelete && user && (
-        <DeleteAccountDialog
-          token={loadToken() ?? ''}
-          user={user}
-          onDeleted={handleDeleted}
-          onClose={() => setShowDelete(false)}
-        />
+      {isOpen('delete') && user && (
+        <DeleteAccountDialog token={loadToken() ?? ''} user={user} onDeleted={handleDeleted} onClose={closeDialog} />
       )}
-      {legalPage && <LegalPage kind={legalPage} photos={photos} navigate={navigate} />}
+      {legalPage && (
+        <Suspense fallback={null}>
+          <LegalPage kind={legalPage} photos={photos} navigate={navigate} />
+        </Suspense>
+      )}
       <LegalLinks navigate={navigate} />
-      {showRecoveryCodes && user && (
-        <RecoveryCodesDialog
-          token={loadToken() ?? ''}
-          user={user}
-          onClose={() => setShowRecoveryCodes(false)}
-        />
+      {isOpen('recoveryCodes') && user && (
+        <RecoveryCodesDialog token={loadToken() ?? ''} user={user} onClose={closeDialog} />
       )}
       {/* Right of the search field (SCRUM-85); right before it, so the CSS can make room. */}
       {user && (
         <MapToolbar
           incomingRequests={incomingRequests}
-          onContacts={() => setShowContacts(true)}
-          onFavorites={() => setShowFavorites(true)}
-          onHomeArea={() => setHomeAreaCenter(areaCenter(lastArea.current))}
-          onMyMeetups={() => setShowMyMeetups(true)}
+          onContacts={() => show('contacts')}
+          onFavorites={() => show('favorites')}
+          onHomeArea={() => setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })}
+          onMyMeetups={() => show('myMeetups')}
         />
       )}
       <PlaceSearch onPick={pickSearchHit} dismissRequest={searchDismissRequest} />
@@ -648,7 +617,7 @@ export default function App() {
           key={selectedId}
           onClose={closePlace}
           user={user}
-          onLoginNeeded={() => setShowAuth(true)}
+          onLoginNeeded={loginNeeded}
           onConfirmed={(updated) => {
             setDetail({ id: updated.id, viewerId: user?.id ?? null, place: updated })
             reloadPlaces()
@@ -664,14 +633,15 @@ export default function App() {
             key={`favorite-${selectedId}-${user?.id ?? 'guest'}`}
             placeId={selectedId}
             token={user ? loadToken() : null}
-            onLoginNeeded={() => setShowAuth(true)}
+            onLoginNeeded={loginNeeded}
           />
           <PlaceMeetups
             key={selectedId}
             placeId={selectedId}
             user={user}
-            onLoginNeeded={() => setShowAuth(true)}
+            onLoginNeeded={loginNeeded}
             onChanged={reloadPlaces}
+            readOnly={reviewOnly}
           />
           {/* A new key per user, so a logout does not keep the old user's own Rating. */}
           <PlaceRatings
@@ -679,7 +649,8 @@ export default function App() {
             placeId={selectedId}
             place={selected}
             user={user}
-            onLoginNeeded={() => setShowAuth(true)}
+            onLoginNeeded={loginNeeded}
+            readOnly={reviewOnly}
           />
           {/* A new key per Admin decision too: an approved Photo shows at once. */}
           {photos && (
@@ -687,7 +658,8 @@ export default function App() {
               key={`${selectedId}-${user?.id ?? 'guest'}-${detailTry}`}
               placeId={selectedId}
               user={user}
-              onLoginNeeded={() => setShowAuth(true)}
+              onLoginNeeded={loginNeeded}
+              readOnly={reviewOnly}
             />
           )}
         </PlaceDetail>

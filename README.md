@@ -142,9 +142,8 @@ cd frontend && npm install && npm test    # frontend (Vitest)
 
 The backend tests need the running, migrated database. Each test runs in one transaction that
 is rolled back at the end, so the tests leave no data behind
-([backend/tests/conftest.py](backend/tests/conftest.py)). Some tests (`test_auth`, `test_mfa`,
-`test_password_reset`, `test_audit_log`) expect an empty user table: on a local database with
-your own accounts they fail. CI starts with an empty database. After new migrations on `dev`, run
+([backend/tests/conftest.py](backend/tests/conftest.py)). The tests look only at their own rows,
+so they also pass on a local database with your own accounts. After new migrations on `dev`, run
 `docker compose exec backend alembic upgrade head` first, or many tests fail.
 
 ### Database schema changes (Alembic)

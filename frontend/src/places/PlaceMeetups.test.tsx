@@ -61,14 +61,14 @@ afterEach(() => {
   window.location.hash = ''
 })
 
-async function render(user: User | null, onLoginNeeded = () => {}) {
+async function render(user: User | null, onLoginNeeded = () => {}, readOnly = false) {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
   roots.push(root)
   await act(async () =>
     root.render(
-      <PlaceMeetups placeId={3} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} />,
+      <PlaceMeetups placeId={3} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} readOnly={readOnly} />,
     ),
   )
   return container
@@ -575,5 +575,26 @@ describe('PlaceMeetups', () => {
 
     expect(scrollIntoView).toHaveBeenCalledOnce()
     delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  // SCRUM-158: an Admin reviews a reported Place: the Meetups show, nothing can be started.
+  it('only lists the Meetups of a Place under review', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([asOther(meetup)])))
+
+    const container = await render(karl, () => {}, true)
+
+    expect(container.textContent).toContain('Paula')
+    expect(button(container, 'Ich bin jetzt hier')).toBeUndefined()
+    expect(button(container, 'Später treffen')).toBeUndefined()
+    expect(button(container, 'Ich komme mit')).toBeUndefined()
+  })
+
+  it('keeps every action at an active Place (SCRUM-158)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([asOther(meetup)])))
+
+    const container = await render(karl)
+
+    expect(button(container, 'Ich bin jetzt hier')).toBeDefined()
+    expect(button(container, 'Ich komme mit')).toBeDefined()
   })
 })

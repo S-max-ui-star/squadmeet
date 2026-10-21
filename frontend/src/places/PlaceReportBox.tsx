@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { loadToken, type User } from '../api/auth'
-import { REPORT_REASONS, REPORTS_TO_HIDE, reportPlace, type Place, type PlaceReportReason } from '../api/places'
+import { REPORT_REASONS, REPORTS_TO_HIDE, reportPlace, underReview, type Place, type PlaceReportReason } from '../api/places'
 
 type Props = {
   place: Place
@@ -12,10 +12,31 @@ type Props = {
 
 const REASONS = Object.entries(REPORT_REASONS) as [PlaceReportReason, string][]
 
-/** Place report (SCRUM-57): the hint "Von Nutzern gemeldet" from the first open report, and
- * "Melden" with the fixed reasons. The parent gives it key={place.id}, so a choice at one Place
- * does not show at the next. */
-export default function PlaceReportBox({ place, user, onLoginNeeded, onReported }: Props) {
+// The hint "Von Nutzern gemeldet" from the first open report, and for a Place under Admin review
+// what is closed until the decision (SCRUM-158).
+function ReportNote({ place }: { place: Place }) {
+  const reports = place.open_reports ?? 0
+  return (
+    <>
+      {place.report_reason && (
+        <p className="place-report-note">
+          <strong>Von Nutzern gemeldet:</strong> {REPORT_REASONS[place.report_reason]}
+          {/* Only an Admin sees a Place that is off the map. */}
+          {reports >= REPORTS_TO_HIDE && ` (${reports} Meldungen, nicht auf der Karte)`}
+        </p>
+      )}
+      {underReview(place) && (
+        <p className="hint">
+          Bis ein Admin entschieden hat, kann niemand hier bewerten, Fotos hochladen, Treffen planen
+          oder melden.
+        </p>
+      )}
+    </>
+  )
+}
+
+// "Melden" with the fixed reasons.
+function ReportForm({ place, user, onLoginNeeded, onReported }: Props) {
   const [choosing, setChoosing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
@@ -47,16 +68,8 @@ export default function PlaceReportBox({ place, user, onLoginNeeded, onReported 
     }
   }
 
-  const reports = place.open_reports ?? 0
   return (
-    <div className="place-report">
-      {place.report_reason && (
-        <p className="place-report-note">
-          <strong>Von Nutzern gemeldet:</strong> {REPORT_REASONS[place.report_reason]}
-          {/* Only an Admin sees a Place that is off the map. */}
-          {reports >= REPORTS_TO_HIDE && ` (${reports} Meldungen, nicht auf der Karte)`}
-        </p>
-      )}
+    <>
       {done && <p>Danke! Ab {REPORTS_TO_HIDE} Meldungen prüft ein Admin den Platz.</p>}
       {!done && !choosing && (
         <button type="button" className="link" onClick={start}>
@@ -76,6 +89,17 @@ export default function PlaceReportBox({ place, user, onLoginNeeded, onReported 
         </div>
       )}
       {error && <p className="form-error">{error}</p>}
+    </>
+  )
+}
+
+/** Place report (SCRUM-57). The parent gives it key={place.id}, so a choice at one Place does
+ * not show at the next. A Place under Admin review takes no more reports (SCRUM-158). */
+export default function PlaceReportBox(props: Props) {
+  return (
+    <div className="place-report">
+      <ReportNote place={props.place} />
+      {!underReview(props.place) && <ReportForm {...props} />}
     </div>
   )
 }
