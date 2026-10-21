@@ -5,6 +5,7 @@ import type { Place } from '../api/places'
 import { activityOf } from './activities'
 import AdminPlaceActions from './AdminPlaceActions'
 import PlaceReportBox from './PlaceReportBox'
+import PlaceShareButton from './PlaceShareButton'
 import { routeUrl } from './routeLink'
 import SuggestionStatus from './SuggestionStatus'
 
@@ -25,6 +26,85 @@ type Props = {
   children?: ReactNode
 }
 
+type HeadProps = Pick<Props, 'place' | 'error' | 'onClose'>
+
+function PlaceDetailHead({ place, error, onClose }: HeadProps) {
+  const activity = place && activityOf(place.activity_type)
+  return (
+    <div className="place-detail-head">
+      {activity && (
+        <span className="place-detail-emoji" style={{ borderColor: activity.color }} aria-hidden="true">
+          {activity.emoji}
+        </span>
+      )}
+      <div className="place-detail-title">
+        <h2>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
+        {activity && <span>{activity.label}</span>}
+      </div>
+      {/* At the top, so a phone user need not scroll down to "Zurück zur Karte" (SCRUM-76). */}
+      <button type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
+        ×
+      </button>
+    </div>
+  )
+}
+
+type ContentProps = Pick<
+  Props,
+  'user' | 'onLoginNeeded' | 'onConfirmed' | 'onRemoved' | 'onReported' | 'children'
+> & { place: Place }
+
+function PlaceDetailContent({
+  place,
+  user,
+  onLoginNeeded,
+  onConfirmed,
+  onRemoved,
+  onReported,
+  children,
+}: ContentProps) {
+  const coordinates = `${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}`
+  return (
+    <>
+      <SuggestionStatus
+        key={place.id}
+        place={place}
+        user={user}
+        onLoginNeeded={onLoginNeeded}
+        onConfirmed={onConfirmed}
+      />
+      <p className="place-detail-location">
+        <strong>{place.address ? 'Adresse' : 'Lage'}</strong>
+        <span>{place.address ?? coordinates}</span>
+        <a className="place-detail-route" href={routeUrl(place.lat, place.lon)} target="_blank" rel="noreferrer">
+          Route planen
+        </a>{' '}
+        <a
+          href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=18/${place.lat}/${place.lon}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          In OpenStreetMap ansehen
+        </a>
+        <br />
+        <PlaceShareButton key={`share-${place.id}`} placeId={place.id} placeName={place.name} />
+      </p>
+      {!place.is_suggestion && children}
+      <PlaceReportBox
+        key={`report-${place.id}`}
+        place={place}
+        user={user}
+        onLoginNeeded={onLoginNeeded}
+        onReported={onReported}
+      />
+      {/* Also for a Place suggestion: an invented Place is a reason to lock it. */}
+      {canModerate(user) && (
+        <AdminPlaceActions key={`admin-${place.id}`} placeId={place.id} onRemoved={() => onRemoved?.()} />
+      )}
+    </>
+  )
+}
+
 // The Place detail page: a panel over the bottom of the map (layout from SCRUM-17), so the
 // map still shows where the Place is.
 export default function PlaceDetail({
@@ -39,68 +119,21 @@ export default function PlaceDetail({
   onReported,
   children,
 }: Props) {
-  const activity = place && activityOf(place.activity_type)
-  const coordinates = place && `${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}`
-
   return (
     <section className="place-detail" aria-label={place?.name ?? 'Platz'}>
-      <div className="place-detail-head">
-        {activity && (
-          <span className="place-detail-emoji" style={{ borderColor: activity.color }} aria-hidden="true">
-            {activity.emoji}
-          </span>
-        )}
-        <div className="place-detail-title">
-          <h2>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
-          {activity && <span>{activity.label}</span>}
-        </div>
-        {/* At the top, so a phone user need not scroll down to "Zurück zur Karte" (SCRUM-76). */}
-        <button type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
-          ×
-        </button>
-      </div>
+      <PlaceDetailHead place={place} error={error} onClose={onClose} />
 
       {place && (
-        <>
-          <SuggestionStatus
-            key={place.id}
-            place={place}
-            user={user}
-            onLoginNeeded={onLoginNeeded}
-            onConfirmed={onConfirmed}
-          />
-          <p className="place-detail-location">
-            <strong>{place.address ? 'Adresse' : 'Lage'}</strong>
-            <span>{place.address ?? coordinates}</span>
-            <a
-              className="place-detail-route"
-              href={routeUrl(place.lat, place.lon)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Route planen
-            </a>{' '}
-            <a
-              href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=18/${place.lat}/${place.lon}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              In OpenStreetMap ansehen
-            </a>
-          </p>
-          {!place.is_suggestion && children}
-          <PlaceReportBox
-            key={`report-${place.id}`}
-            place={place}
-            user={user}
-            onLoginNeeded={onLoginNeeded}
-            onReported={onReported}
-          />
-          {/* Also for a Place suggestion: an invented Place is a reason to lock it. */}
-          {canModerate(user) && (
-            <AdminPlaceActions key={`admin-${place.id}`} placeId={place.id} onRemoved={() => onRemoved?.()} />
-          )}
-        </>
+        <PlaceDetailContent
+          place={place}
+          user={user}
+          onLoginNeeded={onLoginNeeded}
+          onConfirmed={onConfirmed}
+          onRemoved={onRemoved}
+          onReported={onReported}
+        >
+          {children}
+        </PlaceDetailContent>
       )}
       {error && (
         <>

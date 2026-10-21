@@ -11,10 +11,10 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 - [x] **1.3 Aktivitätsfilter** 👤 — Nur Tischtennis, dann nur Basketball usw. wählen. Die Karte zeigt nur passende Plätze.
 - [X] **1.4 Zeitfilter** 👤 — Jetzt, nächste 3 Stunden, nächste 6 Stunden, Heute. Karte und Treffen-Liste zeigen nur Plätze mit Treffen in dieser Zeit.
 - [X] **1.5 Treffen-Liste folgt der Karte** 👤 — Kartenausschnitt verschieben und zoomen. Die Liste wird kürzer oder länger. Leer: „Keine Treffen in diesem Kartenausschnitt.“
-- [?] **1.6 Suche** 👤 — Nach einer Adresse und nach einem Platznamen suchen. SquadMeet-Plätze sind markiert. Unsinn eingeben: „Keine Treffer.“
+- [X] **1.6 Suche** 👤 — Nach einer Adresse und nach einem Platznamen suchen. SquadMeet-Plätze sind markiert. Unsinn eingeben: „Keine Treffer.“
 - [?] **1.7 Platzdetails und Link** 👥 — Platz öffnen. Die Adresse /platz/… teilen, im anderen Browser öffnen und neu laden. Der Zurück-Button führt zur Karte.
 - [X] **1.8 Route** 👤 — In den Platzdetails die Route öffnen. Apple Maps oder Google Maps startet mit dem Platz als Ziel.
-- [?] **1.9 Impressum und Datenschutz** 👤 — Beide Seiten öffnen. Stimmen die Angaben, fehlt ein Punkt (Push, Heimatbereich, Fotos)?
+- [X] **1.9 Impressum und Datenschutz** 👤 — Beide Seiten öffnen. Stimmen die Angaben, fehlt ein Punkt (Push, Heimatbereich, Fotos)?
 - [X] **1.10 Als App aufs Handy** 👤 — Im Handy-Browser „Zum Home-Bildschirm“. Symbol und Name stimmen, die App öffnet ohne Browserleiste.
 
 ## 2 Konto
@@ -30,9 +30,9 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 - [X] **3.1 Später treffen** 👥 — Person A legt an einem Platz ein Treffen für später an. Person B sieht es in der Liste und in den Platzdetails.
 - [X] **3.2 Ich komme mit** 👥 — B tritt mit Personenzahl 3 bei. A sieht die neue Zahl. B ändert sie oder verlässt das Treffen wieder.
-- [?] **3.3 Ich bin jetzt hier** 👤 — Dauer 1 bis 4 Stunden wählen. Das Treffen ist LIVE. Der Host beendet es früher.
-- [?] **3.4 Verschieben mit Teilnehmer** 👥 — A verschiebt ein Treffen, dem B beigetreten ist. B wählt Mitgehen, Hierbleiben oder Verlassen. Beide Varianten einmal.
-- [?] **3.5 Host verlässt** 👥 — A verlässt ein Treffen, in dem B ist. B ist danach Gastgeber und kann bearbeiten und absagen.
+- [X] **3.3 Ich bin jetzt hier** 👤 — Dauer 1 bis 4 Stunden wählen. Das Treffen ist LIVE. Der Host beendet es früher.
+- [X] **3.4 Verschieben mit Teilnehmer** 👥 — A verschiebt ein Treffen, dem B beigetreten ist. B wählt Mitgehen, Hierbleiben oder Verlassen. Beide Varianten einmal.
+- [X] **3.5 Host verlässt** 👥 — A verlässt ein Treffen, in dem B ist. B ist danach Gastgeber und kann bearbeiten und absagen.
 - [X] **3.6 Absagen** 👥 — Host sagt ein Treffen ab. Es bleibt als „Abgesagt“ sichtbar bis zur Endzeit.
 - [X] **3.7 Alle verlassen** 👥 — Beide verlassen ein Treffen. Es ist danach geschlossen.
 - [X] **3.8 Serie** 👥 — Wöchentliche Serie mit zwei Wochentagen, eigener Uhrzeit, optional Enddatum. Termine der nächsten 30 Tage erscheinen. B tritt nur einem Termin bei.
@@ -41,22 +41,22 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 
 - [X] **4.1 Bewerten** 👤 — 1 bis 5 Sterne und mindestens eine Begründung. Ohne Stern oder Begründung kommt ein Hinweis. Pro Person nur eine Bewertung je Platz, ändern geht.
 - [X] **4.2 Zustand: Mängel** 👤 — Eine Bewertung mit z. B. „Netz kaputt“ oder „Scherben“. Der Platz zeigt „Zustand: Mängel gemeldet“. „Oft überfüllt“ ändert den Zustand nicht.
-- [?] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
-- [ ] **4.4 Meldung an die Stadt** 👤 — Bei einem Mangel erscheint „Willst du das der Stadt melden?“. Link öffnen, „Ort für die Meldung kopieren“ ausprobieren.
+- [X] **4.3 Schon repariert?** 👥 — Beide sagen „repariert“. Prüfen, was nach 2 von 3 Stimmen angezeigt wird.
+- [Ist da aber ist immer da. Wie können wir das sinnvoll ändern?] **4.4 Meldung an die Stadt** 👤 — Bei einem Mangel erscheint „Willst du das der Stadt melden?“. Link öffnen, „Ort für die Meldung kopieren“ ausprobieren.
 - [Zurückgestellt] **4.5 Foto hochladen** (Fotos aus seit 20.10., `SCRUM-94`) 👤 — In den Platzdetails ein Foto hochladen. Hinweis „erscheint, sobald ein Admin es freigegeben hat“. Mehr als 3 offene Fotos geht nicht.
-- [?] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
+- [X] **4.6 Platz melden** 👥 — „Platz melden“ mit einem Grund. Der Platz zeigt „Von Nutzern gemeldet“. Erst bei 3 Personen verschwindet er von der Karte.
 
 ## 5 Kontakte
 
 - [X] **5.1 Kontaktanfrage** 👥 — A schickt B eine Anfrage mit dem genauen Nickname. B lehnt ab, A sieht das und fragt erneut. B nimmt an.
 - [X] **5.2 Kontakt-Benachrichtigung** 👥 — A erstellt ein Treffen. B bekommt eine Benachrichtigung mit A's Namen in der Glocke.
-- [?] **5.3 Kontakte einladen** 👥 — A ist im Treffen und lädt B ein. B sieht die Einladung und tritt mit „Ich komme mit“ direkt bei. Zweite Einladung an B geht nicht.
+- [X] **5.3 Kontakte einladen** 👥 — A ist im Treffen und lädt B ein. B sieht die Einladung und tritt mit „Ich komme mit“ direkt bei. Zweite Einladung an B geht nicht.
 - [X] **5.4 Blockieren** 👥 — B blockiert A. A kann B keine Anfrage mehr schicken und sieht B's Treffen nicht. B wird gewarnt, wenn beide im selben Treffen sind. Danach wieder entsperren.
 
 ## 6 Benachrichtigungen und Push
 
-- [ ] **6.1 Glocke und Liste** 👤 — Neueste zuerst. Antippen markiert gelesen und öffnet den Platz mit seinen Treffen.
-- [ ] **6.2 Favorit ohne Zeitfenster** 👥 — B setzt einen Platz als Favorit. A erstellt dort ein Treffen. B wird benachrichtigt.
+- [X] **6.1 Glocke und Liste** 👤 — Neueste zuerst. Antippen markiert gelesen und öffnet den Platz mit seinen Treffen.
+- [X] **6.2 Favorit ohne Zeitfenster** 👥 — B setzt einen Platz als Favorit. A erstellt dort ein Treffen. B wird benachrichtigt.
 - [ ] **6.3 Favorit mit Zeitfenster** 👥 — B legt z. B. Mo–Fr 17–20 Uhr fest. Ein Treffen innerhalb benachrichtigt, eines außerhalb nicht. Startzeit genau 20:00 zählt nicht mehr.
 - [ ] **6.4 Nur eine Nachricht** 👥 — B hat A als Kontakt und den Platz als Favorit. A erstellt ein Treffen: B bekommt nur eine Benachrichtigung, nicht zwei.
 - [ ] **6.5 Heimatbereich** 👥 — B setzt Punkt, Radius (1–20 km) und Sportarten. A erstellt ein Treffen innerhalb: eine Nachricht. Außerhalb oder andere Sportart: keine.
@@ -70,9 +70,9 @@ Alle Features von https://squadmeet.duckdns.org gemeinsam durchtesten, auf Handy
 Nur mit dem Admin-Konto. Am besten an einem Testplatz, nicht an einem echten Platz mit Treffen anderer.
 
 - [Zurückgestellt] **7.1 Fotos freigeben** (Fotos aus seit 20.10., `SCRUM-94`) 🔑 — Konto → Fotos freigeben. Ein Foto freigeben (erscheint in den Platzdetails), ein anderes ablehnen (zweiter Schritt „Ja, ablehnen“).
-- [ ] **7.2 Gemeldete Plätze** 🔑 — Liste der gemeldeten Plätze. „Verwerfen“ schließt die Meldungen, der Platz bleibt.
-- [ ] **7.3 Platz sperren und entsperren** 🔑 — Platz sperren: weg von der Karte, künftige Treffen abgesagt. Unter „Gesperrte Plätze“ entsperren, abgesagte Treffen bleiben abgesagt.
-- [ ] **7.4 Platz löschen** 🔑 — Nur an einem Testplatz. Danach für niemanden mehr sichtbar.
+- [X] **7.2 Gemeldete Plätze** 🔑 — Liste der gemeldeten Plätze. „Verwerfen“ schließt die Meldungen, der Platz bleibt.
+- [X] **7.3 Platz sperren und entsperren** 🔑 — Platz sperren: weg von der Karte, künftige Treffen abgesagt. Unter „Gesperrte Plätze“ entsperren, abgesagte Treffen bleiben abgesagt.
+- [X] **7.4 Platz löschen** 🔑 — Nur an einem Testplatz. Danach für niemanden mehr sichtbar.
 
 ## 8 Zum Schluss drinnen
 
@@ -92,6 +92,17 @@ An einem echten Platz mit Handy, GPS und mobilem Netz. Platz vorschlagen und bes
 - [Zurückgestellt] **9.8 Foto mit der Handykamera** (Fotos aus seit 20.10., `SCRUM-94`) 👤 — Direkt mit der Kamera ein Foto vom Platz hochladen. Nach der Freigabe prüfen: kein Standort in den Bilddaten.
 - [ ] **9.9 Push unterwegs** 👥 — App geschlossen, Handy in der Tasche, mobiles Netz. Die andere Person erstellt ein Treffen. Kommt die Push-Nachricht, und wie schnell?
 - [ ] **9.10 Bedienung draußen** 👤 — In der Sonne lesbar? Mit einer Hand bedienbar? Lädt die Karte mit schwachem Netz?
+
+## Tickets aus dem Testlauf (20.10.)
+
+- 1.7: `SCRUM-95` Button „Teilen“ in den Platzdetails (Teilen-Menü am Handy, sonst Link kopieren)
+- 3: `SCRUM-96` Host kann nicht absagen, wenn andere dabei sind, nur verlassen
+- 3.4: `SCRUM-97` doppelte Buttons bei offener Verschieben-Antwort („Gar nicht“ = „Verlassen“, „Ich komme mit“ am neuen Treffen)
+- 4.2/4.3: `SCRUM-98` Bewertungen und Zustand aktualisieren sich live
+- 4.3: `SCRUM-99` behobener Mangel wird durchgestrichen, die Bewertung bleibt
+- 4: `SCRUM-100` einzelne Bewertungen mit Datum
+- 6: `SCRUM-101` „Alle gelesen“ und „Gelesene löschen“
+- allgemein: `SCRUM-102` „Meine Treffen“, Übersicht der eigenen Treffen
 
 ## Fertig, wenn
 
