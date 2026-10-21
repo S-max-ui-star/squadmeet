@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app import series as series_module
-from app.models import Meetup
+from app.models import Meetup, MeetupSeries
 from tests.test_auth import auth_header, register
 from tests.test_meetups import join, leave, meetups_seen_by, people_now, place  # noqa: F401
 
@@ -213,6 +213,21 @@ def test_an_end_date_in_the_past_is_rejected(client, place, host):
     yesterday = (datetime.now(BERLIN) - timedelta(days=1)).date()
 
     assert create_series(client, host[0], place.id, [slot(0)], until=yesterday.isoformat()).status_code == 422
+
+
+def test_a_series_without_a_future_occurrence_is_not_created(session, client, place, host):
+    now = datetime.now(BERLIN)
+    response = create_series(
+        client,
+        host[0],
+        place.id,
+        [slot(now.weekday(), now.strftime("%H:%M"))],
+        until=now.date().isoformat(),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Die Auswahl enthält keinen zukünftigen Termin"
+    assert session.exec(series_module.select(MeetupSeries)).all() == []
 
 
 def test_creating_needs_a_login(client, place):

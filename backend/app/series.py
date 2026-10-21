@@ -198,10 +198,16 @@ def create_series(
     session.add(series)
     session.flush()
     try:
-        fill_series(session, series, now, new_series=True)
+        created = fill_series(session, series, now, new_series=True)
     except LifecycleError:
         session.rollback()
         raise
+    if created == 0:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Die Auswahl enthält keinen zukünftigen Termin",
+        )
     session.commit()
     session.refresh(series)
     return to_read(series)
