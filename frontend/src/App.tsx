@@ -348,13 +348,13 @@ export default function App() {
     openPlace(id)
   }
 
-  async function handleLogout() {
-    const token = loadToken()
-    clearToken()
-    setUser(null)
+  // No open overlay or cached account badge belongs to the next person who signs in.
+  function resetUserUi() {
+    setShowAuth(false)
     setShowAccount(false)
     setShowNotifications(false)
     setShowPushSettings(false)
+    setShowContacts(false)
     setShowFavorites(false)
     setShowMyMeetups(false)
     setShowMfa(false)
@@ -362,6 +362,16 @@ export default function App() {
     setShowDelete(false)
     setShowRecoveryCodes(false)
     setAdminDialog(null)
+    setHomeAreaCenter(null)
+    setRequests(null)
+    setNotificationState(null)
+  }
+
+  async function handleLogout() {
+    const token = loadToken()
+    clearToken()
+    setUser(null)
+    resetUserUi()
     if (token) await logout(token).catch(() => {})
   }
 
@@ -369,10 +379,7 @@ export default function App() {
   function handleDeleted() {
     clearToken()
     setUser(null)
-    setShowAccount(false)
-    setShowNotifications(false)
-    setShowSuggest(false)
-    setShowDelete(false)
+    resetUserUi()
     reloadPlaces()
   }
 

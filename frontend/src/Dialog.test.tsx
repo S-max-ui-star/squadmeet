@@ -5,21 +5,30 @@ import Dialog from './Dialog'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-afterEach(() => {
+const roots = new Set<ReturnType<typeof createRoot>>()
+
+afterEach(async () => {
+  await act(async () => {
+    for (const root of roots) root.unmount()
+  })
+  roots.clear()
   document.body.innerHTML = ''
 })
 
 async function render(onClose = vi.fn()) {
   const container = document.createElement('div')
   document.body.append(container)
+  const root = createRoot(container)
+  roots.add(root)
   await act(async () =>
-    createRoot(container).render(
+    root.render(
       <Dialog title="Kontakte" onClose={onClose}>
         <p>Inhalt</p>
+        <button type="button">Speichern</button>
       </Dialog>,
     ),
   )
-  return { container, onClose }
+  return { container, onClose, root }
 }
 
 // A real click: press and release on the same element.
@@ -33,7 +42,54 @@ describe('Dialog', () => {
     const { container } = await render()
 
     expect(container.querySelector('h2')?.textContent).toBe('Kontakte')
-    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Kontakte')
+    const dialog = container.querySelector('[role="dialog"]')!
+    const title = container.querySelector('h2')!
+    expect(dialog.getAttribute('aria-labelledby')).toBe(title.id)
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('moves focus into the dialog when it opens', async () => {
+    const { container } = await render()
+
+    expect(document.activeElement).toBe(container.querySelector('button[aria-label="Schließen"]'))
+  })
+
+  it('keeps Tab and Shift+Tab inside the dialog', async () => {
+    const { container } = await render()
+    const close = container.querySelector('button[aria-label="Schließen"]') as HTMLButtonElement
+    const save = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Speichern',
+    )!
+
+    save.focus()
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })))
+    expect(document.activeElement).toBe(close)
+
+    close.focus()
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true })),
+    )
+    expect(document.activeElement).toBe(save)
+  })
+
+  it('closes with Escape', async () => {
+    const { onClose } = await render()
+
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores focus to the opener when it closes', async () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const { root } = await render()
+
+    await act(async () => root.unmount())
+    roots.delete(root)
+
+    expect(document.activeElement).toBe(opener)
   })
 
   it('closes with the × at the top', async () => {
