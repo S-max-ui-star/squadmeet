@@ -85,7 +85,7 @@ def test_reset_ends_all_old_sessions(client, session):
 
     for old in (body["token"], second):
         assert client.get("/api/auth/me", headers=auth_header(old)).status_code == 401
-    user = session.exec(select(User)).one()
+    user = session.exec(select(User).where(User.nickname == "Pingpong_Paula")).one()
     assert len(session.exec(select(LoginSession).where(LoginSession.user_id == user.id)).all()) == 1
     assert client.get("/api/auth/me", headers=auth_header(new_token)).status_code == 200
 
@@ -137,7 +137,7 @@ def test_reset_clears_the_failed_logins(client, session):
 
     assert reset(client, code).status_code == 200
 
-    assert session.exec(select(User)).one().failed_logins == 0
+    assert session.exec(select(User).where(User.nickname == "Pingpong_Paula")).one().failed_logins == 0
 
 
 def test_reset_rate_limit_per_ip(client):

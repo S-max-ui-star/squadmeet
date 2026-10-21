@@ -4,7 +4,8 @@ import json
 from datetime import UTC, datetime, time, timedelta
 
 import pyotp
-from sqlalchemy import event
+import pytest
+from sqlalchemy import event, func
 from sqlmodel import select
 
 from app.models import AuditLog, Place, User
@@ -21,8 +22,18 @@ from tests.test_ratings import rate
 from tests.test_suggestions import confirm, suggest, user_token
 
 
+@pytest.fixture(autouse=True)
+def only_rows_of_this_test(session):
+    """A local database keeps the log of earlier use: the tests look only at their own rows."""
+    session.info["audit_from"] = session.exec(select(func.max(AuditLog.id))).one() or 0
+
+
 def audit_rows(session, entity=None, entity_id=None, action=None):
-    query = select(AuditLog).order_by(AuditLog.id)
+    query = (
+        select(AuditLog)
+        .where(AuditLog.id > session.info.get("audit_from", 0))
+        .order_by(AuditLog.id)
+    )
     if action is not None:
         query = query.where(AuditLog.action == action)
     if entity is not None:
