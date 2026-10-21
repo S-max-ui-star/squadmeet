@@ -22,6 +22,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?}
     volumes:
       - db-data:/var/lib/postgresql/data
+    # Only the internal network: the database reaches nothing outside, also not the instance
+    # metadata (IMDS) with the host role's credentials (SCRUM-49 review).
+    networks:
+      - data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -58,6 +62,9 @@ services:
     # --timeout-graceful-shutdown: open live streams (SCRUM-93) never end by themselves, so a
     # deploy waits at most 5 s for them.
     command: sh -c "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips '*' --no-access-log --timeout-graceful-shutdown 5"
+    networks:
+      - data
+      - edge
     depends_on:
       db:
         condition: service_healthy
@@ -76,8 +83,22 @@ services:
       # Caddy keeps the certificate here, so a restart does not ask Let's Encrypt again.
       - caddy-data:/data
       - caddy-config:/config
+    # A fixed address, so host-deploy.sh can block it from the instance metadata (IMDS): only
+    # the backend needs the host role (S3). Caddy still reaches the internet (Let's Encrypt).
+    networks:
+      edge:
+        ipv4_address: 172.30.0.10
     depends_on:
       - backend
+
+networks:
+  # internal: no route out of the host. The backend is in both networks.
+  data:
+    internal: true
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
 
 volumes:
   db-data:

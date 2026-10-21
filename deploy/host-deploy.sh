@@ -30,6 +30,56 @@ param() {
 # /squadmeet/photo-bucket comes from deploy/setup-photos.sh (SCRUM-42). Without it Photos are
 # off (upload answers 503), and the deploy still works.
 
+# Host settings that ship with the deploy (SCRUM-49 review), as systemd units, so they also
+# hold after a reboot. Written each time; systemd starts what changed.
+# 1. Caddy (172.30.0.10 in compose.yml) must not reach the instance metadata: only the backend
+#    needs the host role. The rule goes into Docker's own chain DOCKER-USER.
+# 2. Security updates of Amazon Linux once a week (Wednesday 03:30 UTC, not before a Monday
+#    demo). --releasever=latest: AL2023 pins the release otherwise. A Docker update restarts the
+#    containers (restart: unless-stopped); a new kernel waits for the next reboot.
+install_host_units() {
+  local rule="DOCKER-USER -s 172.30.0.10 -d 169.254.169.254 -j DROP"
+  cat > /etc/systemd/system/squadmeet-imds-block.service <<UNIT
+[Unit]
+Description=Squadmeet: Caddy may not reach the instance metadata
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'iptables -C $rule 2>/dev/null || iptables -I $rule'
+
+[Install]
+WantedBy=docker.service
+UNIT
+  cat > /etc/systemd/system/squadmeet-os-update.service <<UNIT
+[Unit]
+Description=Squadmeet: install Amazon Linux security updates
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/dnf -y upgrade --releasever=latest --security
+UNIT
+  cat > /etc/systemd/system/squadmeet-os-update.timer <<UNIT
+[Unit]
+Description=Squadmeet: security updates every Wednesday
+
+[Timer]
+OnCalendar=Wed *-*-* 03:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now squadmeet-os-update.timer
+  systemctl enable squadmeet-imds-block.service
+}
+install_host_units
+
 umask 077
 cat > .env <<EOF
 DOMAIN=$DOMAIN
@@ -65,6 +115,9 @@ if [[ -n "$(docker compose ps --status running --quiet db)" ]]; then
 fi
 
 docker compose up -d --remove-orphans
+# After the containers: the rule needs Docker's chain; restart, because a running unit does not
+# run its command again.
+systemctl restart squadmeet-imds-block.service
 # -a: also the images of older tags, so they do not fill the disk; the running ones stay. A
 # rollback pulls its images from GHCR again.
 docker image prune -af

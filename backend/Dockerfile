@@ -1,4 +1,6 @@
-FROM python:3.13-slim
+# Pinned to a digest (the multi-arch index), so a rebuild gets the same base; Dependabot
+# proposes a new digest (.github/dependabot.yml, SCRUM-49 review).
+FROM python:3.13-slim@sha256:98ce6fb13b3803744fbca11434f00818f1e300e4e48a4f204e07b2c928b6218e
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 # Production gets only requirements.txt (SCRUM-49 review); docker-compose.yml passes

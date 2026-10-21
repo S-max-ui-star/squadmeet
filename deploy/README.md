@@ -28,7 +28,7 @@ browser ──HTTPS──▶ web (Caddy: built React app + /api/* → backend) �
 | [setup-backup.sh](setup-backup.sh) | Daily EBS snapshot of the host (Data Lifecycle Manager, the newest 7 stay). See [Backups](#backups) |
 | [setup-turnstile.sh](setup-turnstile.sh) | Wizard: makes the Cloudflare Turnstile widget (captcha, `SCRUM-27`) and stores its keys in SSM |
 | [ec2-user-data.sh](ec2-user-data.sh) | First boot of the EC2 host: Docker, Compose plugin (fixed version, checksum checked), 2 GB swap file |
-| [../frontend/Caddyfile](../frontend/Caddyfile) | Caddy: HTTPS certificate, the static files, the proxy to the API |
+| [../frontend/Caddyfile](../frontend/Caddyfile) | Caddy: HTTPS certificate, the static files, the proxy to the API, the security headers (HSTS, CSP) |
 
 ## First setup on AWS
 
@@ -165,6 +165,19 @@ In a shell on the host, in `/opt/squadmeet`:
 | Disk? | `df -h /` and `docker system df` (each deploy removes the images that do not run; each container keeps at most 3 × 10 MB of logs) |
 | Deploy fails at `docker login`? The GHCR token may have expired | `t=$(aws ssm get-parameter --name /squadmeet/ghcr-token --with-decryption --query Parameter.Value --output text); curl -sI -H "Authorization: Bearer $t" https://api.github.com/user \| grep -i -e '^HTTP' -e expiration`; a new token: [setup-aws.sh](setup-aws.sh) stage 4 |
 
+## Host updates
+
+Each deploy installs the timer `squadmeet-os-update.timer` (`SCRUM-49` review): every Wednesday at
+03:30 UTC (not before a Monday demo) it installs the Amazon Linux security updates
+(`dnf upgrade --releasever=latest --security`). A Docker update restarts the containers. A new
+kernel needs a reboot, which nobody does automatically: `dnf needs-restarting -r` says when, then
+`sudo reboot` at a quiet time (the stack starts by itself). Last run:
+`systemctl status squadmeet-os-update.service`.
+
+The base images in the Dockerfiles are pinned to a digest, so a rebuild gets the same base.
+Dependabot ([../.github/dependabot.yml](../.github/dependabot.yml)) opens a PR into `dev` each
+month with new digests and new GitHub Action versions.
+
 ## Backups
 
 Two kinds, for two cases (`SCRUM-49` review):
@@ -259,10 +272,12 @@ role `squadmeet-ec2` put, get and delete objects under `places/`, stores the buc
 a container, one network hop behind the host, and IMDSv2 answers only within the hop limit.
 `setup-aws.sh` starts new instances with hop limit 2.
 
-**Accepted risk (`SCRUM-49` review):** with hop limit 2, every container on the host can get the
-role's credentials, not only the backend. A container that is taken over could read all
-`/squadmeet/*` secrets and the Photos. We accept it: the containers are our own images plus the
-official Caddy and Postgres images, and only Caddy has open ports.
+**Only the backend reaches the role (`SCRUM-49` review):** with hop limit 2, every container could
+get the role's credentials. So the database is only in the internal network `data` (no route out
+of the host), and Caddy (fixed address `172.30.0.10` in the network `edge`) is blocked from
+`169.254.169.254` by an iptables rule in Docker's chain `DOCKER-USER`. `host-deploy.sh` installs
+it as the systemd unit `squadmeet-imds-block.service`, so it is back after a reboot. Check on the
+host: `iptables -S DOCKER-USER`.
 
 Without the parameter the deploy still works and Photos are off (upload answers 503).
 
