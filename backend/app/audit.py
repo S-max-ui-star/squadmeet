@@ -6,8 +6,9 @@ without one is a system change (seed, OSM import, `python -m app.admin`).
 
 Not logged, because they skip the ORM:
 - bulk `update(...)` / `delete(...)` / `insert(...)` statements. A caller logs them with
-  `record` or `write` (Place reports, OSM import), or uses ORM operations instead (the Block in
-  app/contacts.py). The bulk statements in app/auth.py change only excluded tables and fields;
+  `record` or `write` (Place reports, Ratings, Place Confirmations, OSM import), or uses ORM
+  operations instead (the Block in app/contacts.py). The bulk statements in app/auth.py change
+  only excluded tables and fields;
 - rows that the database deletes with ON DELETE CASCADE (for example the Meetups of a
   deleted account);
 - manual edits in psql.
