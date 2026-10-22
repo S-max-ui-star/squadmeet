@@ -13,6 +13,10 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ---
 
+## Do 22.10.2026 — Tag 12
+
+- **Steven:** Präsentation vorbereitet (`SCRUM-164`): Plan mit Ablauf und Sprecheraufteilung, fünf Design-Entwürfe (gewählt: Titelfolie mit der Karte, Rest im Sport-Plakat-Stil). Ein Google-Apps-Script baut das ganze Deck mit Sprechernotizen und zwei Diagrammen (PR #144).
+
 ## Mi 21.10.2026 — Tag 11
 
 - **Stefan:** `SCRUM-99` gebaut: Begründung eines behobenen Mangels wird durchgestrichen, die Bewertung bleibt (PR #109). `SCRUM-49` Deploy/CI/Docker komplett reviewt und behoben (PR #120): Datenbank-Backups, volle CSP und Sicherheits-Header, IMDS nur fürs Backend, wöchentliche Updates auf dem Server; `SCRUM-96` gebaut und wieder verworfen, weil die Regel 10 fremde Tests bricht. Von Dominik übernommen: Frontend-Review `SCRUM-109` und Mobil-Review `SCRUM-113` (Playwright in Chromium und WebKit, 320–430 px; PR #131) sowie `SCRUM-108` (PR #132); Funde `SCRUM-132`–`SCRUM-136`, `SCRUM-142`–`SCRUM-147` behoben, u. a. Push nach dem Abmelden (`SCRUM-146`).
