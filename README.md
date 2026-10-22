@@ -44,6 +44,7 @@ Dominik joined on 2026-10-12 (`SCRUM-51`). David Ludwig-Erbs left the project on
 | [docs/adr/](docs/adr/) | Architecture decisions |
 | [docs/testlauf.md](docs/testlauf.md) | Checklist for the manual test of the whole app (`SCRUM-50`) |
 | [deploy/README.md](deploy/README.md) | How the app runs on AWS, the setup wizard, the move to the NAS |
+| [presentation/README.md](presentation/README.md) | The final presentation: Google Slides script, title background, checklist before the talk (`SCRUM-164`) |
 | [BRIEF.md](BRIEF.md) | The original course brief |
 
 Tasks are in Jira (project `SCRUM`, https://socmediaapp.atlassian.net).
