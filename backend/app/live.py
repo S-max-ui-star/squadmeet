@@ -127,16 +127,21 @@ def collect(session: Session, _context) -> None:
         pending.update(changes_of(session, obj))
 
 
+# A savepoint (begin_nested) fires these events too. Only the outer transaction decides; a failed
+# savepoint keeps the events collected before it (SCRUM-148).
 @event.listens_for(Session, "after_commit")
 def send(session: Session) -> None:
     # After the commit, so a page never loads the data before it is saved.
+    if session.in_nested_transaction():
+        return
     for receiver, message in session.info.pop(PENDING, set()):
         hub.publish(None if receiver is None else {receiver}, message)
 
 
 @event.listens_for(Session, "after_rollback")
 def drop(session: Session) -> None:
-    session.info.pop(PENDING, None)
+    if not session.in_nested_transaction():
+        session.info.pop(PENDING, None)
 
 
 async def stream(user_id: int, heartbeat_seconds: float = HEARTBEAT_SECONDS) -> AsyncIterator[str]:

@@ -183,6 +183,39 @@ def test_nothing_is_sent_before_the_commit_or_after_a_rollback(client, session, 
     assert to_karl == ["contacts"]
 
 
+def test_a_savepoint_is_not_the_commit(client, session, heard):
+    _, paula_id = user(client, "Pingpong_Paula")
+    _, karl_id = user(client, "Korb_Karl")
+    to_karl = heard(karl_id)
+    row = ContactRequest(
+        requester_id=paula_id, addressee_id=karl_id, status="pending", updated_at=datetime.now(UTC)
+    )
+
+    session.add(row)
+    with session.begin_nested():  # A savepoint (SCRUM-123, SCRUM-139) is not the commit.
+        pass
+    assert to_karl == []
+
+    session.commit()
+    assert to_karl == ["contacts"]
+
+
+def test_a_failed_savepoint_keeps_the_events_of_the_transaction(client, session, heard):
+    _, paula_id = user(client, "Pingpong_Paula")
+    _, karl_id = user(client, "Korb_Karl")
+    to_karl = heard(karl_id)
+    row = ContactRequest(
+        requester_id=paula_id, addressee_id=karl_id, status="pending", updated_at=datetime.now(UTC)
+    )
+
+    session.add(row)
+    session.flush()
+    session.begin_nested().rollback()
+    session.commit()
+
+    assert to_karl == ["contacts"]
+
+
 def test_the_stream_needs_a_login(client):
     assert client.get("/api/live").status_code == 401
 
