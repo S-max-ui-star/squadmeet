@@ -159,7 +159,11 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
       {data && (
         <section>
           <h3>Deine Kontakte</h3>
-          {data.contacts.length === 0 && <p className="hint">Noch keine Kontakte.</p>}
+          {data.contacts.length === 0 && (
+            <p className="hint">
+              Noch keine Kontakte. Gib oben den genauen Nickname ein und tippe auf „Anfragen“.
+            </p>
+          )}
           <ul className="contact-list">
             {data.contacts.map((contact) => (
               <ContactRow

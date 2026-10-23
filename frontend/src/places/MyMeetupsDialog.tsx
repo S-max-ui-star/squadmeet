@@ -26,7 +26,12 @@ export default function MyMeetupsDialog({ token, onOpenPlace, onClose }: Props) 
     <Dialog title="Meine Treffen" className="my-meetups" onClose={onClose}>
       {error && <p className="form-error">{error}</p>}
       {meetups === null && !error && <p>Lädt …</p>}
-      {meetups?.length === 0 && <p>Keine anstehenden Treffen.</p>}
+      {meetups?.length === 0 && (
+        <p className="hint">
+          Keine anstehenden Treffen. Tippe auf der Karte auf einen Platz und starte ein Treffen mit „Ich bin
+          jetzt hier“ oder „Später treffen“.
+        </p>
+      )}
       <MeetupSection title="Gastgeber" rows={hosted} onOpenPlace={onOpenPlace} />
       <MeetupSection title="Dabei" rows={joined} onOpenPlace={onOpenPlace} />
     </Dialog>

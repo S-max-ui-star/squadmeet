@@ -106,7 +106,11 @@ export default function FavoritesDialog({ token, onOpenPlace, onClose }: Props) 
       </p>
       {error && <p className="form-error">{error}</p>}
       {favorites === null && !error && <p>Lädt …</p>}
-      {favorites?.length === 0 && <p>Noch keine Favoriten gespeichert.</p>}
+      {favorites?.length === 0 && (
+        <p className="hint">
+          Noch keine Favoriten gespeichert. Öffne einen Platz auf der Karte und tippe auf „☆ Als Favorit merken“.
+        </p>
+      )}
       {favorites?.map((favorite) => (
         <section className="favorite-card" key={favorite.id}>
           <h3>{favorite.place.name}</h3>

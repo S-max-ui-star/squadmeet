@@ -159,7 +159,12 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
     <Dialog title="Benachrichtigungen" className="notifications" onClose={onClose}>
       {error && <p className="form-error">{error}</p>}
       {data === null && !error && <p>Lädt …</p>}
-      {data?.length === 0 && <p className="hint">Noch keine Benachrichtigungen.</p>}
+      {data?.length === 0 && (
+        <p className="hint">
+          Noch keine Benachrichtigungen. Hier siehst du Änderungen an deinen Treffen, Einladungen und neue Treffen
+          von Kontakten, an deinen Favoriten und in deinem Heimatbereich.
+        </p>
+      )}
       {data && data.length > 0 && (
         <>
           <NotificationActions

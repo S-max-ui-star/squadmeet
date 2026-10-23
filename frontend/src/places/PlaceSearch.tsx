@@ -54,6 +54,7 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resultDismissRequest, setResultDismissRequest] = useState(dismissRequest)
+  const inputRef = useRef<HTMLInputElement>(null)
   const requestNumber = useRef(0)
   const pending = useRef(false)
   const searchRequest = useRef<AbortController | null>(null)
@@ -73,7 +74,12 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
 
   async function submit() {
     const trimmed = query.trim()
-    if (!trimmed || pending.current) return
+    // An empty search does nothing but put the cursor into the field (SCRUM-178).
+    if (!trimmed) {
+      inputRef.current?.focus()
+      return
+    }
+    if (pending.current) return
     pending.current = true
     const currentRequest = ++requestNumber.current
     const request = new AbortController()
@@ -120,6 +126,7 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
           Platz oder Adresse suchen
         </label>
         <input
+          ref={inputRef}
           id="place-search-input"
           type="search"
           value={query}
@@ -129,7 +136,8 @@ export default function PlaceSearch({ onPick, dismissRequest }: Props) {
             closeResults()
           }}
         />
-        <button type="submit" disabled={busy || !query.trim()} aria-label="Suchen">
+        {/* Not disabled while the field is empty: a pale button looked broken (SCRUM-178). */}
+        <button type="submit" disabled={busy} aria-label="Suchen">
           {busy ? '…' : '⌕'}
         </button>
       </form>
