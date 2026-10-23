@@ -31,6 +31,24 @@ export function placeIcon(activityType: string, selected = false, peopleNow = 0,
   return icon
 }
 
+// Several Places close together on the screen (SCRUM-166): one marker with the number of Places.
+// White with a dark ring, so it does not look like a spot (blue) or a live Place (red).
+export function clusterIcon(count: number): L.DivIcon {
+  const label = count > 99 ? '99+' : String(count)
+  const key = `cluster:${label}`
+  let icon = cache.get(key)
+  if (!icon) {
+    icon = L.divIcon({
+      className: '',
+      html: `<div class="cluster-pin">${label}</div>`,
+      iconSize: [38, 38],
+      iconAnchor: [19, 19],
+    })
+    cache.set(key, icon)
+  }
+  return icon
+}
+
 // Several Activity types on one spot: one marker with the number of types (SCRUM-21 review).
 export function spotIcon(spot: Spot, selected = false): L.DivIcon {
   const count = typeCount(spot)

@@ -871,6 +871,25 @@ body {
   box-sizing: border-box;
 }
 
+/* SCRUM-166: Places close together on the screen; a tap zooms in. White, so it is not taken for a
+   spot (blue) or a Place with people there now (red). */
+.cluster-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #16181d;
+  background: white;
+  border: 3px solid #505663;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 70%), 0 1px 5px rgb(0 0 0 / 40%);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
 .spot-choice {
   margin: 0;
   padding: 0;
