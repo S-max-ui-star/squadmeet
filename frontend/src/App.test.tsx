@@ -197,6 +197,8 @@ describe('App account changes', () => {
         contacts: [{ id: 1, nickname: 'NurErster', avatar: 'fox' }],
         equipment: [],
         equipment_by_person: null,
+        equipment_needed: [],
+        equipment_missing: [],
         starts_at: '2026-10-21T10:00:00Z',
         ends_at: '2026-10-21T11:00:00Z',
         cancelled: false,

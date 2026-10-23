@@ -312,17 +312,20 @@ class MeetupJoin(SQLModel, table=True):
 
 
 class MeetupEquipment(SQLModel, table=True):
-    """One item of Equipment a user brings to a Meetup (SCRUM-170, see CONTEXT.md).
+    """One item of Equipment a user brings to a Meetup (SCRUM-170) or needs there (SCRUM-171),
+    see CONTEXT.md.
 
     For the Host and for each Join, so it is not on MeetupJoin. The item is a key of
     app/equipment.py for the Place's Activity type. Leave deletes the user's rows; a handover
-    keeps them, because the user stays in the Meetup.
+    keeps them, because the user stays in the Meetup. One row per item, so a user cannot both
+    bring and need it.
     """
 
     __tablename__ = "meetup_equipment"
     __table_args__ = (
         UniqueConstraint("meetup_id", "user_id", "item", name="uq_meetup_equipment_item"),
         CheckConstraint("count BETWEEN 1 AND 4", name="ck_meetup_equipment_count"),
+        CheckConstraint("kind IN ('bring', 'need')", name="ck_meetup_equipment_kind"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -334,6 +337,8 @@ class MeetupEquipment(SQLModel, table=True):
     )
     item: str
     count: int = 1
+    # "bring" or "need" (app.equipment.Kind).
+    kind: str = Field(default="bring", sa_column=Column(String, nullable=False, server_default="bring"))
 
 
 

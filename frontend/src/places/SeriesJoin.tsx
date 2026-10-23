@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { loadToken } from '../api/auth'
-import { joinMeetup, type EquipmentCount, type Meetup } from '../api/meetups'
+import { joinMeetup, type EquipmentChoice, type Meetup } from '../api/meetups'
 import EquipmentPicker from './EquipmentPicker'
 import { slot } from './meetupTime'
 import PartySizeStepper from './PartySizeStepper'
@@ -23,7 +23,7 @@ const canJoin = (date: Meetup) => date.actions.includes('join')
 export default function SeriesJoin({ dates, activityType, onDone }: Props) {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [partySize, setPartySize] = useState(1)
-  const [equipment, setEquipment] = useState<EquipmentCount[]>([])
+  const [equipment, setEquipment] = useState<EquipmentChoice[]>([])
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [result, setResult] = useState<{ joined: number; failed: string[] } | null>(null)

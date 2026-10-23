@@ -22,6 +22,8 @@ function meetup(changes: Partial<MyMeetup>): MyMeetup {
     contacts: [],
     equipment: [],
     equipment_by_person: [],
+    equipment_needed: [],
+    equipment_missing: [],
     starts_at: '2026-10-24T16:00:00Z',
     ends_at: '2026-10-24T18:00:00Z',
     cancelled: false,

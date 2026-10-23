@@ -1448,6 +1448,7 @@ body {
   padding: 0 10px;
   font-size: 0.95rem;
   font-weight: 700;
+  white-space: nowrap;
   background: white;
   border: 2px solid #d5d8de;
   border-radius: 999px;
@@ -1475,6 +1476,17 @@ body {
 .equipment-people {
   padding-left: 18px;
   color: #505663;
+}
+
+/* SCRUM-171: "Fehlt noch" and "Ausrüstung ✓" in the colors of the Condition. */
+.equipment-missing {
+  color: #7a3b00;
+  font-weight: 600;
+}
+
+.equipment-ok {
+  color: #145a32;
+  font-weight: 600;
 }
 
 /* SCRUM-55: City report. Orange edge when the Condition names something to fix. */

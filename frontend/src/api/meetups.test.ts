@@ -22,6 +22,8 @@ const meetup: Meetup = {
   contacts: [],
   equipment: [],
   equipment_by_person: [],
+  equipment_needed: [],
+  equipment_missing: [],
   cancelled: false,
   move_offer: null,
   blocked_user_in: false,
