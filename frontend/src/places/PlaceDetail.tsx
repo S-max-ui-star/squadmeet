@@ -1,11 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { canModerate } from '../api/admin'
 import type { User } from '../api/auth'
-import type { Place } from '../api/places'
+import { underReview, type Place } from '../api/places'
 import { activityOf } from './activities'
 import AdminPlaceActions from './AdminPlaceActions'
 import PlaceReportBox from './PlaceReportBox'
 import PlaceShareButton from './PlaceShareButton'
+import { ProblemFoldContext } from './problemFold'
 import SheetGrip from './SheetGrip'
 import type { Snap } from './sheetSnap'
 import { routeUrl } from './routeLink'
@@ -23,7 +24,13 @@ type Props = {
   onRemoved?: () => void
   // The user reported the Place (SCRUM-57).
   onReported?: () => void
-  // The Meetups (SCRUM-29) and Ratings (SCRUM-31) parts, shown once the Place is loaded.
+  // SCRUM-176, not for a Place suggestion: `meetups` is "Ich bin jetzt hier", "Später treffen" and
+  // the Meetups (SCRUM-29) right under the head; `favorite` is the Favorite button (SCRUM-41), one
+  // of the side actions.
+  parts?: { meetups?: ReactNode; favorite?: ReactNode }
+  // "Karte": zoom the app map in on the Place (SCRUM-176).
+  onShowOnMap?: () => void
+  // The Ratings (SCRUM-31) and Photos (SCRUM-42) parts, after the side actions.
   // Not for a Place suggestion.
   children?: ReactNode
 }
@@ -36,6 +43,8 @@ type HeadProps = Pick<Props, 'place' | 'error' | 'onClose'> & {
 
 function PlaceDetailHead({ place, error, onClose, titleId, closeRef, grip }: HeadProps) {
   const activity = place && activityOf(place.activity_type)
+  // The address, or the coordinates when OpenStreetMap has none, under the name (SCRUM-176).
+  const location = place && (place.address ?? `${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}`)
   return (
     <div className="place-detail-head">
       {/* In the sticky head, so the grip stays in reach while the sheet scrolls (SCRUM-167). */}
@@ -47,7 +56,11 @@ function PlaceDetailHead({ place, error, onClose, titleId, closeRef, grip }: Hea
       )}
       <div className="place-detail-title">
         <h2 id={titleId}>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
-        {activity && <span>{activity.label}</span>}
+        {activity && (
+          <span>
+            {activity.label} · <span className="place-detail-location">{location}</span>
+          </span>
+        )}
       </div>
       {/* At the top, so a phone user need not scroll down to close (SCRUM-76). With a tap on the
           map, the only way to close (SCRUM-174). */}
@@ -60,8 +73,94 @@ function PlaceDetailHead({ place, error, onClose, titleId, closeRef, grip }: Hea
 
 type ContentProps = Pick<
   Props,
-  'user' | 'onLoginNeeded' | 'onConfirmed' | 'onRemoved' | 'onReported' | 'children'
-> & { place: Place }
+  'user' | 'onLoginNeeded' | 'onConfirmed' | 'onRemoved' | 'onReported' | 'children' | 'onShowOnMap'
+> & { place: Place; meetups?: ReactNode; favorite?: ReactNode; onSnap: (snap: Snap) => void }
+
+type ActionsProps = Pick<ContentProps, 'place' | 'onShowOnMap' | 'onSnap'> & { favorite: ReactNode }
+
+// Route, Teilen, Favorit, Karte: one row of equal buttons (SCRUM-176). "Karte" stays in the app.
+function PlaceActions({ place, favorite, onShowOnMap, onSnap }: ActionsProps) {
+  // Small, so the zoomed-in Place shows above the sheet on a phone.
+  function showOnMap() {
+    onSnap('small')
+    onShowOnMap?.()
+  }
+
+  return (
+    <div className="place-actions">
+      <a
+        className="place-action"
+        href={routeUrl(place.lat, place.lon)}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Route planen"
+      >
+        <span className="place-action-icon" aria-hidden="true">➜</span>
+        <span className="place-action-label">Route</span>
+      </a>
+      <PlaceShareButton key={`share-${place.id}`} placeId={place.id} placeName={place.name} />
+      {favorite}
+      <button type="button" className="place-action" aria-label="Auf der Karte zeigen" onClick={showOnMap}>
+        <span className="place-action-icon" aria-hidden="true">🗺️</span>
+        <span className="place-action-label">Karte</span>
+      </button>
+    </div>
+  )
+}
+
+type FoldProps = {
+  place: Place
+  open: boolean
+  highlighted: boolean
+  onToggle: () => void
+  slotRef: (el: HTMLElement | null) => void
+  reportBox: ReactNode
+}
+
+// "⚠ Problem melden": the City report (from PlaceRatings, through the slot) and the Place report.
+// Folded at first; open when the Place was reported already, so the note about it shows.
+function ProblemFoldBox({ place, open, highlighted, onToggle, slotRef, reportBox }: FoldProps) {
+  const bodyId = useId()
+  return (
+    <div className={highlighted ? 'problem-fold highlighted' : 'problem-fold'}>
+      <button type="button" className="problem-fold-toggle" aria-expanded={open} aria-controls={bodyId} onClick={onToggle}>
+        ⚠ Problem melden {open ? '▴' : '▾'}
+      </button>
+      <div id={bodyId} className="problem-fold-body" hidden={!open}>
+        <div ref={slotRef} />
+        {!underReview(place) && (
+          <p className="hint">An die Admins, wenn es den Platz nicht gibt, er nicht öffentlich oder gefährlich ist:</p>
+        )}
+        {reportBox}
+      </div>
+    </div>
+  )
+}
+
+type FoldStateProps = { place: Place; reportBox: ReactNode; children: ReactNode }
+
+// Holds the state of "Problem melden" and gives it to the Ratings (problemFold.ts); the fold
+// itself comes after the content.
+function WithProblemFold({ place, reportBox, children }: FoldStateProps) {
+  const [open, setOpen] = useState((place.open_reports ?? 0) > 0)
+  const [highlighted, setHighlighted] = useState(false)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const openFold = useCallback(() => setOpen(true), [])
+  const fold = useMemo(() => ({ slot, open: openFold, setHighlighted }), [slot, openFold])
+  return (
+    <ProblemFoldContext.Provider value={fold}>
+      {children}
+      <ProblemFoldBox
+        place={place}
+        open={open}
+        highlighted={highlighted}
+        onToggle={() => setOpen((now) => !now)}
+        slotRef={setSlot}
+        reportBox={reportBox}
+      />
+    </ProblemFoldContext.Provider>
+  )
+}
 
 function PlaceDetailContent({
   place,
@@ -70,42 +169,24 @@ function PlaceDetailContent({
   onConfirmed,
   onRemoved,
   onReported,
+  meetups,
+  favorite,
+  onShowOnMap,
+  onSnap,
   children,
 }: ContentProps) {
-  const coordinates = `${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}`
+  const shown = !place.is_suggestion
+  const reportBox = (
+    <PlaceReportBox key={`report-${place.id}`} place={place} user={user} onLoginNeeded={onLoginNeeded} onReported={onReported} />
+  )
   return (
     <>
-      <SuggestionStatus
-        key={place.id}
-        place={place}
-        user={user}
-        onLoginNeeded={onLoginNeeded}
-        onConfirmed={onConfirmed}
-      />
-      <p className="place-detail-location">
-        <strong>{place.address ? 'Adresse' : 'Lage'}</strong>
-        <span>{place.address ?? coordinates}</span>
-        <a className="place-detail-route" href={routeUrl(place.lat, place.lon)} target="_blank" rel="noreferrer">
-          Route planen
-        </a>{' '}
-        <a
-          href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=18/${place.lat}/${place.lon}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          In OpenStreetMap ansehen
-        </a>
-        <br />
-        <PlaceShareButton key={`share-${place.id}`} placeId={place.id} placeName={place.name} />
-      </p>
-      {!place.is_suggestion && children}
-      <PlaceReportBox
-        key={`report-${place.id}`}
-        place={place}
-        user={user}
-        onLoginNeeded={onLoginNeeded}
-        onReported={onReported}
-      />
+      <WithProblemFold place={place} reportBox={reportBox}>
+        <SuggestionStatus key={place.id} place={place} user={user} onLoginNeeded={onLoginNeeded} onConfirmed={onConfirmed} />
+        {shown && meetups}
+        <PlaceActions place={place} favorite={shown ? favorite : null} onShowOnMap={onShowOnMap} onSnap={onSnap} />
+        {shown && children}
+      </WithProblemFold>
       {/* Also for a Place suggestion: an invented Place is a reason to lock it. */}
       {canModerate(user) && (
         <AdminPlaceActions key={`admin-${place.id}`} placeId={place.id} onRemoved={() => onRemoved?.()} />
@@ -126,6 +207,8 @@ export default function PlaceDetail({
   onConfirmed,
   onRemoved,
   onReported,
+  parts = {},
+  onShowOnMap,
   children,
 }: Props) {
   const titleId = useId()
@@ -133,16 +216,6 @@ export default function PlaceDetail({
   const sheetRef = useRef<HTMLElement>(null)
   // Phones only (SCRUM-167); the laptop CSS ignores it.
   const [snap, setSnap] = useState<Snap>('half')
-
-  // Small shows the main action under the title: the sheet scrolls "Ich bin jetzt hier" up.
-  useEffect(() => {
-    const sheet = sheetRef.current
-    if (snap !== 'small' || !sheet) return
-    const action = sheet.querySelector('.now-button')
-    const head = sheet.querySelector('.place-detail-head')
-    if (!action || !head) return
-    sheet.scrollTop += action.getBoundingClientRect().top - head.getBoundingClientRect().bottom - 8
-  }, [snap])
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -179,6 +252,10 @@ export default function PlaceDetail({
           onConfirmed={onConfirmed}
           onRemoved={onRemoved}
           onReported={onReported}
+          meetups={parts.meetups}
+          favorite={parts.favorite}
+          onShowOnMap={onShowOnMap}
+          onSnap={setSnap}
         >
           {children}
         </PlaceDetailContent>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { User } from '../api/auth'
 import { loadToken } from '../api/auth'
 import {
@@ -16,6 +17,7 @@ import {
 import { onRatingChange } from '../api/live'
 import type { Place } from '../api/places'
 import { findCityReport, mailtoLink, placeText, telLink } from './cityReport'
+import { useProblemFold, type ProblemFold } from './problemFold'
 import { useLatestRequest } from './useLatestRequest'
 import { usePlaceReloads } from './usePlaceReloads'
 import PlaceRatingList from './PlaceRatingList'
@@ -409,6 +411,20 @@ function useMyRating(placeId: number, user: User | null) {
   return { mine, setMine, mineError, retryMine }
 }
 
+// The City report, inline on its own, or moved into the slot of the folded "Problem melden" in the
+// Place detail (SCRUM-176). Nothing until the slot exists, so the box does not show twice.
+type CityReportSlotProps = Omit<CityReportProps, 'place'> & {
+  fold: ProblemFold | null
+  place?: CityReportProps['place'] | null
+}
+
+function CityReport({ fold, place, ...box }: CityReportSlotProps) {
+  if (!place) return null
+  const report = <CityReportBox place={place} {...box} />
+  if (!fold) return report
+  return fold.slot ? createPortal(report, fold.slot) : null
+}
+
 // The Ratings part of the Place detail (SCRUM-31): average stars, the most chosen Reasons, the
 // Condition, and the form to rate the Place or change the own Rating.
 // A Place under Admin review only shows its Ratings: no rate button, no votes (SCRUM-158).
@@ -428,6 +444,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded, read
   const [voted, setVoted] = useState<Set<string>>(new Set())
   // The user just saved a Rating that names a Condition issue: ask about the City report.
   const [askReport, setAskReport] = useState(false)
+  // In the Place detail the City report sits in the folded "Problem melden" (SCRUM-176).
+  const { fold, issues } = useProblemFold(summary, askReport)
   // Polls, live events and the load after a save: only the newest answer is shown (SCRUM-156).
   const { run, cancel } = useLatestRequest()
 
@@ -550,10 +568,8 @@ export default function PlaceRatings({ placeId, place, user, onLoginNeeded, read
         <RateButton readOnly={readOnly} user={user} mine={mine} mineError={mineError} onRate={startRating} onRetry={retryMine} />
       )}
 
-      {/* Under the rate button (SCRUM-82). */}
-      {place && (
-        <CityReportBox place={place} highlighted={summary?.condition.state === 'issues'} asked={askReport} />
-      )}
+      {/* Under the rate button (SCRUM-82); in the Place detail inside "Problem melden" (SCRUM-176). */}
+      <CityReport fold={fold} place={place} highlighted={issues} asked={askReport} />
       {error && <p className="form-error">{error}</p>}
     </div>
   )

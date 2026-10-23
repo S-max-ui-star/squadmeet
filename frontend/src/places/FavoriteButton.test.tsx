@@ -33,12 +33,17 @@ describe('FavoriteButton (SCRUM-41)', () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(null)).mockResolvedValueOnce(Response.json(favorite))
     const { container } = await render('tok', fetchMock)
 
-    expect(container.textContent).toContain('Als Favorit merken')
-    await act(async () => container.querySelector('button')!.click())
+    const button = container.querySelector('button')!
+    expect(button.getAttribute('aria-label')).toBe('Als Favorit merken')
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    await act(async () => button.click())
 
     expect(fetchMock.mock.calls[1][0]).toBe('/api/places/7/favorite')
     expect(fetchMock.mock.calls[1][1].method).toBe('PUT')
-    expect(container.textContent).toContain('Favorit entfernen')
+    // SCRUM-176: an icon button in the side actions, ★ when on; the hint goes below the row.
+    expect(button.getAttribute('aria-label')).toBe('Favorit entfernen')
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    expect(button.textContent).toBe('★Favorit')
     expect(container.textContent).toContain('Konto → Favoriten')
   })
 
@@ -50,6 +55,7 @@ describe('FavoriteButton (SCRUM-41)', () => {
     await act(async () => container.querySelector('button')!.click())
 
     expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
-    expect(container.textContent).toContain('Als Favorit merken')
+    expect(container.querySelector('button')!.getAttribute('aria-label')).toBe('Als Favorit merken')
+    expect(container.querySelector('button')!.textContent).toBe('☆Favorit')
   })
 })

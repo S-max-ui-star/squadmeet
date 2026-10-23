@@ -5,6 +5,7 @@ import { saveToken, type User } from '../api/auth'
 import { announceRatingChange } from '../api/live'
 import type { RatingSummary } from '../api/ratings'
 import PlaceRatings from './PlaceRatings'
+import { ProblemFoldContext } from './problemFold'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -108,6 +109,25 @@ async function render(
     ),
   )
   return container
+}
+
+// Inside the Place detail: the City report goes into the slot of "Problem melden" (SCRUM-176).
+async function renderInFold(user: User | null) {
+  const slot = document.createElement('div')
+  document.body.append(slot)
+  const fold = { slot, open: vi.fn(), setHighlighted: vi.fn() }
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  roots.push(root)
+  await act(async () =>
+    root.render(
+      <ProblemFoldContext.Provider value={fold}>
+        <PlaceRatings placeId={3} place={leipzigPlace} user={user} onLoginNeeded={() => {}} />
+      </ProblemFoldContext.Provider>,
+    ),
+  )
+  return { container, slot, fold }
 }
 
 // A fetch answer the test sends later, to put answers out of order.
@@ -393,6 +413,43 @@ describe('PlaceRatings', () => {
     const put = fetchMock.mock.calls.findIndex(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')
     const after = fetchMock.mock.calls.slice(put + 1).find(([url]) => String(url).endsWith('/ratings'))!
     expect((after[1] as RequestInit).headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+
+  it('puts the city report into "Problem melden" and marks it while the Condition has issues (SCRUM-176)', async () => {
+    api(rated)
+    const { container, slot, fold } = await renderInFold(null)
+
+    expect(container.querySelector('.city-report')).toBeNull()
+    expect(slot.querySelector('.city-report')).not.toBeNull()
+    expect(fold.setHighlighted).toHaveBeenLastCalledWith(true)
+    expect(fold.open).not.toHaveBeenCalled()
+  })
+
+  it('opens "Problem melden" after a Rating that names an issue (SCRUM-176)', async () => {
+    saveToken('tok')
+    let saved = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith('/reasons')) return Response.json(reasons)
+        if (url.endsWith('/ratings/mine') && init?.method === 'PUT') {
+          saved = true
+          return Response.json({ place_id: 3, ...JSON.parse(String(init.body)), updated_at: 'now' })
+        }
+        if (url.endsWith('/ratings/mine')) return Response.json(null)
+        return Response.json(saved ? rated : empty)
+      }),
+    )
+    const { container, slot, fold } = await renderInFold(paula)
+    expect(fold.setHighlighted).toHaveBeenLastCalledWith(false)
+
+    await click(button(container, 'Bewertung erstellen'))
+    await click(container.querySelector<HTMLButtonElement>('[aria-label="2 Sterne"]')!)
+    await click(button(container, 'Netz fehlt'))
+    await click(button(container, 'Bewertung speichern'))
+
+    expect(fold.open).toHaveBeenCalled()
+    expect(slot.textContent).toContain('Mängelmelder der Stadt Leipzig')
   })
 
   it('opens the city report after a Rating that names an issue', async () => {
