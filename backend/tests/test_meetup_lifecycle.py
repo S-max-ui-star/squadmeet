@@ -91,10 +91,10 @@ def test_a_start_must_be_in_the_future_and_at_most_30_days_ahead():
     ("viewer", "joined", "now", "expected"),
     [
         (None, False, T0 - timedelta(hours=1), ["join"]),
-        (HOST, False, T0 - timedelta(hours=1), ["cancel", "move", "leave", "invite"]),
-        (HOST, False, T0 + timedelta(minutes=1), ["end", "leave", "invite"]),
+        (HOST, False, T0 - timedelta(hours=1), ["cancel", "move", "leave", "invite", "equipment"]),
+        (HOST, False, T0 + timedelta(minutes=1), ["end", "leave", "invite", "equipment"]),
         (KARL, False, T0, ["join"]),
-        (KARL, True, T0, ["leave", "invite"]),
+        (KARL, True, T0, ["leave", "invite", "equipment"]),
         (KARL, False, T0 + timedelta(hours=3), []),
     ],
 )
@@ -106,8 +106,8 @@ def test_a_host_alone_in_a_running_meetup_only_ends_it():
     """SCRUM-79: without Joins, End and Leave do the same, so only "Jetzt beenden" shows."""
     running = T0 + timedelta(minutes=1)
 
-    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=True) == ["end", "invite"]
-    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=False) == ["end", "leave", "invite"]
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=True) == ["end", "invite", "equipment"]
+    assert lifecycle.actions(meetup(), HOST, False, running, host_alone=False) == ["end", "leave", "invite", "equipment"]
     # Before the start the Host still may Leave (handover or Closed, SCRUM-37).
     before = T0 - timedelta(hours=1)
     assert "leave" in lifecycle.actions(meetup(), HOST, False, before, host_alone=True)

@@ -20,6 +20,8 @@ const meetup = {
   party_size: 3,
   people: 3,
   participants: [] as { id: number; nickname: string; avatar: string; party_size: number }[],
+  equipment: [] as { item: string; count: number }[],
+  equipment_by_person: [] as { id: number; nickname: string; avatar: string; items: { item: string; count: number }[] }[] | null,
   cancelled: false,
   blocked_user_in: false,
   series_id: null as number | null,
@@ -31,7 +33,7 @@ const meetup = {
 }
 
 // As a guest sees it (SCRUM-34): only the number of people; "join" asks to log in.
-const guestView = { ...meetup, host: null, participants: null, actions: ['join'] }
+const guestView = { ...meetup, host: null, participants: null, equipment_by_person: null, actions: ['join'] }
 
 // As another logged-in user sees it, before and after joining.
 const asOther = <T extends object>(m: T) => ({ ...m, actions: ['join'] })
@@ -68,7 +70,7 @@ async function render(user: User | null, onLoginNeeded = () => {}, readOnly = fa
   roots.push(root)
   await act(async () =>
     root.render(
-      <PlaceMeetups placeId={3} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} readOnly={readOnly} />,
+      <PlaceMeetups placeId={3} activityType={null} user={user} onLoginNeeded={onLoginNeeded} onChanged={() => {}} readOnly={readOnly} />,
     ),
   )
   return container
@@ -79,7 +81,7 @@ function renderPending(user: User | null) {
   document.body.append(container)
   const root = createRoot(container)
   roots.push(root)
-  act(() => root.render(<PlaceMeetups placeId={3} user={user} onLoginNeeded={() => {}} onChanged={() => {}} />))
+  act(() => root.render(<PlaceMeetups placeId={3} activityType={null} user={user} onLoginNeeded={() => {}} onChanged={() => {}} />))
   return container
 }
 

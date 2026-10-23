@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadToken, type User } from '../api/auth'
-import { fetchMeetups, type Meetup } from '../api/meetups'
+import { fetchMeetups, type EquipmentCount, type Meetup } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
 import MeetupCard from './MeetupCard'
 import MeetupCreateForm from './MeetupCreateForm'
@@ -11,6 +11,9 @@ import { usePlaceReloads } from './usePlaceReloads'
 
 type Props = {
   placeId: number
+  // The Place's Activity type: which Equipment the forms offer (SCRUM-170). null while the
+  // Place loads; then the forms offer none.
+  activityType: string | null
   user: User | null
   onLoginNeeded: () => void
   // Called after a Meetup was created, moved or ended, so the map can show the new state.
@@ -48,6 +51,7 @@ type StartProps = {
   readOnly: boolean
   creating: 'now' | 'later' | null
   placeId: number
+  activityType?: string | null
   busy: boolean
   run: (action: (token: string) => Promise<unknown>) => Promise<boolean>
   onStart: (kind: 'now' | 'later') => void
@@ -55,10 +59,10 @@ type StartProps = {
 }
 
 // "Ich bin jetzt hier" and "Später treffen", or the form of the chosen one.
-function MeetupStart({ readOnly, creating, placeId, busy, run, onStart, onClose }: StartProps) {
+function MeetupStart({ readOnly, creating, placeId, activityType, busy, run, onStart, onClose }: StartProps) {
   if (readOnly) return null
   if (creating) {
-    return <MeetupCreateForm key={creating} kind={creating} placeId={placeId} busy={busy} run={run} onClose={onClose} />
+    return <MeetupCreateForm key={creating} kind={creating} placeId={placeId} activityType={activityType} busy={busy} run={run} onClose={onClose} />
   }
   return (
     <>
@@ -68,16 +72,35 @@ function MeetupStart({ readOnly, creating, placeId, busy, run, onStart, onClose 
   )
 }
 
+// The error or notice of the last action, the heading, and why the list is empty.
+function ListStatus({ meetups, loading, error, notice }: {
+  meetups: Meetup[] | null
+  loading: boolean
+  error: string | null
+  notice: string | null
+}) {
+  return (
+    <>
+      {error && <p className="form-error">{error}</p>}
+      {notice && !error && <p className="hint">{notice}</p>}
+
+      <h3>Treffen hier</h3>
+      {meetups === null && loading && <p className="hint">Treffen werden geladen …</p>}
+      {meetups?.length === 0 && !error && <p className="hint">Gerade ist niemand hier.</p>}
+    </>
+  )
+}
+
 // Meetup orchestration stays here; focused components own the creation form and each card
 // (SCRUM-154). Server-provided actions remain the authority for every lifecycle control.
-export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, readOnly = false }: Props) {
+export default function PlaceMeetups({ placeId, activityType, user, onLoginNeeded, onChanged, readOnly = false }: Props) {
   const [meetups, setMeetups] = useState<Meetup[] | null>(null)
   const [loadedFor, setLoadedFor] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState<'now' | 'later' | null>(null)
   const [moving, setMoving] = useState<{ id: number; startsAt: string } | null>(null)
-  const [joining, setJoining] = useState<{ id: number; partySize: number } | null>(null)
+  const [joining, setJoining] = useState<{ id: number; partySize: number; equipment: EquipmentCount[] } | null>(null)
   const [person, setPerson] = useState<{ meetupId: number; nickname: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -160,6 +183,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, 
     <MeetupCard
       key={meetup.id}
       meetup={meetup}
+      activityType={activityType}
       user={user}
       laterCount={laterCount}
       offered={offeredIds.has(meetup.id)}
@@ -187,18 +211,14 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, 
         readOnly={readOnly}
         creating={creating}
         placeId={placeId}
+        activityType={activityType}
         busy={busy}
         run={run}
         onStart={startCreating}
         onClose={() => setCreating(null)}
       />
 
-      {error && <p className="form-error">{error}</p>}
-      {notice && !error && <p className="hint">{notice}</p>}
-
-      <h3>Treffen hier</h3>
-      {visibleMeetups === null && loading && <p className="hint">Treffen werden geladen …</p>}
-      {visibleMeetups?.length === 0 && !error && <p className="hint">Gerade ist niemand hier.</p>}
+      <ListStatus meetups={visibleMeetups} loading={loading} error={error} notice={notice} />
       <ul className="meetup-list">
         {groupSeries(visibleMeetups ?? []).map(({ meetup, laterOfSeries }) => {
           const dates = [meetup, ...laterOfSeries]
@@ -209,7 +229,7 @@ export default function PlaceMeetups({ placeId, user, onLoginNeeded, onChanged, 
               {card(meetup, laterOfSeries.length, cancellable?.series_id ?? null)}
               {open && seriesJoiner && meetup.host?.id !== seriesJoiner.id && (
                 <li className="series-join-item">
-                  <SeriesJoin dates={dates} onDone={() => { reload(); onChanged() }} />
+                  <SeriesJoin dates={dates} activityType={activityType} onDone={() => { reload(); onChanged() }} />
                 </li>
               )}
               {open && laterOfSeries.map((later) => card(later, 0))}

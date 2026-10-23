@@ -7,7 +7,7 @@ over (the Host Leaves) and call off (the system: Admin lock, a cancelled Series)
 
 Every function takes `now`, so tests can set the clock. They raise a LifecycleError, which
 app.main turns into an HTTP answer; the routes in app.meetups only translate HTTP. This module
-imports only the models and app.blocks, so app.auth and app.admin_places can use it directly.
+imports only the models, app.blocks and app.equipment, so app.auth and app.admin_places can use it directly.
 """
 
 from datetime import datetime, timedelta
@@ -17,6 +17,7 @@ from typing import Literal
 from sqlalchemy import and_, or_
 from sqlmodel import Session, select
 
+from app import equipment
 from app.blocks import blockers_of
 from app.models import Meetup, MeetupJoin, MeetupSeries
 from app.notification_events import notify_joined, notify_users
@@ -245,7 +246,9 @@ def join(session: Session, meetup: Meetup, by: int, party_size: int, now: dateti
 
 def hand_over(session: Session, meetup: Meetup, now: datetime) -> None:
     """The Host Leaves: the earliest Join becomes Host, with their Party size and their open
-    move answer. With no Join the Meetup is Closed. The caller commits."""
+    move answer. With no Join the Meetup is Closed. The old Host's Equipment goes with them;
+    the new Host keeps theirs (SCRUM-170). The caller commits."""
+    equipment.drop(session, meetup.id, meetup.host_id)
     first = session.exec(
         select(MeetupJoin)
         .where(MeetupJoin.meetup_id == meetup.id)
@@ -274,7 +277,7 @@ def leave(session: Session, meetup: Meetup, by: int, now: datetime) -> None:
     if found is None:
         raise NotFound("Du bist nicht dabei")
     session.delete(found)
-    session.flush()
+    equipment.drop(session, meetup.id, by)
 
 
 def hand_over_meetups_of(session: Session, user_id: int, now: datetime) -> None:
@@ -313,6 +316,8 @@ def move(session: Session, meetup: Meetup, by: int, starts_at: datetime, now: da
     )
     session.add(moved)
     session.flush()
+    # The Host's Equipment goes along to the new time (SCRUM-170).
+    equipment.carry(session, meetup.id, moved.id, by)
     meetup.moved_to_id = moved.id
     for each in joins:
         each.move_pending = True
@@ -348,10 +353,11 @@ def answer_move(
         if target.host_id != by and find_join(session, target, by) is None:
             require_room(session, by, target.starts_at, target.ends_at, now, leaving=frozenset({meetup.id}))
             session.add(MeetupJoin(meetup_id=target.id, user_id=by, party_size=party_size, joined_at=now))
+            equipment.carry(session, meetup.id, target.id, by)
     leave(session, meetup, by, now)
 
 
-Action = Literal["join", "leave", "cancel", "end", "move", "cancel_series", "invite"]
+Action = Literal["join", "leave", "cancel", "end", "move", "cancel_series", "invite", "equipment"]
 
 
 def actions(
@@ -382,9 +388,9 @@ def actions(
         allowed.append("leave")
     else:
         allowed.append("join")
-    # Everyone in it may invite their Contacts (SCRUM-43).
+    # Everyone in it may invite their Contacts (SCRUM-43) and change their Equipment (SCRUM-170).
     if viewer is not None and (meetup.host_id == viewer or joined):
-        allowed.append("invite")
+        allowed += ["invite", "equipment"]
     # Only on an Occurrence the Series Host still hosts: a handover gave the others away (SCRUM-125).
     if (
         viewer is not None

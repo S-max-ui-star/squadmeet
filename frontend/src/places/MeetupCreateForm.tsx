@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
-import { createMeetup, createSeries } from '../api/meetups'
+import { createMeetup, createSeries, type EquipmentCount } from '../api/meetups'
+import EquipmentPicker from './EquipmentPicker'
 import PartySizeStepper from './PartySizeStepper'
 import {
   berlinDateValue,
@@ -11,7 +12,14 @@ import {
 import { WEEKDAYS, emptySlots, hasSeriesOccurrence, slotsInput, type SlotFields } from './seriesGroups'
 
 type Run = (action: (token: string) => Promise<unknown>) => Promise<boolean>
-type Props = { kind: 'now' | 'later'; placeId: number; busy: boolean; run: Run; onClose: () => void }
+type Props = {
+  kind: 'now' | 'later'
+  placeId: number
+  activityType?: string | null
+  busy: boolean
+  run: Run
+  onClose: () => void
+}
 type SubmitInput = {
   kind: Props['kind']
   placeId: number
@@ -19,6 +27,7 @@ type SubmitInput = {
   series: boolean
   slotFields: SlotFields[]
   partySize: number
+  equipment: EquipmentCount[]
   until: string
   hours: number
   startsAt: string
@@ -101,7 +110,7 @@ function seriesState(kind: Props['kind'], repeat: boolean, fields: SlotFields[],
   return { series, noWeekday, berlinDate, emptySeries: series && !noWeekday && !hasOccurrence }
 }
 
-function submitCreation({ kind, placeId, run, series, slotFields, partySize, until, hours, startsAt }: SubmitInput) {
+function submitCreation({ kind, placeId, run, series, slotFields, partySize, equipment, until, hours, startsAt }: SubmitInput) {
   if (series) {
     return run((token) => createSeries(token, {
       place_id: placeId,
@@ -110,11 +119,12 @@ function submitCreation({ kind, placeId, run, series, slotFields, partySize, unt
       until: until || null,
     }))
   }
-  const input = { place_id: placeId, hours, party_size: partySize }
+  // Without a choice the body is as before SCRUM-170.
+  const input = { place_id: placeId, hours, party_size: partySize, ...(equipment.length > 0 ? { equipment } : {}) }
   return run((token) => createMeetup(token, kind === 'later' ? { ...input, starts_at: fromInputValue(startsAt) } : input))
 }
 
-export default function MeetupCreateForm({ kind, placeId, busy, run, onClose }: Props) {
+export default function MeetupCreateForm({ kind, placeId, activityType, busy, run, onClose }: Props) {
   const [openedAt] = useState(() => new Date())
   const [startsAt, setStartsAt] = useState(() => toInputValue(nextFullHour(new Date())))
   const [repeat, setRepeat] = useState(false)
@@ -122,10 +132,11 @@ export default function MeetupCreateForm({ kind, placeId, busy, run, onClose }: 
   const [until, setUntil] = useState('')
   const [hours, setHours] = useState(2)
   const [partySize, setPartySize] = useState(1)
+  const [equipment, setEquipment] = useState<EquipmentCount[]>([])
 
   const bounds = inputBounds(openedAt)
   const { series, noWeekday, berlinDate, emptySeries } = seriesState(kind, repeat, slotFields, until, openedAt)
-  const submit = () => submitCreation({ kind, placeId, run, series, slotFields, partySize, until, hours, startsAt })
+  const submit = () => submitCreation({ kind, placeId, run, series, slotFields, partySize, equipment, until, hours, startsAt })
 
   return (
     <form className="now-form" onSubmit={(event) => { event.preventDefault(); submit() }}>
@@ -135,6 +146,8 @@ export default function MeetupCreateForm({ kind, placeId, busy, run, onClose }: 
       <SingleStartField enabled={kind === 'later' && !series} startsAt={startsAt} setStartsAt={setStartsAt} bounds={bounds} />
       <DurationChoice enabled={!series} hours={hours} setHours={setHours} />
       <PartySizeStepper value={partySize} onChange={setPartySize} />
+      {/* A Series has no Equipment: each Occurrence gets its own with "Ausrüstung ändern". */}
+      {!series && <EquipmentPicker activityType={activityType} value={equipment} onChange={setEquipment} />}
       <FormHint kind={kind} series={series} openedAt={openedAt} hours={hours} />
       <ValidationMessages noWeekday={noWeekday} emptySeries={emptySeries} />
       <button type="submit" className="now-button" disabled={busy || noWeekday || emptySeries}>

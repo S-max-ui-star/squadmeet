@@ -311,6 +311,31 @@ class MeetupJoin(SQLModel, table=True):
     )
 
 
+class MeetupEquipment(SQLModel, table=True):
+    """One item of Equipment a user brings to a Meetup (SCRUM-170, see CONTEXT.md).
+
+    For the Host and for each Join, so it is not on MeetupJoin. The item is a key of
+    app/equipment.py for the Place's Activity type. Leave deletes the user's rows; a handover
+    keeps them, because the user stays in the Meetup.
+    """
+
+    __tablename__ = "meetup_equipment"
+    __table_args__ = (
+        UniqueConstraint("meetup_id", "user_id", "item", name="uq_meetup_equipment_item"),
+        CheckConstraint("count BETWEEN 1 AND 4", name="ck_meetup_equipment_count"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    meetup_id: int = Field(
+        sa_column=Column(ForeignKey("meetup.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    user_id: int = Field(
+        sa_column=Column(ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    item: str
+    count: int = 1
+
+
 
 class Photo(SQLModel, table=True):
     """A user's Photo of a Place (SCRUM-42, see CONTEXT.md). The file is in the photo storage

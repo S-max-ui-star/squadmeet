@@ -133,6 +133,13 @@ _Avoid_: double booking, conflict
 The number of people a user brings, including themselves (1–10). Extra people need no account.
 _Avoid_: group, guests
 
+**Equipment** (Ausrüstung):
+The things a user brings to one Meetup or Occurrence, from a fixed list per Activity type (for
+example Schläger with a count 1–4, Bälle, Netz). The Host and each Join have their own. Leave
+removes it; a handover and a Move keep it with the person. It belongs to the Meetup, not to the
+Place or the profile.
+_Avoid_: gear, items, Material
+
 ## Ratings
 
 **Rating** (Bewertung):

@@ -25,6 +25,8 @@ const meetup: Meetup = {
   people: 2,
   participants: null,
   contacts: null,
+  equipment: [],
+  equipment_by_person: null,
   starts_at: '2026-10-14T16:00:00Z',
   ends_at: '2026-10-14T18:00:00Z',
   cancelled: false,

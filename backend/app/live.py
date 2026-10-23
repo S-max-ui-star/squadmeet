@@ -2,7 +2,7 @@
 
 An open page keeps one stream to GET /api/live. When a commit changes a user's Notifications or
 Contacts, the stream sends that user the topic ("notifications" or "contacts"). A change to a
-Meetup or a Join goes to every open stream as "meetups:<place id>", because Meetups are public.
+Meetup, a Join or its Equipment goes to every open stream as "meetups:<place id>", because Meetups are public.
 A Rating or a Condition vote goes to every open stream as "ratings:<place id>" (SCRUM-98).
 The page then loads that data again. An event carries no data, so a lost or extra event does no
 harm: the page loads again when the stream opens, and it still polls every 60 s.
@@ -29,6 +29,7 @@ from app.models import (
     ContactRequest,
     LoginSession,
     Meetup,
+    MeetupEquipment,
     MeetupJoin,
     Notification,
     Rating,
@@ -96,7 +97,7 @@ def changes_of(session: Session, obj: object) -> list[tuple[Receiver, Message]]:
     """Who sees a change to this row, and which data they must load again."""
     if isinstance(obj, Meetup):
         return [(None, f"meetups:{obj.place_id}")]
-    if isinstance(obj, MeetupJoin):
+    if isinstance(obj, (MeetupJoin, MeetupEquipment)):
         # The route has usually loaded the Meetup already, so this rarely asks the database.
         with session.no_autoflush:
             meetup = session.get(Meetup, obj.meetup_id)
