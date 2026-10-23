@@ -200,9 +200,6 @@ export default function NotificationsDialog({ token, onChanged, onOpenMeetup, on
           </ul>
         </>
       )}
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }

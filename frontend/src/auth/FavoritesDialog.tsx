@@ -156,7 +156,6 @@ export default function FavoritesDialog({ token, onOpenPlace, onClose }: Props) 
           </div>
         </form>
       )}
-      <button type="button" className="link" onClick={onClose}>Schließen</button>
     </Dialog>
   )
 }

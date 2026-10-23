@@ -38,9 +38,6 @@ export default function LockedPlacesDialog({ token, onUnlocked, onClose }: Props
         </ul>
       )}
       {error && <p className="form-error">{error}</p>}
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }
