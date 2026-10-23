@@ -13,6 +13,10 @@ Die Details stehen in Jira. Nenne also den Ticket-Key und kopiere nicht den Tick
 
 ---
 
+## Fr 23.10.2026 — Tag 13
+
+- **Stefan:** Handy-Layout durchgesehen und Vorschläge mit Skizzen gesammelt; daraus gebaut: untere Leiste (`SCRUM-165`), Marker-Gruppen (`SCRUM-166`), Platzdetail mit Griff (`SCRUM-167`), Marker nicht mehr unter den Filtern (`SCRUM-173`), volles Fenster über der Suche (`SCRUM-179`), drei Knopf-Stufen (`SCRUM-177`), Suchknopf und Hinweise in leeren Ansichten (`SCRUM-178`), Platzdetail neu sortiert mit „Karte“ statt OSM-Link und „Problem melden“ (`SCRUM-176`), Leaflet aus der Kartenecke ins Impressum (`SCRUM-191`). Als Product Owner entschieden: Ausrüstung mitbringen/brauchen (`SCRUM-170`–`SCRUM-172`), Rechtslinks (`SCRUM-174`), Filter in der unteren Leiste (`SCRUM-175`), 🤝 für Treffen (`SCRUM-190`), `SCRUM-96` erst nach der Präsentation. Release #164 ist live.
+
 ## Do 22.10.2026 — Tag 12
 
 - **Steven:** Präsentation vorbereitet (`SCRUM-164`): Plan mit Ablauf und Sprecheraufteilung, fünf Design-Entwürfe (gewählt: Titelfolie mit der Karte, Rest im Sport-Plakat-Stil). Ein Google-Apps-Script baut das ganze Deck mit Sprechernotizen und zwei Diagrammen (PR #144).
