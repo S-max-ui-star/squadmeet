@@ -2,7 +2,7 @@
 Activity type, see CONTEXT.md.
 
 A fixed list, no free text (ADR-0004). The key is stored in the database and must never
-change; the German labels are in frontend/src/places/equipment.ts. Equipment belongs to a
+change; the frontend has the same German labels, with an emoji (frontend/src/places/equipment.ts). Equipment belongs to a
 Meetup, not to a Place: the Host and each Join have their own rows.
 """
 
@@ -21,16 +21,30 @@ MAX_COUNT = 4
 @dataclass(frozen=True)
 class Item:
     key: str
+    # German, for the Notification text (SCRUM-172); the same as in frontend/src/places/equipment.ts.
+    label: str
     # 1: the user brings it or not. More: the user says how many (Schläger, 1–4).
     max_count: int = 1
 
 
 ACTIVITY_EQUIPMENT: dict[ActivityType, tuple[Item, ...]] = {
-    ActivityType.TABLE_TENNIS: (Item("rackets", MAX_COUNT), Item("balls"), Item("net")),
-    ActivityType.BASKETBALL: (Item("ball"),),
-    ActivityType.FOOTBALL: (Item("ball"), Item("bibs"), Item("cones")),
-    ActivityType.BEACH_VOLLEYBALL: (Item("ball"), Item("net")),
-    ActivityType.OUTDOOR_FITNESS: (Item("jump_rope"), Item("mat"), Item("band")),
+    ActivityType.TABLE_TENNIS: (
+        Item("rackets", "Schläger", MAX_COUNT),
+        Item("balls", "Bälle"),
+        Item("net", "Netz"),
+    ),
+    ActivityType.BASKETBALL: (Item("ball", "Ball"),),
+    ActivityType.FOOTBALL: (
+        Item("ball", "Ball"),
+        Item("bibs", "Leibchen"),
+        Item("cones", "Hütchen/Mini-Tore"),
+    ),
+    ActivityType.BEACH_VOLLEYBALL: (Item("ball", "Ball"), Item("net", "Netz")),
+    ActivityType.OUTDOOR_FITNESS: (
+        Item("jump_rope", "Springseil"),
+        Item("mat", "Matte"),
+        Item("band", "Fitnessband"),
+    ),
 }
 
 
@@ -89,6 +103,24 @@ def missing(activity_type: str, brought: dict[str, int], needed: dict[str, int])
         if need > have:
             short[item.key] = need - have
     return short
+
+
+def missing_text(activity_type: str, short: dict[str, int]) -> str | None:
+    """"2 Schläger, Bälle" for the Notification text (SCRUM-172): a count only for an item
+    with a count, as on the Meetup card. None when nothing is missing."""
+    labels = {item.key: item for item in items_for(activity_type)}
+    return ", ".join(
+        f"{count} {labels[key].label}" if labels[key].max_count > 1 else labels[key].label
+        for key, count in short.items()
+    ) or None
+
+
+def missing_now(session: Session, meetup_id: int, activity_type: str) -> dict[str, int]:
+    """Missing Equipment of one Meetup from its rows (app.meetups does the same for many)."""
+    totals: dict[str, dict[str, int]] = {"bring": {}, "need": {}}
+    for row in session.exec(select(MeetupEquipment).where(MeetupEquipment.meetup_id == meetup_id)):
+        totals[row.kind][row.item] = totals[row.kind].get(row.item, 0) + row.count
+    return missing(activity_type, totals["bring"], totals["need"])
 
 
 def rows_of(session: Session, meetup_id: int, user_id: int) -> list[MeetupEquipment]:
