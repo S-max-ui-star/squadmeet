@@ -182,7 +182,14 @@ function PlaceDetailContent({
   return (
     <>
       <WithProblemFold place={place} reportBox={reportBox}>
-        <SuggestionStatus key={place.id} place={place} user={user} onLoginNeeded={onLoginNeeded} onConfirmed={onConfirmed} />
+        {/* A prefix: the Meetups next to it use the Place id as key too. */}
+        <SuggestionStatus
+          key={`suggestion-${place.id}`}
+          place={place}
+          user={user}
+          onLoginNeeded={onLoginNeeded}
+          onConfirmed={onConfirmed}
+        />
         {shown && meetups}
         <PlaceActions place={place} favorite={shown ? favorite : null} onShowOnMap={onShowOnMap} onSnap={onSnap} />
         {shown && children}
