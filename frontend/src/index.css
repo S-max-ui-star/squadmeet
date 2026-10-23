@@ -2469,6 +2469,12 @@ body {
     min-height: 36px;
   }
 
+  /* A plain (secondary) button stays 44 px high in the Place detail too (SCRUM-177). */
+  .place-detail button:not([class]):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+    min-height: 44px;
+  }
+
   .place-detail-location a {
     display: inline-block;
     padding: 10px 0;
@@ -2487,4 +2493,70 @@ body {
   input[type='range'] {
     min-height: 44px;
   }
+}
+
+/* SCRUM-177: three button levels.
+   - Secondary (outlined) is the default for a plain button in a dialog or the Place detail. Zero
+     specificity, so every rule that already styles a button still wins. The groups in the :not()
+     list have their own neutral look without a text colour; they keep it as it is.
+   - Primary (filled) is the one main action of a dialog: className="btn-primary".
+   - Text is the existing className="link", now also outside dialogs. */
+:where(.dialog, .place-detail) :where(button:not([class])):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a5fb4;
+  background: white;
+  border: 2px solid #1a5fb4;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+:where(.dialog, .place-detail) :where(button:not([class]):hover:not(:disabled)):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  background: #eef4fc;
+}
+
+:where(.dialog, .place-detail) :where(button:not([class]):disabled):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  color: #6b7280;
+  background: #f1f3f5;
+  border-color: #c4c9d1;
+  cursor: not-allowed;
+}
+
+:where(button.link) {
+  padding: 0;
+  font: inherit;
+  color: #1a5fb4;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Last in the file, so it wins over ".dialog button" and the touch rules with the same weight. */
+button.btn-primary {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  background: #1a5fb4;
+  border: 2px solid #1a5fb4;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button.btn-primary:hover:not(:disabled) {
+  background: #174f96;
+  border-color: #174f96;
+}
+
+button.btn-primary:disabled {
+  color: #6b7280;
+  background: #e4e7eb;
+  border-color: #e4e7eb;
+  cursor: not-allowed;
 }

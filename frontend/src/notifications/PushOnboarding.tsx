@@ -55,6 +55,7 @@ export default function PushOnboarding({ userId, token, onConfigure }: Props) {
       {iosNeedsInstall && <p>Auf dem iPhone musst du SquadMeet dafür zuerst zum Home-Bildschirm hinzufügen.</p>}
       <button
         type="button"
+        className="btn-primary"
         onClick={() => {
           choose('configure')
           onConfigure()

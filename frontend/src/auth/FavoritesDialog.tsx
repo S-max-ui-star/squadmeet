@@ -151,7 +151,7 @@ export default function FavoritesDialog({ token, onOpenPlace, onClose }: Props) 
             <label>Bis<input type="time" value={end} onChange={(event) => setEnd(event.target.value)} /></label>
           </div>
           <div className="button-row">
-            <button type="submit" disabled={busy}>Speichern</button>
+            <button type="submit" className="btn-primary" disabled={busy}>Speichern</button>
             <button type="button" disabled={busy} onClick={() => setEditing(null)}>Abbrechen</button>
           </div>
         </form>
