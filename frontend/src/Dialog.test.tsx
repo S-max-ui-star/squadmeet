@@ -116,6 +116,27 @@ describe('Dialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  // SCRUM-168: on a phone the dialog is a sheet at the bottom; the keyboard must not cover it.
+  it('keeps the bottom sheet above the virtual keyboard', async () => {
+    const viewport = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0 })
+    vi.stubGlobal('visualViewport', viewport)
+    try {
+      const { container } = await render()
+      const backdrop = container.querySelector<HTMLElement>('.dialog-backdrop')!
+      expect(backdrop.style.getPropertyValue('--keyboard-inset')).toBe('0px')
+
+      viewport.height = window.innerHeight - 300
+      await act(async () => viewport.dispatchEvent(new Event('resize')))
+      expect(backdrop.style.getPropertyValue('--keyboard-inset')).toBe('300px')
+
+      viewport.height = window.innerHeight
+      await act(async () => viewport.dispatchEvent(new Event('resize')))
+      expect(backdrop.style.getPropertyValue('--keyboard-inset')).toBe('0px')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('stays open when a press starts inside and ends outside (text selection)', async () => {
     const { container, onClose } = await render()
 

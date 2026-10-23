@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type FormEventHandler, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type FormEventHandler, type ReactNode, type RefObject } from 'react'
 
 type Props = {
   title: string
@@ -46,6 +46,33 @@ function trapTab(event: KeyboardEvent, dialog: HTMLElement) {
   }
 }
 
+/** On a phone the dialog is a sheet at the bottom (SCRUM-168). The virtual keyboard covers the
+ * bottom of the screen without making the page smaller, so the backdrop gets the covered height
+ * as `--keyboard-inset` (CSS), and the focused input scrolls back into view. */
+function useKeyboardInset(
+  backdropRef: RefObject<HTMLDivElement | null>,
+  windowRef: RefObject<HTMLElement | null>,
+) {
+  useEffect(() => {
+    const viewport = window.visualViewport
+    const backdrop = backdropRef.current
+    if (!viewport || !backdrop) return
+
+    function update() {
+      const covered = Math.max(0, Math.round(window.innerHeight - viewport!.height - viewport!.offsetTop))
+      backdrop!.style.setProperty('--keyboard-inset', `${covered}px`)
+      const focused = document.activeElement
+      if (covered && focused instanceof HTMLElement && windowRef.current?.contains(focused)) {
+        focused.scrollIntoView?.({ block: 'nearest' })
+      }
+    }
+
+    update()
+    viewport.addEventListener('resize', update)
+    return () => viewport.removeEventListener('resize', update)
+  }, [backdropRef, windowRef])
+}
+
 /** A dialog window over the page. It closes with the × at the top (as the Place panel,
  * SCRUM-76) and with a click outside the window. */
 export default function Dialog({
@@ -59,9 +86,11 @@ export default function Dialog({
   // A press that starts inside the window and ends outside (text selection) does not close it.
   const pressedOutside = useRef(false)
   const windowRef = useRef<HTMLElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const dismissibleRef = useRef(dismissible)
   const titleId = useId()
+  useKeyboardInset(backdropRef, windowRef)
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -123,6 +152,7 @@ export default function Dialog({
 
   return (
     <div
+      ref={backdropRef}
       className="dialog-backdrop"
       onMouseDown={(event) => {
         pressedOutside.current = event.target === event.currentTarget

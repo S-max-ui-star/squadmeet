@@ -103,7 +103,6 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
         </>
       )}
       {error && <p className="form-error">{error}</p>}
-      <button type="button" className="link" onClick={onClose}>Schließen</button>
     </Dialog>
   )
 }

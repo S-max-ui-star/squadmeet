@@ -113,9 +113,6 @@ export default function SuggestionApprovalDialog({ token, onChanged, onOpenPlace
         </ul>
       )}
       {error && <p className="form-error">{error}</p>}
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }

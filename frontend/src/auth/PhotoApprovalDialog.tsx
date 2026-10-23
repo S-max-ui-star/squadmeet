@@ -70,9 +70,6 @@ export default function PhotoApprovalDialog({ token, onChanged, onOpenPlace, onC
         </ul>
       )}
       {error && <p className="form-error">{error}</p>}
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }

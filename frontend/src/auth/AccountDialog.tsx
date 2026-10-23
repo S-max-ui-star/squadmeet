@@ -60,9 +60,6 @@ export default function AccountDialog({
       <button type="button" onClick={onDelete}>
         Konto löschen
       </button>
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
       <LegalLinks className="legal-links-inline" />
     </Dialog>
   )

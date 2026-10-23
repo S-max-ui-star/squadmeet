@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Dialog from '../Dialog'
 import { mfaDisable, mfaEnable, mfaSetup, type MfaSetup, type User } from '../api/auth'
-import LegalLinks from '../legal/LegalLinks'
 import UsernameField from './UsernameField'
 
 type Props = {
@@ -153,10 +152,6 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
       <button type="button" className="link" disabled={busy} onClick={onNewRecoveryCodes}>
         Neue Wiederherstellungscodes erstellen
       </button>
-      <button type="button" className="link" disabled={busy} onClick={close}>
-        Schließen
-      </button>
-      <LegalLinks className="legal-links-inline" />
     </Dialog>
   )
 }

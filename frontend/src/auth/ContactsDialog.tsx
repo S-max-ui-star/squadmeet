@@ -214,9 +214,6 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
         </section>
       )}
 
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }
