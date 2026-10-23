@@ -65,6 +65,12 @@ body {
   flex-shrink: 0;
 }
 
+/* SCRUM-174: a laptop shows the Nickname and "Konto", a phone only the bell and a round Avatar
+   button (see the phone rules below). */
+.account-button-avatar {
+  display: none;
+}
+
 .notification-button {
   position: relative;
 }
@@ -817,14 +823,6 @@ body {
   font-weight: 700;
 }
 
-.place-detail-back {
-  align-self: flex-start;
-  padding: 10px 0;
-  font-weight: 600;
-  color: #1a5fb4;
-  text-decoration: none;
-}
-
 /* SCRUM-167: below the laptop width the detail is a sheet with a grip: small, half (as before)
    or full. The grip sits in the sticky head, so it stays in reach while the sheet scrolls. */
 .place-detail-grip {
@@ -842,10 +840,13 @@ body {
     transition: none;
   }
 
+  /* The line marks where the text scrolls under the head: without it, half a line of "Adresse"
+     right under the title looked like leftover text (SCRUM-174). */
   .place-detail-head {
     top: 0;
     margin-top: 0;
     padding-top: 28px;
+    box-shadow: 0 1px 0 #d5d8de;
   }
 
   /* Two classes, so the touch rule for ".place-detail button" does not make it taller. */
@@ -1347,6 +1348,24 @@ body {
 
 .contact-list li span {
   flex: 1;
+}
+
+/* SCRUM-174: input and "Anfragen" in one row, as in the search. */
+.contact-ask {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.contact-ask label {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog .contact-ask input,
+.dialog .contact-ask button {
+  min-height: 40px;
+  box-sizing: border-box;
 }
 
 /* SCRUM-84: the question before "Blockieren" on its own line, the buttons below. */
@@ -2319,6 +2338,51 @@ body {
 
   .bottom-nav ~ .leaflet-container .leaflet-bottom {
     bottom: var(--bottom-nav);
+  }
+
+  /* SCRUM-174: the bell and the Avatar as two round buttons; Konto has the Nickname. */
+  .account-name,
+  .account-button-text {
+    display: none;
+  }
+
+  .account-button-avatar {
+    display: inline;
+  }
+
+  .account .notification-button,
+  .account .account-button {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+    background: #f2f3f5;
+    border: 1px solid #d5d8de;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* SCRUM-174: a rare action, so a round ＋ and not a wide button over the markers. */
+  .suggest-button {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+
+  .suggest-button-text {
+    display: none;
+  }
+
+  /* SCRUM-174: while a Place is open, the sheet gets the room; the search stays. CenterOn
+     (SCRUM-173) skips controls with no height. */
+  body:has(.place-detail) .account,
+  body:has(.place-detail) .time-filter,
+  body:has(.place-detail) .activity-filter {
+    display: none;
   }
 }
 

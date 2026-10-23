@@ -79,6 +79,17 @@ describe('SuggestPlaceDialog', () => {
     expect(onCreated).toHaveBeenCalledWith(created)
   })
 
+  it('has no legal links: only login, registration and Konto show them (SCRUM-174)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(Response.json([nearby])))
+    const { container } = await render()
+    expect(container.querySelector('nav[aria-label="Rechtliches"]')).toBeNull()
+
+    await chooseTableTennisAndGoOn(container)
+
+    expect(container.textContent).toContain('Ist es einer davon?')
+    expect(container.querySelector('nav[aria-label="Rechtliches"]')).toBeNull()
+  })
+
   it('cannot go on without an Activity type', async () => {
     const { container } = await render()
 

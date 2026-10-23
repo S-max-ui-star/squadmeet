@@ -191,6 +191,13 @@ describe('PlaceDetail', () => {
     }
   })
 
+  it('has no "Zurück zur Karte" link: the × closes the detail (SCRUM-174)', () => {
+    const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+
+    expect(container.querySelector('.place-detail-back')).toBeNull()
+    expect(container.textContent).not.toContain('Zurück')
+  })
+
   it('offers to try again after an error', () => {
     const onRetry = vi.fn()
     const { container } = render({ place: null, error: 'GET failed: 500', onRetry, onClose: () => {} })

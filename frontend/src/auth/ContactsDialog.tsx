@@ -122,13 +122,16 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
           run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then((sent) => sent && setNickname(''))
         }}
       >
-        <label>
-          Kontakt hinzufügen (genauer Nickname)
-          <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
-        </label>
-        <button type="submit" disabled={busy || nickname.trim() === ''}>
-          Anfragen
-        </button>
+        {/* Input and button in one row, as in the search (SCRUM-174). */}
+        <div className="contact-ask">
+          <label>
+            Kontakt hinzufügen (genauer Nickname)
+            <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
+          </label>
+          <button type="submit" disabled={busy || nickname.trim() === ''}>
+            Anfragen
+          </button>
+        </div>
       </form>
       {notice && <p className="hint">{notice}</p>}
       {error && <p className="form-error">{error}</p>}
