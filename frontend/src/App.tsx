@@ -39,6 +39,7 @@ import PlacePhotos from './places/PlacePhotos'
 import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
 import MapToolbar from './places/MapToolbar'
+import BottomNav from './places/BottomNav'
 import MyMeetupsDialog from './places/MyMeetupsDialog'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
@@ -570,6 +571,17 @@ export default function App() {
           onCreated={(place) => openFromSuggest(place.id)}
           onOpenPlace={openFromSuggest}
           onClose={closeDialog}
+        />
+      )}
+      {/* Phones (SCRUM-165); before the elements it pushes up, so the CSS reaches them with "~". */}
+      {user && (
+        <BottomNav
+          incomingRequests={incomingRequests}
+          onMap={closeOnMapTap}
+          onMyMeetups={() => show('myMeetups')}
+          onFavorites={() => show('favorites')}
+          onContacts={() => show('contacts')}
+          onHomeArea={() => setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })}
         />
       )}
       <button type="button" className="suggest-button" onClick={startSuggesting}>

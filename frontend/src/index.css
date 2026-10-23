@@ -465,7 +465,7 @@ body {
   position: absolute;
   z-index: 1000;
   right: 8px;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  bottom: calc(84px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   width: min(360px, calc(100% - 16px));
   max-height: 38%;
   overflow-y: auto;
@@ -1631,7 +1631,7 @@ body {
   position: absolute;
   z-index: 1000;
   right: 12px;
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  bottom: calc(28px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   min-height: 44px;
   padding: 0 16px;
   font-size: 1rem;
@@ -1705,7 +1705,7 @@ body {
   position: absolute;
   z-index: 1000;
   left: 8px;
-  bottom: calc(8px + env(safe-area-inset-bottom));
+  bottom: calc(8px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   padding: 4px 8px;
   font-size: 0.8rem;
   background: rgb(255 255 255 / 85%);
@@ -1983,8 +1983,8 @@ body {
 }
 
 /* SCRUM-113 (mobile review): phones in portrait. The zoom buttons sat under the account bar and
-   the search field; on a touch screen two fingers zoom. The search gets the whole row, the
-   toolbar (only when logged in) a row of its own below, the filters move one row down. */
+   the search field; on a touch screen two fingers zoom. The search gets the whole row; the
+   toolbar is the bottom bar there (SCRUM-165). */
 @media (max-width: 599px) {
   .leaflet-control-zoom {
     display: none;
@@ -1999,18 +1999,78 @@ body {
     right: 8px;
   }
 
+  /* SCRUM-165: the bottom bar replaces the toolbar, so the filters keep their logged-out rows. */
   .map-toolbar {
-    top: 104px;
-    left: 8px;
-    right: auto;
+    display: none;
   }
 
-  .map-toolbar ~ .time-filter {
-    top: 156px;
+  /* Everything after the bar that sits at the bottom moves up by its height. */
+  .bottom-nav ~ * {
+    --bottom-nav: 57px; /* 56 px buttons + 1 px border */
   }
 
-  .map-toolbar ~ .activity-filter {
-    top: 204px;
+  .bottom-nav ~ .leaflet-container .leaflet-bottom {
+    bottom: var(--bottom-nav);
+  }
+}
+
+/* SCRUM-165: phones only; the Place detail (z-index 1100) covers it. */
+.bottom-nav {
+  position: absolute;
+  z-index: 1050;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 0 max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left));
+  background: white;
+  border-top: 1px solid #d5d8de;
+  box-shadow: 0 -1px 4px rgb(0 0 0 / 10%);
+}
+
+.bottom-nav button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 56px;
+  padding: 0 2px;
+  font-size: 0.72rem;
+  color: #505663;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bottom-nav button > span[aria-hidden] {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.bottom-nav button[aria-current='page'] {
+  font-weight: 700;
+  color: #1a5fb4;
+}
+
+.bottom-nav button:focus-visible {
+  outline: 2px solid #1a5fb4;
+  outline-offset: -4px;
+}
+
+/* On the icon, not on the corner of the wide button. */
+.bottom-nav .notification-count {
+  top: 4px;
+  right: calc(50% - 22px);
+}
+
+/* Wider screens keep the MapToolbar. */
+@media (min-width: 600px) {
+  .bottom-nav {
+    display: none;
   }
 }
 
