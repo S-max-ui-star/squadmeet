@@ -806,6 +806,77 @@ body {
   text-decoration: none;
 }
 
+/* SCRUM-167: below the laptop width the detail is a sheet with a grip: small, half (as before)
+   or full. The grip sits in the sticky head, so it stays in reach while the sheet scrolls. */
+.place-detail-grip {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .place-detail {
+    padding-top: 0;
+    transition: max-height 0.2s ease;
+  }
+
+  /* The sheet follows the finger without delay. */
+  .place-detail.dragging {
+    transition: none;
+  }
+
+  .place-detail-head {
+    top: 0;
+    margin-top: 0;
+    padding-top: 28px;
+  }
+
+  /* Two classes, so the touch rule for ".place-detail button" does not make it taller. */
+  .place-detail .place-detail-grip {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 28px;
+    min-height: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    transform: translateX(-50%);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .place-detail .place-detail-grip:focus-visible {
+    outline: 2px solid #1a5fb4;
+    outline-offset: -2px;
+  }
+
+  .place-detail-grip-bar {
+    width: 40px;
+    height: 5px;
+    background: #c4c9d1;
+    border-radius: 3px;
+  }
+
+  .place-detail[data-snap='small'] {
+    max-height: min(220px, 40%);
+  }
+
+  .place-detail[data-snap='full'] {
+    height: 100%;
+    max-height: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place-detail {
+    transition: none;
+  }
+}
+
 /* Laptop: the detail is a card on the left, so the map stays big. */
 @media (min-width: 768px) {
   .place-search,
