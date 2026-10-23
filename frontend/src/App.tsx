@@ -672,6 +672,7 @@ export default function App() {
           <PlaceMeetups
             key={selectedId}
             placeId={selectedId}
+            activityType={selected?.activity_type ?? null}
             user={user}
             onLoginNeeded={loginNeeded}
             onChanged={reloadPlaces}

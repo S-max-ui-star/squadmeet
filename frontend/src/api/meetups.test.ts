@@ -20,6 +20,8 @@ const meetup: Meetup = {
   people: 2,
   participants: [],
   contacts: [],
+  equipment: [],
+  equipment_by_person: [],
   cancelled: false,
   move_offer: null,
   blocked_user_in: false,

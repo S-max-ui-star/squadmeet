@@ -1411,6 +1411,72 @@ body {
   align-items: flex-end;
 }
 
+/* SCRUM-170: Equipment. The section is closed by default; each item is "–" or "Bringe", with
+   the same on look as the duration segments. */
+
+.equipment-picker {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+}
+
+.equipment-picker ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.equipment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.equipment-chips {
+  display: flex;
+  gap: 4px;
+}
+
+/* Later than `.meetup-card button` with the same weight, so these rules win in the card. */
+.equipment-chips button {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: white;
+  border: 2px solid #d5d8de;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.equipment-chips button.on {
+  color: white;
+  background: #16181d;
+  border-color: #16181d;
+}
+
+.equipment-chips button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.equipment-line,
+.equipment-people {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.equipment-people {
+  padding-left: 18px;
+  color: #505663;
+}
+
 /* SCRUM-55: City report. Orange edge when the Condition names something to fix. */
 
 .city-report {
