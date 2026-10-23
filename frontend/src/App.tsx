@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { AttributionControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { fetchPlace, fetchPlaces, underReview, type MapArea, type Place, type PlaceSearchHit } from './api/places'
@@ -741,7 +741,11 @@ export default function App() {
         maxBoundsViscosity={1}
         worldCopyJump
         style={{ height: '100%' }}
+        // Only "© OpenStreetMap" in the corner, without Leaflet's "🇺🇦 Leaflet" prefix; Leaflet is
+        // named in the Impressum (SCRUM-191).
+        attributionControl={false}
       >
+        <AttributionControl prefix={false} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import { useEffect } from 'react'
-import { Circle, CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { AttributionControl, Circle, CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 
 export type Point = { lat: number; lon: number }
 
@@ -17,7 +17,9 @@ type Props = {
 export default function HomeAreaMap({ point, radiusKm, fallbackCenter, onPick }: Props) {
   const center: [number, number] = point ? [point.lat, point.lon] : fallbackCenter
   return (
-    <MapContainer center={center} zoom={12} className="home-area-map">
+    // As on the main map: only "© OpenStreetMap", no Leaflet prefix (SCRUM-191).
+    <MapContainer center={center} zoom={12} className="home-area-map" attributionControl={false}>
+      <AttributionControl prefix={false} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

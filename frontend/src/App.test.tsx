@@ -16,6 +16,7 @@ vi.mock('react-leaflet', () => {
     setView: vi.fn(),
   }
   return {
+    AttributionControl: () => null,
     MapContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Marker: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

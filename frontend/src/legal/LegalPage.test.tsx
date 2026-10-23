@@ -16,6 +16,19 @@ async function privacyText(photos: boolean) {
   return container.textContent ?? ''
 }
 
+// Leaflet is no longer named on the map, so the Impressum names it (SCRUM-191).
+describe('LegalPage imprint', () => {
+  it('names OpenStreetMap and the Leaflet library with a link', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    await act(async () => createRoot(container).render(<LegalPage kind="imprint" photos={false} navigate={() => {}} />))
+
+    expect(container.textContent).toContain('© OpenStreetMap-Mitwirkende')
+    expect(container.textContent).toContain('Die Karte nutzt die freie Bibliothek Leaflet.')
+    expect(container.querySelector<HTMLAnchorElement>('a[href="https://leafletjs.com"]')?.target).toBe('_blank')
+  })
+})
+
 // Photos are deferred (SCRUM-94): the stored ones stay, so the page still names them.
 describe('LegalPage photos', () => {
   it('says that Photos are off, and still names the stored ones', async () => {

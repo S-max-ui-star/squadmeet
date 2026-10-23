@@ -57,6 +57,14 @@ function Imprint() {
         Squadmeet ist ein nicht kommerzielles Abschlussprojekt einer Weiterbildung. Die Daten zu
         den Plätzen stammen von OpenStreetMap (© OpenStreetMap-Mitwirkende, Lizenz ODbL).
       </p>
+      {/* Not on the map any more, so it is named here (SCRUM-191). */}
+      <p>
+        Die Karte nutzt die freie Bibliothek{' '}
+        <a href="https://leafletjs.com" target="_blank" rel="noreferrer">
+          Leaflet
+        </a>
+        .
+      </p>
     </>
   )
 }
