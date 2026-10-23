@@ -1869,6 +1869,127 @@ body {
   font-weight: 600;
 }
 
+/* SCRUM-169: Konto as a grouped list, like the settings of a phone. Each group is a white card
+   on grey; a row is a full-width button with a "›" (or its value) on the right. */
+.dialog.account-dialog {
+  background: #f2f3f5;
+}
+
+.account-profile {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  font-size: 1.1rem;
+}
+
+.account-profile strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  font-size: 1.8rem;
+  background: white;
+  border-radius: 50%;
+}
+
+.account-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
+  border-radius: 10px;
+}
+
+.account-group h3 {
+  margin: 0;
+  padding: 10px 14px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #505663;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dialog button.account-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 14px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  border-top: 1px solid #e4e6ea;
+  cursor: pointer;
+}
+
+.account-group h3 + .account-row,
+.account-row:first-child {
+  border-top: none;
+}
+
+.dialog button.account-row:hover {
+  background: #f6f7f9;
+}
+
+.dialog button.account-row:focus-visible {
+  outline: 2px solid #1a5fb4;
+  outline-offset: -2px;
+}
+
+.account-row::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #8a909b;
+}
+
+.account-row-value {
+  margin-left: auto;
+  color: #505663;
+}
+
+/* Only one of the two may push to the right, else they share the free space. */
+.account-row:has(.account-row-value)::after {
+  margin-left: 0;
+}
+
+.account-group .legal-links-inline {
+  padding: 14px;
+  text-align: left;
+  font-size: 1rem;
+  border-top: 1px solid #e4e6ea;
+}
+
+.account-group h3 + .legal-links-inline {
+  border-top: none;
+}
+
+/* Set apart from the rest: its own card, a gap above, red text and no "›". */
+.account-danger {
+  margin-top: 12px;
+}
+
+.dialog button.account-row.destructive {
+  justify-content: center;
+  font-weight: 600;
+  color: #c01c28;
+}
+
+.account-row.destructive::after {
+  content: none;
+}
+
 /* Admin part of the Place detail (SCRUM-39). */
 .admin-box {
   display: flex;
@@ -2131,7 +2252,7 @@ body {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 0 max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left));
   background: white;
   border-top: 1px solid #d5d8de;

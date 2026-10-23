@@ -147,14 +147,25 @@ describe('App account changes', () => {
     root = createRoot(container)
     await act(async () => root?.render(<App />))
 
-    await click(button('Kontakte öffnen'))
-    expect(document.querySelector('[data-testid="contacts-dialog"]')).not.toBeNull()
+    // Abmelden is in Konto (SCRUM-169), so the logout starts with that dialog open.
+    await click(button('Konto'))
+    expect(document.querySelector('.account-dialog')).not.toBeNull()
 
     await click(button('Abmelden'))
+    expect(document.querySelector('.account-dialog')).toBeNull()
     await click(button('Anmelden'))
     await click(button('Als Zweiter anmelden'))
 
-    expect(document.querySelector('[data-testid="contacts-dialog"]')).toBeNull()
+    expect(document.querySelector('.account-dialog')).toBeNull()
+  })
+
+  it('has no Abmelden in the top bar: it is in Konto (SCRUM-169)', async () => {
+    localStorage.setItem('squadmeet.token', 'first-token')
+    const container = document.querySelector('#root')!
+    root = createRoot(container)
+    await act(async () => root?.render(<App />))
+
+    expect(document.querySelector('.account')?.textContent).not.toContain('Abmelden')
   })
 
   it('does not apply viewer-specific map data after logout or to the next account', async () => {
@@ -171,6 +182,7 @@ describe('App account changes', () => {
     expect(vi.mocked(fetchMapMeetups).mock.calls[0][3]).toBe('first-token')
     expect(document.querySelector('[data-testid="map-loading"]')?.textContent).toBe('true')
 
+    await click(button('Konto'))
     await click(button('Abmelden'))
     await act(async () => finishFirst({
       places: [],

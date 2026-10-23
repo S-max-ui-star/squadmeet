@@ -18,7 +18,6 @@ async function render(incomingRequests = 0) {
     onMyMeetups: vi.fn(),
     onFavorites: vi.fn(),
     onContacts: vi.fn(),
-    onHomeArea: vi.fn(),
   }
   const container = document.createElement('div')
   document.body.append(container)
@@ -32,7 +31,7 @@ const buttons = (container: HTMLElement) => [...container.querySelectorAll<HTMLB
 const byText = (container: HTMLElement, text: string) => buttons(container).find((b) => b.textContent?.includes(text))!
 
 describe('BottomNav (SCRUM-165)', () => {
-  it('shows five items with icon and visible label, in thumb order', async () => {
+  it('shows four items with icon and visible label, in thumb order', async () => {
     const { container } = await render()
 
     expect(container.querySelector('nav')?.getAttribute('aria-label')).toBe('Hauptnavigation')
@@ -41,7 +40,6 @@ describe('BottomNav (SCRUM-165)', () => {
       '📅Treffen',
       '⭐Favoriten',
       '👤Kontakte',
-      '📍Heimat',
     ])
   })
 
@@ -49,14 +47,13 @@ describe('BottomNav (SCRUM-165)', () => {
     const { container } = await render()
 
     expect(byText(container, 'Treffen').getAttribute('aria-label')).toBe('Meine Treffen')
-    expect(byText(container, 'Heimat').getAttribute('aria-label')).toBe('Heimatbereich')
     expect(byText(container, 'Karte').getAttribute('aria-current')).toBe('page')
   })
 
   it('opens the same dialogs as the MapToolbar, and "Karte" goes back to the map', async () => {
     const { container, handlers } = await render()
 
-    for (const text of ['Karte', 'Treffen', 'Favoriten', 'Kontakte', 'Heimat']) {
+    for (const text of ['Karte', 'Treffen', 'Favoriten', 'Kontakte']) {
       await act(async () => byText(container, text).click())
     }
 
@@ -64,7 +61,6 @@ describe('BottomNav (SCRUM-165)', () => {
     expect(handlers.onMyMeetups).toHaveBeenCalledOnce()
     expect(handlers.onFavorites).toHaveBeenCalledOnce()
     expect(handlers.onContacts).toHaveBeenCalledOnce()
-    expect(handlers.onHomeArea).toHaveBeenCalledOnce()
   })
 
   it('shows waiting Contact requests on Kontakte', async () => {
@@ -73,6 +69,12 @@ describe('BottomNav (SCRUM-165)', () => {
     const contacts = byText(container, 'Kontakte')
     expect(contacts.getAttribute('aria-label')).toBe('Kontakte, 2 neue Anfragen')
     expect(contacts.querySelector('.notification-count')?.textContent).toBe('2')
+  })
+
+  it('has no Home area: it is in Konto (SCRUM-169)', async () => {
+    const { container } = await render()
+
+    expect(buttons(container).some((b) => b.textContent?.includes('Heimat'))).toBe(false)
   })
 
   it('shows no count without requests', async () => {

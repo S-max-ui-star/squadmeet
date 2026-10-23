@@ -433,6 +433,11 @@ export default function App() {
     setMapLoading(true)
   }
 
+  // From the desktop toolbar and from Konto (SCRUM-169).
+  function openHomeArea() {
+    setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })
+  }
+
   async function handleLogout() {
     const token = loadToken()
     clearToken()
@@ -469,11 +474,9 @@ export default function App() {
             >
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
+            {/* Abmelden is in Konto (SCRUM-169). */}
             <button type="button" onClick={() => show('account')}>
               Konto
-            </button>
-            <button type="button" onClick={handleLogout}>
-              Abmelden
             </button>
           </>
         ) : (
@@ -515,7 +518,9 @@ export default function App() {
           user={user}
           photos={photos}
           onPush={() => show('pushSettings')}
+          onHomeArea={openHomeArea}
           onMfa={() => show('mfa')}
+          onLogout={handleLogout}
           onDelete={() => show('delete')}
           onLockedPlaces={() => setDialog({ kind: 'admin', admin: 'locked' })}
           onSuggestions={() => setDialog({ kind: 'admin', admin: 'approvals' })}
@@ -599,7 +604,6 @@ export default function App() {
           onMyMeetups={() => show('myMeetups')}
           onFavorites={() => show('favorites')}
           onContacts={() => show('contacts')}
-          onHomeArea={() => setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })}
         />
       )}
       <button type="button" className="suggest-button" onClick={startSuggesting}>
@@ -623,7 +627,7 @@ export default function App() {
           incomingRequests={incomingRequests}
           onContacts={() => show('contacts')}
           onFavorites={() => show('favorites')}
-          onHomeArea={() => setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })}
+          onHomeArea={openHomeArea}
           onMyMeetups={() => show('myMeetups')}
         />
       )}
