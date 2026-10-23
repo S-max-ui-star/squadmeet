@@ -201,6 +201,75 @@ describe('PlaceDetail', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
+  describe('sheet on a phone (SCRUM-167)', () => {
+    const sheetOf = (container: HTMLElement) => container.querySelector<HTMLElement>('.place-detail')!
+    const gripOf = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.place-detail-grip')!
+    const key = (grip: HTMLElement, name: string) =>
+      act(() => grip.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true })))
+
+    it('starts half open with a grip in the head that names the height', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+
+      expect(sheetOf(container).dataset.snap).toBe('half')
+      expect(container.querySelector('.place-detail-head .place-detail-grip')).not.toBeNull()
+      expect(gripOf(container).getAttribute('aria-label')).toBe('Fenstergröße halb, ändern auf ganz')
+    })
+
+    it('goes half → full → small → half with taps on the grip', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+      const seen = []
+      for (let i = 0; i < 3; i++) {
+        act(() => gripOf(container).click())
+        seen.push(sheetOf(container).dataset.snap)
+      }
+
+      expect(seen).toEqual(['full', 'small', 'half'])
+    })
+
+    it('changes the height with the arrow keys, without a drag', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+
+      key(gripOf(container), 'ArrowDown')
+      expect(sheetOf(container).dataset.snap).toBe('small')
+      key(gripOf(container), 'ArrowUp')
+      key(gripOf(container), 'ArrowUp')
+      expect(sheetOf(container).dataset.snap).toBe('full')
+      expect(gripOf(container).getAttribute('aria-label')).toBe('Fenstergröße ganz, ändern auf klein')
+    })
+
+    it('snaps to the closest height when the finger lets go, and the drag is no tap', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+      const sheet = sheetOf(container)
+      const grip = gripOf(container)
+      // jsdom has no layout: the sheet reports the height it was given while dragging.
+      let height = 0.6 * window.innerHeight
+      sheet.getBoundingClientRect = () => ({ height }) as DOMRect
+      const pointer = (type: string, clientY: number) =>
+        act(() => grip.dispatchEvent(new MouseEvent(type, { clientY, bubbles: true })))
+
+      pointer('pointerdown', 500)
+      pointer('pointermove', 200)
+      height = parseFloat(sheet.style.height)
+      pointer('pointerup', 200)
+      act(() => grip.click())
+
+      expect(sheet.dataset.snap).toBe('full')
+      expect(sheet.style.height).toBe('')
+    })
+
+    it('still closes with × and Escape in every height', () => {
+      const onClose = vi.fn()
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose })
+
+      act(() => gripOf(container).click())
+      act(() => container.querySelector<HTMLButtonElement>('.place-detail-close')!.click())
+      act(() => gripOf(container).click())
+      act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+
+      expect(onClose).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('moves focus to close, closes with Escape and restores the opener', () => {
     const opener = document.createElement('button')
     document.body.append(opener)

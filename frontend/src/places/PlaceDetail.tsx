@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { canModerate } from '../api/admin'
 import type { User } from '../api/auth'
 import type { Place } from '../api/places'
@@ -6,6 +6,8 @@ import { activityOf } from './activities'
 import AdminPlaceActions from './AdminPlaceActions'
 import PlaceReportBox from './PlaceReportBox'
 import PlaceShareButton from './PlaceShareButton'
+import SheetGrip from './SheetGrip'
+import type { Snap } from './sheetSnap'
 import { routeUrl } from './routeLink'
 import SuggestionStatus from './SuggestionStatus'
 
@@ -29,12 +31,15 @@ type Props = {
 type HeadProps = Pick<Props, 'place' | 'error' | 'onClose'> & {
   titleId: string
   closeRef: RefObject<HTMLButtonElement | null>
+  grip: ReactNode
 }
 
-function PlaceDetailHead({ place, error, onClose, titleId, closeRef }: HeadProps) {
+function PlaceDetailHead({ place, error, onClose, titleId, closeRef, grip }: HeadProps) {
   const activity = place && activityOf(place.activity_type)
   return (
     <div className="place-detail-head">
+      {/* In the sticky head, so the grip stays in reach while the sheet scrolls (SCRUM-167). */}
+      {grip}
       {activity && (
         <span className="place-detail-emoji" style={{ borderColor: activity.color }} aria-hidden="true">
           {activity.emoji}
@@ -124,6 +129,19 @@ export default function PlaceDetail({
 }: Props) {
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const sheetRef = useRef<HTMLElement>(null)
+  // Phones only (SCRUM-167); the laptop CSS ignores it.
+  const [snap, setSnap] = useState<Snap>('half')
+
+  // Small shows the main action under the title: the sheet scrolls "Ich bin jetzt hier" up.
+  useEffect(() => {
+    const sheet = sheetRef.current
+    if (snap !== 'small' || !sheet) return
+    const action = sheet.querySelector('.now-button')
+    const head = sheet.querySelector('.place-detail-head')
+    if (!action || !head) return
+    sheet.scrollTop += action.getBoundingClientRect().top - head.getBoundingClientRect().bottom - 8
+  }, [snap])
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -142,8 +160,15 @@ export default function PlaceDetail({
   }, [onClose])
 
   return (
-    <section className="place-detail" aria-labelledby={titleId}>
-      <PlaceDetailHead place={place} error={error} onClose={onClose} titleId={titleId} closeRef={closeRef} />
+    <section ref={sheetRef} className="place-detail" data-snap={snap} aria-labelledby={titleId}>
+      <PlaceDetailHead
+        place={place}
+        error={error}
+        onClose={onClose}
+        titleId={titleId}
+        closeRef={closeRef}
+        grip={<SheetGrip snap={snap} onSnap={setSnap} sheetRef={sheetRef} />}
+      />
 
       {place && (
         <PlaceDetailContent
