@@ -33,7 +33,7 @@ describe('MapToolbar (SCRUM-85)', () => {
       ['Kontakte', '👤'],
       ['Favoriten', '⭐'],
       ['Heimatbereich', '📍'],
-      ['Meine Treffen', '📅'],
+      ['Meine Treffen', '🤝'],
     ]) {
       const button = byLabel(container, label)
       expect(button.textContent).toContain(icon)

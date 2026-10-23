@@ -2,13 +2,7 @@ import type { Meetup, TimeSpan } from '../api/meetups'
 import { AVATARS } from '../auth/avatars'
 import type { Place } from '../api/places'
 import { slot } from './meetupTime'
-
-const SPANS: { value: TimeSpan; label: string }[] = [
-  { value: 'now', label: 'Jetzt' },
-  { value: '3h', label: '3 h' },
-  { value: '6h', label: '6 h' },
-  { value: 'today', label: 'Heute' },
-]
+import TimeFilter from './TimeFilter'
 
 type Props = {
   span: TimeSpan | null
@@ -49,19 +43,7 @@ export default function MeetupMap({
 
   return (
     <>
-      <div className="time-filter" role="group" aria-label="Treffen nach Zeit filtern">
-        {SPANS.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={span === value}
-            className={span === value ? 'on' : ''}
-            onClick={() => onSpanChange(span === value ? null : value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <TimeFilter span={span} onSpanChange={onSpanChange} />
       {span && showList && (
         <section className="map-meetup-list" aria-label="Treffen im Kartenausschnitt">
           <h2>Treffen</h2>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Place } from '../api/places'
-import type { ActivityType } from './activities'
-import { filterPlaces } from './filter'
+import { ACTIVITY_TYPES, type ActivityType } from './activities'
+import { activeFilterCount, filterPlaces } from './filter'
 
 const place = (id: number, activity_type: string): Place => ({
   id,
@@ -33,5 +33,19 @@ describe('filterPlaces', () => {
   it('never hides a type that the frontend does not know', () => {
     const unknown = place(4, 'chess')
     expect(filterPlaces([...places, unknown], new Set()).map((p) => p.id)).toEqual([4])
+  })
+})
+
+describe('activeFilterCount (SCRUM-175)', () => {
+  const all = new Set(ACTIVITY_TYPES)
+
+  it('is 0 for the default: no Time choice, all activities on', () => {
+    expect(activeFilterCount(null, all)).toBe(0)
+  })
+
+  it('counts a Time choice and fewer activities, once each', () => {
+    expect(activeFilterCount('3h', all)).toBe(1)
+    expect(activeFilterCount(null, new Set<ActivityType>(['basketball']))).toBe(1)
+    expect(activeFilterCount('now', new Set<ActivityType>(['basketball', 'football']))).toBe(2)
   })
 })

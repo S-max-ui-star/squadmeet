@@ -75,7 +75,8 @@ body {
   position: relative;
 }
 
-.notification-count {
+.notification-count,
+.filter-count {
   position: absolute;
   top: -7px;
   right: -7px;
@@ -86,6 +87,11 @@ body {
   color: white;
   font-size: 0.7rem;
   line-height: 1.2;
+}
+
+/* SCRUM-175: an active filter is a state, not a warning, so it is blue. */
+.filter-count {
+  background: #1a5fb4;
 }
 
 .notification-list {
@@ -2320,16 +2326,17 @@ body {
     display: none;
   }
 
+  /* SCRUM-175: the filters are in the sheet from "Filter" in the bottom bar, not on the map. */
   .time-filter,
   .activity-filter {
-    left: 8px;
+    display: none;
   }
 
   .map-toolbar + .place-search {
     right: 8px;
   }
 
-  /* SCRUM-165: the bottom bar replaces the toolbar, so the filters keep their logged-out rows. */
+  /* SCRUM-165: the bottom bar replaces the toolbar. */
   .map-toolbar {
     display: none;
   }
@@ -2382,10 +2389,41 @@ body {
 
   /* SCRUM-174: while a Place is open, the sheet gets the room; the search stays. CenterOn
      (SCRUM-173) skips controls with no height. */
-  body:has(.place-detail) .account,
-  body:has(.place-detail) .time-filter,
-  body:has(.place-detail) .activity-filter {
+  body:has(.place-detail) .account {
     display: none;
+  }
+
+  /* SCRUM-175: the filter sheet. The map stays visible above it and only a little darker, so the
+     user sees the markers change. */
+  .dialog-backdrop:has(> .filter-sheet) {
+    background: rgb(0 0 0 / 15%);
+  }
+
+  .filter-sheet .time-filter,
+  .filter-sheet .activity-filter {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .filter-sheet h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #505663;
+  }
+
+  .filter-sheet .time-filter button,
+  .filter-sheet .activity-filter button {
+    min-height: 44px;
+    box-shadow: none;
+  }
+
+  /* On and off not by colour alone. */
+  .filter-sheet button[aria-pressed='true']::before {
+    content: '✓ ';
   }
 }
 
@@ -2397,7 +2435,9 @@ body {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Four items when logged in, two for a visitor (SCRUM-175). */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 0 max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left));
   background: white;
   border-top: 1px solid #d5d8de;
@@ -2426,18 +2466,14 @@ body {
   line-height: 1;
 }
 
-.bottom-nav button[aria-current='page'] {
-  font-weight: 700;
-  color: #1a5fb4;
-}
-
 .bottom-nav button:focus-visible {
   outline: 2px solid #1a5fb4;
   outline-offset: -4px;
 }
 
 /* On the icon, not on the corner of the wide button. */
-.bottom-nav .notification-count {
+.bottom-nav .notification-count,
+.bottom-nav .filter-count {
   top: 4px;
   right: calc(50% - 22px);
 }
