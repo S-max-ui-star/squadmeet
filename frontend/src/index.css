@@ -280,6 +280,25 @@ body {
   flex-shrink: 0;
 }
 
+/* SCRUM-168: on a phone a dialog is a sheet from the bottom, in thumb reach and like the Place
+   detail. The strip at the top stays free, so a tap outside still closes it. --keyboard-inset is
+   the height the virtual keyboard covers (Dialog.tsx). */
+@media (max-width: 599px) {
+  .dialog-backdrop {
+    align-items: flex-end;
+    padding: 48px 0 var(--keyboard-inset, 0px);
+  }
+
+  .dialog {
+    max-width: none;
+    /* The same WebKit guard as above: 100 % alone ran past the screen (SCRUM-113). */
+    max-height: min(100%, calc(100dvh - 48px - var(--keyboard-inset, 0px)));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 25%);
+  }
+}
+
 .dialog h2 {
   margin: 0;
 }
@@ -465,7 +484,7 @@ body {
   position: absolute;
   z-index: 1000;
   right: 8px;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  bottom: calc(84px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   width: min(360px, calc(100% - 16px));
   max-height: 38%;
   overflow-y: auto;
@@ -806,6 +825,77 @@ body {
   text-decoration: none;
 }
 
+/* SCRUM-167: below the laptop width the detail is a sheet with a grip: small, half (as before)
+   or full. The grip sits in the sticky head, so it stays in reach while the sheet scrolls. */
+.place-detail-grip {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .place-detail {
+    padding-top: 0;
+    transition: max-height 0.2s ease;
+  }
+
+  /* The sheet follows the finger without delay. */
+  .place-detail.dragging {
+    transition: none;
+  }
+
+  .place-detail-head {
+    top: 0;
+    margin-top: 0;
+    padding-top: 28px;
+  }
+
+  /* Two classes, so the touch rule for ".place-detail button" does not make it taller. */
+  .place-detail .place-detail-grip {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 28px;
+    min-height: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    transform: translateX(-50%);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .place-detail .place-detail-grip:focus-visible {
+    outline: 2px solid #1a5fb4;
+    outline-offset: -2px;
+  }
+
+  .place-detail-grip-bar {
+    width: 40px;
+    height: 5px;
+    background: #c4c9d1;
+    border-radius: 3px;
+  }
+
+  .place-detail[data-snap='small'] {
+    max-height: min(220px, 40%);
+  }
+
+  .place-detail[data-snap='full'] {
+    height: 100%;
+    max-height: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place-detail {
+    transition: none;
+  }
+}
+
 /* Laptop: the detail is a card on the left, so the map stays big. */
 @media (min-width: 768px) {
   .place-search,
@@ -869,6 +959,25 @@ body {
   border-radius: 50%;
   box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
   box-sizing: border-box;
+}
+
+/* SCRUM-166: Places close together on the screen; a tap zooms in. White, so it is not taken for a
+   spot (blue) or a Place with people there now (red). */
+.cluster-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #16181d;
+  background: white;
+  border: 3px solid #505663;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 70%), 0 1px 5px rgb(0 0 0 / 40%);
+  box-sizing: border-box;
+  cursor: pointer;
 }
 
 .spot-choice {
@@ -1302,6 +1411,84 @@ body {
   align-items: flex-end;
 }
 
+/* SCRUM-170: Equipment. The section is closed by default; each item is "–" or "Bringe", with
+   the same on look as the duration segments. */
+
+.equipment-picker {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+}
+
+.equipment-picker ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.equipment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.equipment-chips {
+  display: flex;
+  gap: 4px;
+}
+
+/* Later than `.meetup-card button` with the same weight, so these rules win in the card. */
+.equipment-chips button {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: white;
+  border: 2px solid #d5d8de;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.equipment-chips button.on {
+  color: white;
+  background: #16181d;
+  border-color: #16181d;
+}
+
+.equipment-chips button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.equipment-line,
+.equipment-people {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.equipment-people {
+  padding-left: 18px;
+  color: #505663;
+}
+
+/* SCRUM-171: "Fehlt noch" and "Ausrüstung ✓" in the colors of the Condition. */
+.equipment-missing {
+  color: #7a3b00;
+  font-weight: 600;
+}
+
+.equipment-ok {
+  color: #145a32;
+  font-weight: 600;
+}
+
 /* SCRUM-55: City report. Orange edge when the Condition names something to fix. */
 
 .city-report {
@@ -1631,7 +1818,7 @@ body {
   position: absolute;
   z-index: 1000;
   right: 12px;
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  bottom: calc(28px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   min-height: 44px;
   padding: 0 16px;
   font-size: 1rem;
@@ -1705,7 +1892,7 @@ body {
   position: absolute;
   z-index: 1000;
   left: 8px;
-  bottom: calc(8px + env(safe-area-inset-bottom));
+  bottom: calc(8px + var(--bottom-nav, 0px) + env(safe-area-inset-bottom));
   padding: 4px 8px;
   font-size: 0.8rem;
   background: rgb(255 255 255 / 85%);
@@ -1758,6 +1945,127 @@ body {
   background: #c01c28;
   color: white;
   font-weight: 600;
+}
+
+/* SCRUM-169: Konto as a grouped list, like the settings of a phone. Each group is a white card
+   on grey; a row is a full-width button with a "›" (or its value) on the right. */
+.dialog.account-dialog {
+  background: #f2f3f5;
+}
+
+.account-profile {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  font-size: 1.1rem;
+}
+
+.account-profile strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  font-size: 1.8rem;
+  background: white;
+  border-radius: 50%;
+}
+
+.account-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
+  border-radius: 10px;
+}
+
+.account-group h3 {
+  margin: 0;
+  padding: 10px 14px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #505663;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dialog button.account-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 14px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  border-top: 1px solid #e4e6ea;
+  cursor: pointer;
+}
+
+.account-group h3 + .account-row,
+.account-row:first-child {
+  border-top: none;
+}
+
+.dialog button.account-row:hover {
+  background: #f6f7f9;
+}
+
+.dialog button.account-row:focus-visible {
+  outline: 2px solid #1a5fb4;
+  outline-offset: -2px;
+}
+
+.account-row::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #8a909b;
+}
+
+.account-row-value {
+  margin-left: auto;
+  color: #505663;
+}
+
+/* Only one of the two may push to the right, else they share the free space. */
+.account-row:has(.account-row-value)::after {
+  margin-left: 0;
+}
+
+.account-group .legal-links-inline {
+  padding: 14px;
+  text-align: left;
+  font-size: 1rem;
+  border-top: 1px solid #e4e6ea;
+}
+
+.account-group h3 + .legal-links-inline {
+  border-top: none;
+}
+
+/* Set apart from the rest: its own card, a gap above, red text and no "›". */
+.account-danger {
+  margin-top: 12px;
+}
+
+.dialog button.account-row.destructive {
+  justify-content: center;
+  font-weight: 600;
+  color: #c01c28;
+}
+
+.account-row.destructive::after {
+  content: none;
 }
 
 /* Admin part of the Place detail (SCRUM-39). */
@@ -1983,8 +2291,8 @@ body {
 }
 
 /* SCRUM-113 (mobile review): phones in portrait. The zoom buttons sat under the account bar and
-   the search field; on a touch screen two fingers zoom. The search gets the whole row, the
-   toolbar (only when logged in) a row of its own below, the filters move one row down. */
+   the search field; on a touch screen two fingers zoom. The search gets the whole row; the
+   toolbar is the bottom bar there (SCRUM-165). */
 @media (max-width: 599px) {
   .leaflet-control-zoom {
     display: none;
@@ -1999,18 +2307,78 @@ body {
     right: 8px;
   }
 
+  /* SCRUM-165: the bottom bar replaces the toolbar, so the filters keep their logged-out rows. */
   .map-toolbar {
-    top: 104px;
-    left: 8px;
-    right: auto;
+    display: none;
   }
 
-  .map-toolbar ~ .time-filter {
-    top: 156px;
+  /* Everything after the bar that sits at the bottom moves up by its height. */
+  .bottom-nav ~ * {
+    --bottom-nav: 57px; /* 56 px buttons + 1 px border */
   }
 
-  .map-toolbar ~ .activity-filter {
-    top: 204px;
+  .bottom-nav ~ .leaflet-container .leaflet-bottom {
+    bottom: var(--bottom-nav);
+  }
+}
+
+/* SCRUM-165: phones only; the Place detail (z-index 1100) covers it. */
+.bottom-nav {
+  position: absolute;
+  z-index: 1050;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 0 max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left));
+  background: white;
+  border-top: 1px solid #d5d8de;
+  box-shadow: 0 -1px 4px rgb(0 0 0 / 10%);
+}
+
+.bottom-nav button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 56px;
+  padding: 0 2px;
+  font-size: 0.72rem;
+  color: #505663;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bottom-nav button > span[aria-hidden] {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.bottom-nav button[aria-current='page'] {
+  font-weight: 700;
+  color: #1a5fb4;
+}
+
+.bottom-nav button:focus-visible {
+  outline: 2px solid #1a5fb4;
+  outline-offset: -4px;
+}
+
+/* On the icon, not on the corner of the wide button. */
+.bottom-nav .notification-count {
+  top: 4px;
+  right: calc(50% - 22px);
+}
+
+/* Wider screens keep the MapToolbar. */
+@media (min-width: 600px) {
+  .bottom-nav {
+    display: none;
   }
 }
 

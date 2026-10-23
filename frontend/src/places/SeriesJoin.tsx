@@ -1,12 +1,15 @@
 import { useRef, useState } from 'react'
 import { loadToken } from '../api/auth'
-import { joinMeetup, type Meetup } from '../api/meetups'
+import { joinMeetup, type EquipmentChoice, type Meetup } from '../api/meetups'
+import EquipmentPicker from './EquipmentPicker'
 import { slot } from './meetupTime'
 import PartySizeStepper from './PartySizeStepper'
 
 type Props = {
   // The dates of one Series in the open overview "Alle Termine", by start.
   dates: Meetup[]
+  // The Place's Activity type: the same Equipment goes to each date (SCRUM-170).
+  activityType?: string | null
   // After the Joins: the list and the map load again.
   onDone: () => void
 }
@@ -17,9 +20,10 @@ const canJoin = (date: Meetup) => date.actions.includes('join')
 
 // Join several dates of a weekly Series at once (SCRUM-81). Each date is one Join, so a date
 // that fails (the overlap limit, a Block) does not stop the others; the user sees which failed.
-export default function SeriesJoin({ dates, onDone }: Props) {
+export default function SeriesJoin({ dates, activityType, onDone }: Props) {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [partySize, setPartySize] = useState(1)
+  const [equipment, setEquipment] = useState<EquipmentChoice[]>([])
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [result, setResult] = useState<{ joined: number; failed: string[] } | null>(null)
@@ -35,7 +39,7 @@ export default function SeriesJoin({ dates, onDone }: Props) {
     const failed: string[] = []
     for (const date of targets) {
       try {
-        await joinMeetup(token, date.id, partySize)
+        await joinMeetup(token, date.id, partySize, equipment)
         joined += 1
       } catch (err) {
         failed.push(`${slot(date)}: ${(err as Error).message}`)
@@ -79,6 +83,7 @@ export default function SeriesJoin({ dates, onDone }: Props) {
       {open.length > 0 && (
         <>
           <PartySizeStepper value={partySize} onChange={setPartySize} />
+          <EquipmentPicker activityType={activityType} value={equipment} onChange={setEquipment} />
           <div className="button-row">
             <button
               type="button"

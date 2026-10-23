@@ -8,6 +8,13 @@ export type MeetupHost = { id: number; nickname: string; avatar: string }
 
 export type Participant = MeetupHost & { party_size: number }
 
+// SCRUM-170: one item of Equipment and how many (keys in places/equipment.ts).
+export type EquipmentCount = { item: string; count: number }
+// What a person brings (`items`) and needs (`needs`, SCRUM-171).
+export type PersonEquipment = MeetupHost & { items: EquipmentCount[]; needs: EquipmentCount[] }
+// A choice in the forms: brought without `kind`, as before SCRUM-171, or needed.
+export type EquipmentChoice = EquipmentCount & { kind?: 'need' }
+
 // The Host moved the Meetup; the viewer has not chosen go along / stay / leave yet.
 export type MoveOffer = { meetup_id: number; host: MeetupHost; starts_at: string; ends_at: string }
 
@@ -27,6 +34,14 @@ export type Meetup = {
   participants: Participant[] | null
   // The viewer's Contacts among Host and participants, Host first; null for a guest.
   contacts: MeetupHost[] | null
+  // What everybody brings, summed per item (guests too), and who brings what, Host first;
+  // null for a guest (SCRUM-170).
+  equipment: EquipmentCount[]
+  equipment_by_person: PersonEquipment[] | null
+  // SCRUM-171: what everybody needs, summed per item, and what is still missing ("Fehlt
+  // noch"; the server decides). Guests see both.
+  equipment_needed: EquipmentCount[]
+  equipment_missing: EquipmentCount[]
   // ISO 8601 with time zone, e.g. "2026-10-12T09:00:00Z".
   starts_at: string
   ends_at: string
@@ -45,10 +60,16 @@ export type Meetup = {
 
 export type MeetupState = 'upcoming' | 'live' | 'ended' | 'cancelled' | 'closed'
 
-export type MeetupAction = 'join' | 'leave' | 'cancel' | 'end' | 'move' | 'cancel_series' | 'invite'
+export type MeetupAction = 'join' | 'leave' | 'cancel' | 'end' | 'move' | 'cancel_series' | 'invite' | 'equipment'
 
 // Without starts_at a Now-meetup; with it a later Meetup (ISO 8601 with time zone).
-export type MeetupInput = { place_id: number; hours: number; party_size: number; starts_at?: string }
+export type MeetupInput = {
+  place_id: number
+  hours: number
+  party_size: number
+  starts_at?: string
+  equipment?: EquipmentChoice[]
+}
 
 export type MapMeetups = { places: Place[]; meetups: Meetup[]; truncated: boolean }
 
@@ -123,14 +144,30 @@ export async function moveMeetupStart(token: string, meetupId: number, startsAt:
   return answer(response, 'PATCH meetup')
 }
 
-// "Ich komme mit" with the user's Party size.
-export async function joinMeetup(token: string, meetupId: number, partySize: number): Promise<Meetup> {
+// "Ich komme mit" with the user's Party size and the Equipment they bring (SCRUM-170).
+export async function joinMeetup(
+  token: string,
+  meetupId: number,
+  partySize: number,
+  equipment: EquipmentChoice[] = [],
+): Promise<Meetup> {
   const response = await fetch(`/api/meetups/${meetupId}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ party_size: partySize }),
+    // Without a choice the body is as before SCRUM-170.
+    body: JSON.stringify(equipment.length > 0 ? { party_size: partySize, equipment } : { party_size: partySize }),
   })
   return answer(response, 'POST join')
+}
+
+// "Ausrüstung ändern" (SCRUM-170): the user's whole Equipment for the Meetup; [] = nothing.
+export async function changeEquipment(token: string, meetupId: number, equipment: EquipmentChoice[]): Promise<Meetup> {
+  const response = await fetch(`/api/meetups/${meetupId}/equipment`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ equipment }),
+  })
+  return answer(response, 'PUT equipment')
 }
 
 export async function leaveMeetup(token: string, meetupId: number): Promise<void> {

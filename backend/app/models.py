@@ -311,6 +311,36 @@ class MeetupJoin(SQLModel, table=True):
     )
 
 
+class MeetupEquipment(SQLModel, table=True):
+    """One item of Equipment a user brings to a Meetup (SCRUM-170) or needs there (SCRUM-171),
+    see CONTEXT.md.
+
+    For the Host and for each Join, so it is not on MeetupJoin. The item is a key of
+    app/equipment.py for the Place's Activity type. Leave deletes the user's rows; a handover
+    keeps them, because the user stays in the Meetup. One row per item, so a user cannot both
+    bring and need it.
+    """
+
+    __tablename__ = "meetup_equipment"
+    __table_args__ = (
+        UniqueConstraint("meetup_id", "user_id", "item", name="uq_meetup_equipment_item"),
+        CheckConstraint("count BETWEEN 1 AND 4", name="ck_meetup_equipment_count"),
+        CheckConstraint("kind IN ('bring', 'need')", name="ck_meetup_equipment_kind"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    meetup_id: int = Field(
+        sa_column=Column(ForeignKey("meetup.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    user_id: int = Field(
+        sa_column=Column(ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    item: str
+    count: int = 1
+    # "bring" or "need" (app.equipment.Kind).
+    kind: str = Field(default="bring", sa_column=Column(String, nullable=False, server_default="bring"))
+
+
 
 class Photo(SQLModel, table=True):
     """A user's Photo of a Place (SCRUM-42, see CONTEXT.md). The file is in the photo storage
@@ -539,6 +569,8 @@ class Notification(SQLModel, table=True):
         default=None,
         sa_column=Column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True, index=True),
     )
+    # "2 Schläger, Bälle": the Missing Equipment when the Notification was made (SCRUM-172).
+    missing_equipment: str | None = None
     created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     read_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

@@ -79,7 +79,7 @@ describe('MfaDialog', () => {
       }
       button(container, 'Ausschalten')!.click()
     })
-    expect(button(container, 'Schließen')!.disabled).toBe(true)
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="Schließen"]')!.disabled).toBe(true)
     await act(async () => root.unmount())
     roots.delete(root)
     await act(async () => resolve(Response.json({ ...user, mfa_enabled: false })))

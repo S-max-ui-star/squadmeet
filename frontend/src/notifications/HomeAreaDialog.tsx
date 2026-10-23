@@ -123,9 +123,6 @@ export default function HomeAreaDialog({ token, fallbackCenter, onClose }: Props
       )}
       {message && <p>{message}</p>}
       {error && <p className="form-error">{error}</p>}
-      <button type="button" className="link" onClick={onClose}>
-        Schließen
-      </button>
     </Dialog>
   )
 }

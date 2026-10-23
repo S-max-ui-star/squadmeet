@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { fetchPlace, fetchPlaces, underReview, type MapArea, type Place, type PlaceSearchHit } from './api/places'
 import {
@@ -39,6 +40,7 @@ import PlacePhotos from './places/PlacePhotos'
 import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
 import MapToolbar from './places/MapToolbar'
+import BottomNav from './places/BottomNav'
 import MyMeetupsDialog from './places/MyMeetupsDialog'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
@@ -52,6 +54,8 @@ import { placeIdFromPath, placePath, usePath } from './places/route'
 import CenterOn from './places/CenterOn'
 import { useFocusRequest } from './places/focus'
 import { groupBySpot } from './places/spots'
+import { clusterSpots, NO_CLUSTER_ZOOM } from './places/clusters'
+import ClusterMarker from './places/ClusterMarker'
 import { pageVisible, whileVisible } from './whileVisible'
 import { loadMapView, saveMapView } from './places/mapView'
 
@@ -93,6 +97,12 @@ function RememberView() {
       saveMapView({ center: [lat, lng], zoom: map.getZoom() })
     },
   })
+  return null
+}
+
+// Reports the zoom after each zoom, so the clusters split or join (SCRUM-166).
+function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) })
   return null
 }
 
@@ -212,6 +222,15 @@ export default function App() {
     [places, chosen, selectedId],
   )
   const spots = useMemo(() => groupBySpot(visiblePlaces), [visiblePlaces])
+  const [zoom, setZoom] = useState(startView?.zoom ?? 13)
+  // Overlapping markers become clusters (SCRUM-166); someone there now and the open Place stay apart.
+  const clustered = useMemo(() => {
+    if (zoom >= NO_CLUSTER_ZOOM) return { singles: spots, clusters: [] }
+    const project = (lat: number, lon: number) => L.CRS.EPSG3857.latLngToPoint(L.latLng(lat, lon), zoom)
+    return clusterSpots(spots, project, (spot) =>
+      spot.places.some((place) => place.id === selectedId || place.people_now > 0),
+    )
+  }, [spots, zoom, selectedId])
 
   const loadPlaces = useCallback((area: MapArea) => {
     lastArea.current = area
@@ -414,6 +433,11 @@ export default function App() {
     setMapLoading(true)
   }
 
+  // From the desktop toolbar and from Konto (SCRUM-169).
+  function openHomeArea() {
+    setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })
+  }
+
   async function handleLogout() {
     const token = loadToken()
     clearToken()
@@ -450,11 +474,9 @@ export default function App() {
             >
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
+            {/* Abmelden is in Konto (SCRUM-169). */}
             <button type="button" onClick={() => show('account')}>
               Konto
-            </button>
-            <button type="button" onClick={handleLogout}>
-              Abmelden
             </button>
           </>
         ) : (
@@ -496,7 +518,9 @@ export default function App() {
           user={user}
           photos={photos}
           onPush={() => show('pushSettings')}
+          onHomeArea={openHomeArea}
           onMfa={() => show('mfa')}
+          onLogout={handleLogout}
           onDelete={() => show('delete')}
           onLockedPlaces={() => setDialog({ kind: 'admin', admin: 'locked' })}
           onSuggestions={() => setDialog({ kind: 'admin', admin: 'approvals' })}
@@ -572,6 +596,16 @@ export default function App() {
           onClose={closeDialog}
         />
       )}
+      {/* Phones (SCRUM-165); before the elements it pushes up, so the CSS reaches them with "~". */}
+      {user && (
+        <BottomNav
+          incomingRequests={incomingRequests}
+          onMap={closeOnMapTap}
+          onMyMeetups={() => show('myMeetups')}
+          onFavorites={() => show('favorites')}
+          onContacts={() => show('contacts')}
+        />
+      )}
       <button type="button" className="suggest-button" onClick={startSuggesting}>
         ＋ Platz vorschlagen
       </button>
@@ -593,7 +627,7 @@ export default function App() {
           incomingRequests={incomingRequests}
           onContacts={() => show('contacts')}
           onFavorites={() => show('favorites')}
-          onHomeArea={() => setDialog({ kind: 'homeArea', center: areaCenter(lastArea.current) })}
+          onHomeArea={openHomeArea}
           onMyMeetups={() => show('myMeetups')}
         />
       )}
@@ -638,6 +672,7 @@ export default function App() {
           <PlaceMeetups
             key={selectedId}
             placeId={selectedId}
+            activityType={selected?.activity_type ?? null}
             user={user}
             onLoginNeeded={loginNeeded}
             onChanged={reloadPlaces}
@@ -679,12 +714,16 @@ export default function App() {
         />
         <MapAreaWatcher onMove={loadPlaces} />
         <RememberView />
+        <ZoomWatcher onZoom={setZoom} />
         <CenterOnSearch target={searchTarget} />
         <CloseOnMapTap onTap={closeOnMapTap} />
         {selected && (
           <CenterOn place={selected} focus={focus?.id === selected.id ? focus.request : null} />
         )}
-        {spots.map((spot) => {
+        {clustered.clusters.map((cluster) => (
+          <ClusterMarker key={`cluster-${cluster.spots[0].places[0].id}`} cluster={cluster} />
+        ))}
+        {clustered.singles.map((spot) => {
           const isSelected = spot.places.some((place) => place.id === selectedId)
           if (spot.places.length === 1) {
             const [place] = spot.places

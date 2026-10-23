@@ -1,6 +1,7 @@
 """The Meetup routes (see CONTEXT.md): a Now-meetup ("Ich bin jetzt hier", SCRUM-29), a later
 Meetup (SCRUM-35), Join and Leave (SCRUM-34), the Host's Cancel, End, Leave and move (SCRUM-37),
-and how a Meetup is shown to whom (guests and Block, SCRUM-32).
+the Equipment each person brings (SCRUM-170) or needs (SCRUM-171), and how a Meetup is shown to whom (guests and
+Block, SCRUM-32).
 
 The rules live in app.meetup_lifecycle (SCRUM-61): state, transitions and who may do what. These
 routes only translate HTTP; a LifecycleError becomes the HTTP answer in app.main. Each answer
@@ -19,6 +20,7 @@ from sqlalchemy import and_, func, or_, true
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app import equipment
 from app import meetup_lifecycle as lifecycle
 from app.auth import bearer, current_login, current_user
 from app.blocks import blocked_by, blockers_of
@@ -32,7 +34,8 @@ from app.contact_notifications import (
     notify_new_meetup,
 )
 from app.meetup_lifecycle import MAX_DAYS_AHEAD, MeetupState, is_active, is_open
-from app.models import Meetup, MeetupJoin, MeetupSeries, Place, User
+from app.equipment import MAX_CHOICES, Choices
+from app.models import Meetup, MeetupEquipment, MeetupJoin, MeetupSeries, Place, User
 from app.place_status import PlaceUse, in_db, require, view_use
 from app.series import fill_open_series
 
@@ -88,6 +91,8 @@ class MeetupCreate(BaseModel):
     party_size: int = Field(default=1, ge=1, le=MAX_PARTY_SIZE)
     # Empty = a Now-meetup. A time needs its time zone, e.g. "2026-10-17T18:00:00+02:00".
     starts_at: AwareDatetime | None = None
+    # What the Host brings (SCRUM-170); empty = nothing said.
+    equipment: Choices = Field(default_factory=list, max_length=MAX_CHOICES)
 
 
 class MeetupTimeChange(BaseModel):
@@ -96,6 +101,12 @@ class MeetupTimeChange(BaseModel):
 
 class JoinCreate(BaseModel):
     party_size: int = Field(default=1, ge=1, le=MAX_PARTY_SIZE)
+    equipment: Choices = Field(default_factory=list, max_length=MAX_CHOICES)
+
+
+class EquipmentChange(BaseModel):
+    # The user's whole Equipment for the Meetup; empty = they bring nothing.
+    equipment: Choices = Field(max_length=MAX_CHOICES)
 
 
 class MoveAnswer(BaseModel):
@@ -142,6 +153,17 @@ class ParticipantRead(HostRead):
     party_size: int
 
 
+class EquipmentCount(BaseModel):
+    item: str
+    count: int
+
+
+class PersonEquipmentRead(HostRead):
+    # What the person brings, and what they need (SCRUM-171).
+    items: list[EquipmentCount]
+    needs: list[EquipmentCount]
+
+
 class MeetupRead(BaseModel):
     id: int
     place_id: int
@@ -155,6 +177,14 @@ class MeetupRead(BaseModel):
     participants: list[ParticipantRead] | None
     # The viewer's Contacts among Host and Joins, Host first; None for a guest (SCRUM-87).
     contacts: list[HostRead] | None
+    # SCRUM-170: what everybody in the Meetup brings, summed per item (for guests too, like
+    # `people`), and who brings what, Host first; None for a guest. Blockers stay unnamed.
+    equipment: list[EquipmentCount]
+    equipment_by_person: list[PersonEquipmentRead] | None
+    # SCRUM-171: what everybody needs, summed per item, and "Fehlt noch": what is needed beyond
+    # what is brought (app.equipment.missing). For guests too, like `equipment`.
+    equipment_needed: list[EquipmentCount]
+    equipment_missing: list[EquipmentCount]
     starts_at: datetime
     ends_at: datetime
     cancelled: bool
@@ -204,8 +234,56 @@ def move_offer(session: Session, meetup: Meetup, user: User | None, joins, now: 
     )
 
 
+Brought = dict[int, list[EquipmentCount]]
+# Per kind ("bring", "need"): the items of each user.
+ByKind = dict[str, Brought]
+
+
+def no_equipment() -> ByKind:
+    return {"bring": {}, "need": {}}
+
+
+def equipment_of(session: Session, ids: list[int]) -> dict[int, tuple[str, ByKind]]:
+    """Per Meetup: its Activity type, and per kind and user the items they bring or need, in
+    the order of app/equipment.py. A Meetup without Equipment is missing."""
+    found: dict[int, tuple[str, ByKind]] = {}
+    rows = session.exec(
+        select(MeetupEquipment, Place.activity_type)
+        .join(Meetup, Meetup.id == MeetupEquipment.meetup_id)
+        .join(Place, Place.id == Meetup.place_id)
+        .where(MeetupEquipment.meetup_id.in_(ids))
+    ).all()
+    for row, activity_type in sorted(rows, key=lambda pair: equipment.order(pair[1], pair[0].item)):
+        _, kinds = found.setdefault(row.meetup_id, (activity_type, no_equipment()))
+        kinds[row.kind].setdefault(row.user_id, []).append(EquipmentCount(item=row.item, count=row.count))
+    return found
+
+
+def summed(activity_type: str, people: Brought) -> list[EquipmentCount]:
+    """The items of all these people, summed per item, in the order of app/equipment.py."""
+    totals: dict[str, int] = {}
+    for items in people.values():
+        for each in items:
+            totals[each.item] = totals.get(each.item, 0) + each.count
+    return [
+        EquipmentCount(item=item, count=totals[item])
+        for item in sorted(totals, key=lambda key: equipment.order(activity_type, key))
+    ]
+
+
+def missing(activity_type: str, kinds: ByKind) -> list[EquipmentCount]:
+    """"Fehlt noch" for one Meetup (SCRUM-171)."""
+    if not kinds["need"]:
+        return []
+    brought, needed = (
+        {each.item: each.count for each in summed(activity_type, kinds[kind])} for kind in ("bring", "need")
+    )
+    short = equipment.missing(activity_type, brought, needed)
+    return [EquipmentCount(item=item, count=count) for item, count in short.items()]
+
+
 def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list[MeetupRead]:
-    """The Meetups as `user` may see them, with their Joins (two queries for any number)."""
+    """The Meetups as `user` may see them, with their Joins (three queries for any number)."""
     ids = [meetup.id for meetup in meetups]
     joins: dict[int, list[tuple[MeetupJoin, User]]] = {meetup_id: [] for meetup_id in ids}
     for join, member in session.exec(
@@ -221,6 +299,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
             select(User).where(User.id.in_({meetup.host_id for meetup in meetups}))
         ).all()
     }
+    brought = equipment_of(session, ids)
     now = datetime.now(UTC)
     series_ids = {meetup.series_id for meetup in meetups if meetup.series_id is not None}
     series = (
@@ -234,6 +313,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
     contact_ids = contacts_of(session, user.id) - blocks_with(session, user.id) if user else set()
     reads = []
     for meetup in meetups:
+        activity_type, kinds = brought.get(meetup.id, ("", no_equipment()))
         host = hosts[meetup.host_id]
         present = [host, *(member for _, member in joins[meetup.id])]
         members = {meetup.host_id} | {member.id for _, member in joins[meetup.id]}
@@ -265,6 +345,23 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     for member in present
                     if member.id in contact_ids
                 ],
+                equipment=summed(activity_type, kinds["bring"]),
+                equipment_by_person=None
+                if user is None
+                else [
+                    PersonEquipmentRead(
+                        id=member.id,
+                        nickname=member.nickname,
+                        avatar=member.avatar,
+                        items=kinds["bring"].get(member.id, []),
+                        needs=kinds["need"].get(member.id, []),
+                    )
+                    for member in present
+                    if member.id not in hidden
+                    and (member.id in kinds["bring"] or member.id in kinds["need"])
+                ],
+                equipment_needed=summed(activity_type, kinds["need"]),
+                equipment_missing=missing(activity_type, kinds),
                 starts_at=meetup.starts_at,
                 ends_at=meetup.ends_at,
                 cancelled=meetup.cancelled_at is not None,
@@ -291,6 +388,11 @@ def to_read(session: Session, meetup: Meetup, user: User | None) -> MeetupRead:
     return to_reads(session, [meetup], user)[0]
 
 
+def check_equipment(place: Place, choices: Choices) -> None:
+    if (problem := equipment.problem(place.activity_type, choices)) is not None:
+        raise lifecycle.Invalid(problem)
+
+
 def get_meetup(session: Session, meetup_id: int) -> Meetup:
     meetup = session.get(Meetup, meetup_id) if in_db(meetup_id) else None
     if meetup is None:
@@ -306,7 +408,8 @@ def create_meetup(
 ):
     """A Meetup that starts now or at `starts_at` and ends after `hours`. The creator is the
     Host."""
-    require(session, body.place_id, PlaceUse.MEETUP)
+    place = require(session, body.place_id, PlaceUse.MEETUP)
+    check_equipment(place, body.equipment)
     now = datetime.now(UTC)
     starts_at = now
     if body.starts_at is not None:
@@ -322,6 +425,7 @@ def create_meetup(
     )
     session.add(meetup)
     session.flush()
+    equipment.replace(session, meetup.id, user.id, body.equipment)
     notify_new_meetup(session, meetup, now)
     session.commit()
     session.refresh(meetup)
@@ -432,9 +536,12 @@ def join_meetup(
     """"Ich komme mit": the user joins an upcoming or live Meetup with their Party size."""
     meetup = get_meetup(session, meetup_id)
     # SCRUM-72: no new Join at a hidden (reported) Place.
-    require(session, meetup.place_id, PlaceUse.MEETUP)
+    place = require(session, meetup.place_id, PlaceUse.MEETUP)
+    check_equipment(place, body.equipment)
     lifecycle.join(session, meetup, user.id, body.party_size, datetime.now(UTC))
     try:
+        session.flush()
+        equipment.replace(session, meetup.id, user.id, body.equipment)
         session.commit()
     except IntegrityError:
         # The unique key (meetup, user): of two requests at the same moment only one passes.
@@ -442,6 +549,26 @@ def join_meetup(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Du bist schon dabei"
         ) from None
+    return to_read(session, meetup, user)
+
+
+@router.put("/meetups/{meetup_id}/equipment", response_model=MeetupRead)
+def change_equipment(
+    meetup_id: int,
+    body: EquipmentChange,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    """"Ausrüstung ändern" (SCRUM-170): the Host or a joined user says again what they bring.
+    Only while the Meetup is open, and not at a hidden Place, like every Meetup action."""
+    meetup = get_meetup(session, meetup_id)
+    place = require(session, meetup.place_id, PlaceUse.MEETUP)
+    lifecycle.require_open(meetup, datetime.now(UTC))
+    if meetup.host_id != user.id and lifecycle.find_join(session, meetup, user.id) is None:
+        raise lifecycle.NotFound("Du bist nicht dabei")
+    check_equipment(place, body.equipment)
+    equipment.replace(session, meetup.id, user.id, body.equipment)
+    session.commit()
     return to_read(session, meetup, user)
 
 

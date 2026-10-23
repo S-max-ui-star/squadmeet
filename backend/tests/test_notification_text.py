@@ -33,6 +33,12 @@ def test_notification_text_ends_with_the_activity_without_a_street():
     )
 
 
+def test_notification_text_ends_with_the_missing_equipment():
+    assert notification_text(
+        "contact_meetup_created", "Max", "table_tennis", None, missing="2 Schläger"
+    ) == "Max hat ein Treffen erstellt: Tischtennis · Fehlt noch: 2 Schläger"
+
+
 def test_every_notification_kind_has_reason_words():
     assert set(REASONS) == {
         "meetup_cancelled",

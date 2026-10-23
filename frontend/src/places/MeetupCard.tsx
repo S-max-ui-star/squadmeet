@@ -1,30 +1,37 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import type { User } from '../api/auth'
 import { askForContact, blockUser } from '../api/contacts'
 import {
   answerMove,
   cancelMeetup,
   cancelSeries,
+  changeEquipment,
   endMeetup,
   joinMeetup,
   leaveMeetup,
   moveMeetupStart,
+  type EquipmentChoice,
   type Meetup,
   type MeetupAction,
   type MoveAnswer,
+  type PersonEquipment,
 } from '../api/meetups'
 import { AVATARS } from '../auth/avatars'
+import EquipmentPicker from './EquipmentPicker'
+import { equipmentLine } from './equipment'
 import InviteContacts from './InviteContacts'
 import PartySizeStepper from './PartySizeStepper'
 import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 
 type Person = { meetupId: number; nickname: string }
-type Joining = { id: number; partySize: number }
+type Joining = { id: number; partySize: number; equipment: EquipmentChoice[] }
 type Moving = { id: number; startsAt: string }
 type Run = (action: (token: string) => Promise<unknown>) => Promise<boolean>
 
 type Props = {
   meetup: Meetup
+  // The Place's Activity type: which Equipment fits (SCRUM-170).
+  activityType?: string | null
   user: User | null
   laterCount: number
   offered: boolean
@@ -142,8 +149,9 @@ function MeetupAnswers({ meetup, offered, joining, busy, onAnswer, onJoin, onLea
   )
 }
 
-function JoinForm({ meetup, joining, busy, setJoining, run }: {
+function JoinForm({ meetup, activityType, joining, busy, setJoining, run }: {
   meetup: Meetup
+  activityType?: string | null
   joining: Joining
   busy: boolean
   setJoining: Dispatch<SetStateAction<Joining | null>>
@@ -152,9 +160,10 @@ function JoinForm({ meetup, joining, busy, setJoining, run }: {
   return (
     <form className="move-form" onSubmit={(event) => {
       event.preventDefault()
-      run((token) => joinMeetup(token, meetup.id, joining.partySize))
+      run((token) => joinMeetup(token, meetup.id, joining.partySize, joining.equipment))
     }}>
-      <PartySizeStepper value={joining.partySize} onChange={(partySize) => setJoining({ id: meetup.id, partySize })} />
+      <PartySizeStepper value={joining.partySize} onChange={(partySize) => setJoining({ ...joining, partySize })} />
+      <EquipmentPicker activityType={activityType} value={joining.equipment} onChange={(equipment) => setJoining({ ...joining, equipment })} />
       <button type="submit" disabled={busy}>Beitreten</button>
       <button type="button" className="link-button" onClick={() => setJoining(null)}>Abbrechen</button>
     </form>
@@ -198,15 +207,98 @@ function SelectedPersonActions({ meetupId, person, busy, run, setPerson, setNoti
   return <PersonActions person={person} busy={busy} run={run} onClose={() => setPerson(null)} setNotice={setNotice} />
 }
 
-function SelectedJoinForm({ meetup, joining, busy, setJoining, run }: {
+function SelectedJoinForm({ meetup, activityType, joining, busy, setJoining, run }: {
   meetup: Meetup
+  activityType?: string | null
   joining: Joining | null
   busy: boolean
   setJoining: Dispatch<SetStateAction<Joining | null>>
   run: Run
 }) {
   if (!joining || joining.id !== meetup.id) return null
-  return <JoinForm meetup={meetup} joining={joining} busy={busy} setJoining={setJoining} run={run} />
+  return <JoinForm meetup={meetup} activityType={activityType} joining={joining} busy={busy} setJoining={setJoining} run={run} />
+}
+
+// The viewer's own items, brought and needed, to start "Ausrüstung ändern" from.
+function mine(meetup: Meetup, user: User | null): EquipmentChoice[] {
+  const own = meetup.equipment_by_person?.find((person) => person.id === user?.id)
+  if (!own) return []
+  return [...own.items, ...own.needs.map((each) => ({ ...each, kind: 'need' as const }))]
+}
+
+// "bringt 🏓 2 Schläger · braucht ⚪ Bälle, 🥅 Netz" for one person (SCRUM-171).
+function personLine(activityType: string | null | undefined, person: PersonEquipment) {
+  const parts = [['bringt', person.items], ['braucht', person.needs]] as const
+  return parts
+    .filter(([, items]) => items.length > 0)
+    .map(([verb, items]) => `${verb} ${equipmentLine(activityType, items, ', ')}`)
+    .join(' · ')
+}
+
+// SCRUM-171: "Fehlt noch" when people need more than is brought, "Ausrüstung ✓" when they need
+// something and all of it is there; nothing when nobody needs anything.
+function EquipmentStatus({ meetup, activityType }: { meetup: Meetup; activityType?: string | null }) {
+  if (meetup.equipment_missing.length > 0) {
+    return <p className="equipment-line equipment-missing">⚠ Fehlt noch: {equipmentLine(activityType, meetup.equipment_missing)}</p>
+  }
+  if (meetup.equipment_needed.length > 0) return <p className="equipment-line equipment-ok">Ausrüstung ✓</p>
+  return null
+}
+
+// SCRUM-170: one summary line for everybody, and "Ausrüstung ▸" (closed by default) with who
+// brings and needs what.
+function EquipmentSummary({ meetup, activityType, user }: {
+  meetup: Meetup
+  activityType?: string | null
+  user: User | null
+}) {
+  const [listOpen, setListOpen] = useState(false)
+  const people = meetup.equipment_by_person ?? []
+  return (
+    <>
+      {meetup.equipment.length > 0 && <p className="equipment-line">Mitgebracht: {equipmentLine(activityType, meetup.equipment)}</p>}
+      <EquipmentStatus meetup={meetup} activityType={activityType} />
+      {people.length > 0 && (
+        <button type="button" className="link-button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
+          Ausrüstung {listOpen ? '▾' : '▸'}
+        </button>
+      )}
+      {listOpen && (
+        <ul className="equipment-people">
+          {people.map((person) => (
+            <li key={person.id}>
+              {AVATARS[person.avatar]?.emoji ?? ''} {person.id === user?.id ? 'du' : person.nickname}: {personLine(activityType, person)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// "Ausrüstung ändern" for the people in the Meetup, starting from what the user brings.
+function EquipmentChange({ meetup, activityType, user, busy, run }: {
+  meetup: Meetup
+  activityType?: string | null
+  user: User | null
+  busy: boolean
+  run: Run
+}) {
+  const [editing, setEditing] = useState<EquipmentChoice[] | null>(null)
+  if (editing === null) {
+    if (!meetup.actions.includes('equipment')) return null
+    return <button type="button" disabled={busy} onClick={() => setEditing(mine(meetup, user))}>Ausrüstung ändern</button>
+  }
+  return (
+    <form className="move-form" onSubmit={(event) => {
+      event.preventDefault()
+      run((token) => changeEquipment(token, meetup.id, editing)).then((ok) => ok && setEditing(null))
+    }}>
+      <EquipmentPicker activityType={activityType} value={editing} onChange={setEditing} defaultOpen />
+      <button type="submit" disabled={busy}>Speichern</button>
+      <button type="button" className="link-button" onClick={() => setEditing(null)}>Abbrechen</button>
+    </form>
+  )
 }
 
 function SeriesControls({ meetup, laterCount, expanded, cancellableSeriesId, busy, onToggleExpanded, run }: {
@@ -249,7 +341,7 @@ function LifecycleControls({ meetup, moving, busy, now, setMoving, run }: {
 }
 
 export default function MeetupCard(props: Props) {
-  const { meetup, user, laterCount, offered, busy, now, joining, moving, person, expanded,
+  const { meetup, activityType, user, laterCount, offered, busy, now, joining, moving, person, expanded,
     cancellableSeriesId, setJoining, setMoving, setPerson, setNotice, onToggleExpanded,
     onLoginNeeded, run } = props
   const live = meetup.state === 'live'
@@ -258,17 +350,19 @@ export default function MeetupCard(props: Props) {
       <MeetupIdentity meetup={meetup} user={user} onPerson={setPerson} />
       <SelectedPersonActions meetupId={meetup.id} person={person} busy={busy} run={run} setPerson={setPerson} setNotice={setNotice} />
       <strong className="meetup-people">{people(meetup.people)}</strong>
+      <EquipmentSummary meetup={meetup} activityType={activityType} user={user} />
+      <EquipmentChange meetup={meetup} activityType={activityType} user={user} busy={busy} run={run} />
       <MeetupAnswers
         meetup={meetup}
         offered={offered}
         joining={joining?.id === meetup.id}
         busy={busy}
         onAnswer={(choice) => run((token) => answerMove(token, meetup.id, choice))}
-        onJoin={() => user ? setJoining({ id: meetup.id, partySize: 1 }) : onLoginNeeded()}
+        onJoin={() => user ? setJoining({ id: meetup.id, partySize: 1, equipment: [] }) : onLoginNeeded()}
         onLeave={() => run((token) => leaveMeetup(token, meetup.id))}
       />
       <InviteContacts meetup={meetup} />
-      <SelectedJoinForm meetup={meetup} joining={joining} busy={busy} setJoining={setJoining} run={run} />
+      <SelectedJoinForm meetup={meetup} activityType={activityType} joining={joining} busy={busy} setJoining={setJoining} run={run} />
       <SeriesControls meetup={meetup} laterCount={laterCount} expanded={expanded} cancellableSeriesId={cancellableSeriesId} busy={busy} onToggleExpanded={onToggleExpanded} run={run} />
       <LifecycleControls meetup={meetup} moving={moving} busy={busy} now={now} setMoving={setMoving} run={run} />
     </li>

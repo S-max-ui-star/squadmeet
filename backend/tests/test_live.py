@@ -114,6 +114,24 @@ def test_a_join_reaches_every_open_page_with_its_place(client, heard, place, hos
     assert f"meetups:{place.id}" in to_third
 
 
+@pytest.mark.parametrize(("before", "after"), [([], [{"item": "net"}]), ([{"item": "net"}], [])])
+def test_an_equipment_change_reaches_every_open_page_with_its_place(
+    client, heard, place, host, third, before, after
+):
+    # SCRUM-170: also when the user takes all their Equipment back (only deleted rows).
+    meetup = create(client, host[0], place.id, starts_at=later(days=1), equipment=before).json()
+    to_third = heard(third[1])
+
+    changed = client.put(
+        f"/api/meetups/{meetup['id']}/equipment",
+        json={"equipment": after},
+        headers=auth_header(host[0]),
+    )
+
+    assert changed.status_code == 200
+    assert to_third == [f"meetups:{place.id}"]
+
+
 def test_a_cancelled_meetup_reaches_every_open_page_with_its_place(
     client, heard, place, host, third
 ):
@@ -162,6 +180,39 @@ def test_nothing_is_sent_before_the_commit_or_after_a_rollback(client, session, 
 
     session.add(row)
     session.commit()
+    assert to_karl == ["contacts"]
+
+
+def test_a_savepoint_is_not_the_commit(client, session, heard):
+    _, paula_id = user(client, "Pingpong_Paula")
+    _, karl_id = user(client, "Korb_Karl")
+    to_karl = heard(karl_id)
+    row = ContactRequest(
+        requester_id=paula_id, addressee_id=karl_id, status="pending", updated_at=datetime.now(UTC)
+    )
+
+    session.add(row)
+    with session.begin_nested():  # A savepoint (SCRUM-123, SCRUM-139) is not the commit.
+        pass
+    assert to_karl == []
+
+    session.commit()
+    assert to_karl == ["contacts"]
+
+
+def test_a_failed_savepoint_keeps_the_events_of_the_transaction(client, session, heard):
+    _, paula_id = user(client, "Pingpong_Paula")
+    _, karl_id = user(client, "Korb_Karl")
+    to_karl = heard(karl_id)
+    row = ContactRequest(
+        requester_id=paula_id, addressee_id=karl_id, status="pending", updated_at=datetime.now(UTC)
+    )
+
+    session.add(row)
+    session.flush()
+    session.begin_nested().rollback()
+    session.commit()
+
     assert to_karl == ["contacts"]
 
 
