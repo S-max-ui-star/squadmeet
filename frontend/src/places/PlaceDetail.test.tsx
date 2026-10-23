@@ -295,6 +295,21 @@ describe('PlaceDetail', () => {
       expect(container.querySelector('.problem-fold-body')!.contains(seen.slot)).toBe(true)
     })
 
+    it('has no clashing keys when the Meetups use the Place id as key, as in App', () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      render({
+        place,
+        error: null,
+        onRetry: () => {},
+        onClose: () => {},
+        parts: { meetups: <div key={place.id} className="test-meetups" /> },
+      })
+
+      const clash = error.mock.calls.filter((call) => String(call[0]).includes('two children with the same key'))
+      error.mockRestore()
+      expect(clash).toEqual([])
+    })
+
     it('shows no Meetups, Favorite or Ratings for a Place suggestion', () => {
       const { container } = render({
         place: { ...place, is_suggestion: true },

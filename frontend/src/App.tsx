@@ -701,7 +701,7 @@ export default function App() {
             ),
             meetups: (
               <PlaceMeetups
-                key={selectedId}
+                key={`meetups-${selectedId}`}
                 placeId={selectedId}
                 activityType={selected?.activity_type ?? null}
                 user={user}
