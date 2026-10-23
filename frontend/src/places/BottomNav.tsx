@@ -5,13 +5,12 @@ type Props = {
   onMyMeetups: () => void
   onFavorites: () => void
   onContacts: () => void
-  onHomeArea: () => void
 }
 
 /** Phones only (SCRUM-165): a bar at the bottom with icon and label, in reach of the thumb. It
- * replaces the MapToolbar there; the CSS shows one of the two. "Heimat" stays here until the
- * Konto dialog has the Home area (SCRUM-169). Only for a signed-in user. */
-export default function BottomNav({ incomingRequests, onMap, onMyMeetups, onFavorites, onContacts, onHomeArea }: Props) {
+ * replaces the MapToolbar there; the CSS shows one of the two. The Home area is in Konto
+ * (SCRUM-169). Only for a signed-in user. */
+export default function BottomNav({ incomingRequests, onMap, onMyMeetups, onFavorites, onContacts }: Props) {
   const contacts = incomingRequests > 0 ? `Kontakte, ${incomingRequests} neue Anfragen` : 'Kontakte'
   return (
     <nav className="bottom-nav" aria-label="Hauptnavigation">
@@ -32,10 +31,6 @@ export default function BottomNav({ incomingRequests, onMap, onMyMeetups, onFavo
         <span aria-hidden="true">👤</span>
         Kontakte
         {incomingRequests > 0 && <span className="notification-count">{incomingRequests}</span>}
-      </button>
-      <button type="button" aria-label="Heimatbereich" onClick={onHomeArea}>
-        <span aria-hidden="true">📍</span>
-        Heimat
       </button>
     </nav>
   )
