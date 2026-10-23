@@ -31,7 +31,7 @@ import { legalPageFromPath } from './legal/legal'
 import LegalLinks from './legal/LegalLinks'
 import ActivityFilter from './places/ActivityFilter'
 import { ACTIVITY_TYPES, activityOf, type ActivityType } from './places/activities'
-import { filterPlaces } from './places/filter'
+import { activeFilterCount, filterPlaces } from './places/filter'
 import { placeIcon, spotIcon } from './places/markers'
 import PlaceDetail from './places/PlaceDetail'
 import PlaceMeetups from './places/PlaceMeetups'
@@ -41,6 +41,7 @@ import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
 import MapToolbar from './places/MapToolbar'
 import BottomNav from './places/BottomNav'
+import FilterSheet from './places/FilterSheet'
 import MyMeetupsDialog from './places/MyMeetupsDialog'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
@@ -130,6 +131,8 @@ type OpenDialog =
         | 'myMeetups'
         | 'notifications'
         | 'pushSettings'
+        // Phones: the filters from the bottom bar (SCRUM-175).
+        | 'filter'
     }
   | { kind: 'admin'; admin: AdminDialogKind }
   // Where the Home area map starts (SCRUM-45).
@@ -602,16 +605,27 @@ export default function App() {
           onClose={closeDialog}
         />
       )}
-      {/* Phones (SCRUM-165); before the elements it pushes up, so the CSS reaches them with "~". */}
-      {user && (
-        <BottomNav
-          incomingRequests={incomingRequests}
-          onMap={closeOnMapTap}
-          onMyMeetups={() => show('myMeetups')}
-          onFavorites={() => show('favorites')}
-          onContacts={() => show('contacts')}
+      {isOpen('filter') && (
+        <FilterSheet
+          span={timeSpan}
+          chosen={chosen}
+          onSpanChange={changeTimeSpan}
+          onChosenChange={setChosen}
+          onClose={closeDialog}
         />
       )}
+      {/* Phones (SCRUM-165), also for a visitor (SCRUM-175); before the elements it pushes up, so
+          the CSS reaches them with "~". */}
+      <BottomNav
+        loggedIn={user !== null}
+        activeFilters={activeFilterCount(timeSpan, chosen)}
+        incomingRequests={incomingRequests}
+        onFilter={() => show('filter')}
+        onLogin={loginNeeded}
+        onMyMeetups={() => show('myMeetups')}
+        onFavorites={() => show('favorites')}
+        onContacts={() => show('contacts')}
+      />
       {/* A rare action: on a phone only a round ＋ (SCRUM-174). */}
       <button type="button" className="suggest-button" aria-label="Platz vorschlagen" onClick={startSuggesting}>
         <span aria-hidden="true">＋</span>

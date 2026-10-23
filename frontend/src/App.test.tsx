@@ -143,6 +143,15 @@ function accountButton(): HTMLButtonElement {
   return found
 }
 
+// The bottom bar's items have an icon in their text (SCRUM-165).
+function navButton(label: string): HTMLButtonElement {
+  const found = Array.from(document.querySelectorAll<HTMLButtonElement>('.bottom-nav button')).find((item) =>
+    item.textContent?.includes(label),
+  )
+  if (!found) throw new Error(`Bottom bar item not found: ${label}`)
+  return found
+}
+
 async function click(element: HTMLElement) {
   await act(async () => element.click())
 }
@@ -204,6 +213,36 @@ describe('App account changes', () => {
     await click(button('Als Zweiter anmelden'))
 
     expect(document.querySelector('.legal-links')).toBeNull()
+  })
+
+  it('shows a visitor the bottom bar with Filter and Anmelden; after login, the four items (SCRUM-175)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+
+    const items = () => [...document.querySelectorAll('.bottom-nav button')].map((item) => item.textContent)
+    expect(items()).toEqual(['🎚️Filter', '🔑Anmelden'])
+
+    await click(navButton('Anmelden'))
+    await click(button('Als Zweiter anmelden'))
+
+    expect(items()).toEqual(['🎚️Filter', '🤝Treffen', '⭐Favoriten', '👤Kontakte'])
+  })
+
+  it('opens the filter sheet from the bar; a Time choice loads Meetups and puts a badge on Filter (SCRUM-175)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+    expect(document.querySelector('.filter-sheet')).toBeNull()
+
+    await click(navButton('Filter'))
+    const sheet = document.querySelector<HTMLElement>('.filter-sheet')!
+    const threeHours = [...sheet.querySelectorAll('button')].find((item) => item.textContent === '3 h')!
+    await click(threeHours)
+
+    expect(vi.mocked(fetchMapMeetups).mock.calls.at(-1)?.[1]).toBe('3h')
+    expect(threeHours.getAttribute('aria-pressed')).toBe('true')
+    await click(sheet.querySelector<HTMLButtonElement>('.dialog-close')!)
+    expect(document.querySelector('.filter-sheet')).toBeNull()
+    expect(navButton('Filter').getAttribute('aria-label')).toBe('Filter, 1 aktiv')
   })
 
   it('does not apply viewer-specific map data after logout or to the next account', async () => {
