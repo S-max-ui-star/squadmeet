@@ -688,22 +688,30 @@ export default function App() {
           }}
           // Only the map: the detail stays open with the thanks, even when the Place leaves the map.
           onReported={reloadPlaces}
+          // "Karte" in the side actions: zoom the map in on the Place (SCRUM-176).
+          onShowOnMap={() => focusOn(selectedId)}
+          parts={{
+            favorite: (
+              <FavoriteButton
+                key={`favorite-${selectedId}-${user?.id ?? 'guest'}`}
+                placeId={selectedId}
+                token={user ? loadToken() : null}
+                onLoginNeeded={loginNeeded}
+              />
+            ),
+            meetups: (
+              <PlaceMeetups
+                key={selectedId}
+                placeId={selectedId}
+                activityType={selected?.activity_type ?? null}
+                user={user}
+                onLoginNeeded={loginNeeded}
+                onChanged={reloadPlaces}
+                readOnly={reviewOnly}
+              />
+            ),
+          }}
         >
-          <FavoriteButton
-            key={`favorite-${selectedId}-${user?.id ?? 'guest'}`}
-            placeId={selectedId}
-            token={user ? loadToken() : null}
-            onLoginNeeded={loginNeeded}
-          />
-          <PlaceMeetups
-            key={selectedId}
-            placeId={selectedId}
-            activityType={selected?.activity_type ?? null}
-            user={user}
-            onLoginNeeded={loginNeeded}
-            onChanged={reloadPlaces}
-            readOnly={reviewOnly}
-          />
           {/* A new key per user, so a logout does not keep the old user's own Rating. */}
           <PlaceRatings
             key={`${selectedId}-${user?.id ?? 'guest'}`}

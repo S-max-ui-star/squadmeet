@@ -51,12 +51,21 @@ export default function FavoriteButton({ placeId, token, onLoginNeeded }: Props)
   }
 
   return (
-    <div className="favorite-button-box">
-      <button type="button" disabled={busy || !loaded} onClick={toggle}>
-        {favorite ? '★ Favorit entfernen' : '☆ Als Favorit merken'}
+    // One of the side actions of the Place detail (SCRUM-176); hint and error go below the row.
+    <>
+      <button
+        type="button"
+        className="place-action"
+        aria-label={favorite ? 'Favorit entfernen' : 'Als Favorit merken'}
+        aria-pressed={favorite !== null}
+        disabled={busy || !loaded}
+        onClick={toggle}
+      >
+        <span className="place-action-icon" aria-hidden="true">{favorite ? '★' : '☆'}</span>
+        <span className="place-action-label">Favorit</span>
       </button>
-      {favorite && <span className="hint">Zeitfenster kannst du unter Konto → Favoriten festlegen.</span>}
-      {error && <span className="form-error">{error}</span>}
-    </div>
+      {favorite && <span className="hint place-action-note">Zeitfenster kannst du unter Konto → Favoriten festlegen.</span>}
+      {error && <span className="form-error place-action-note">{error}</span>}
+    </>
   )
 }
