@@ -94,7 +94,9 @@ def list_notifications(
             place_id=place_id,
             place_name=place_name,
             place_address=place_address,
-            text=notification_text(notice.kind, actor_nickname, activity_type, place_address),
+            text=notification_text(
+                notice.kind, actor_nickname, activity_type, place_address, notice.missing_equipment
+            ),
             created_at=notice.created_at,
             read=notice.read_at is not None,
             actor_nickname=actor_nickname,

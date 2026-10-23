@@ -1,5 +1,6 @@
 // The Equipment a user brings to a Meetup, per Activity type (SCRUM-170). The keys and the
 // order must match ACTIVITY_EQUIPMENT in backend/app/equipment.py; the server checks them.
+// The labels must match too: the Notification text says what is missing (SCRUM-172).
 import type { EquipmentCount } from '../api/meetups'
 
 export type EquipmentItem = {

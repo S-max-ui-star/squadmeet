@@ -37,6 +37,16 @@ REASONS: dict[NotificationKind, str] = {
     "home_area_meetup_created": "hat ein Treffen erstellt",
 }
 
+# A Notification that asks the reader to come says what is still missing (SCRUM-172).
+EQUIPMENT_KINDS: frozenset[NotificationKind] = frozenset(
+    {
+        "favorite_meetup_created",
+        "contact_meetup_created",
+        "home_area_meetup_created",
+        "meetup_invitation",
+    }
+)
+
 # Stored addresses start with "street [house number]", followed by comma-separated city and
 # district parts. House numbers may contain a suffix or a range (for example 7a or 12–14).
 HOUSE_NUMBER = re.compile(r"\s+\d+[a-zA-Z]?(?:\s*[-–/]\s*\d+[a-zA-Z]?)?$")
@@ -54,9 +64,11 @@ def notification_text(
     actor_nickname: str | None,
     activity_type: str,
     address: str | None,
+    missing: str | None = None,
 ) -> str:
     actor = actor_nickname or "Jemand"
     activity = ACTIVITY_NAMES[ActivityType(activity_type)]
     street = street_only(address)
     where = f" in der {street}" if street else ""
-    return f"{actor} {REASONS[kind]}: {activity}{where}"
+    short = f" · Fehlt noch: {missing}" if missing else ""
+    return f"{actor} {REASONS[kind]}: {activity}{where}{short}"

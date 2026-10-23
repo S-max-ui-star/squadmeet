@@ -569,6 +569,8 @@ class Notification(SQLModel, table=True):
         default=None,
         sa_column=Column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True, index=True),
     )
+    # "2 Schläger, Bälle": the Missing Equipment when the Notification was made (SCRUM-172).
+    missing_equipment: str | None = None
     created_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     read_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
