@@ -8,7 +8,7 @@ import PlaceMeetups from './PlaceMeetups'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 // SCRUM-170: the Equipment section of the create, Join and change forms, and the Meetup card,
-// at a table tennis Place.
+// at a table tennis Place. SCRUM-171: "Brauche ich" and "Fehlt noch".
 
 const paula: User = { id: 1, nickname: 'Paula', avatar: 'fox', mfa_enabled: false, is_admin: false }
 const karl: User = { ...paula, id: 2, nickname: 'Korb_Karl', avatar: 'bear' }
@@ -25,9 +25,11 @@ const meetup: Meetup = {
   contacts: [],
   equipment: [{ item: 'rackets', count: 2 }, { item: 'balls', count: 1 }],
   equipment_by_person: [
-    { id: 1, nickname: 'Paula', avatar: 'fox', items: [{ item: 'rackets', count: 2 }] },
-    { id: 2, nickname: 'Korb_Karl', avatar: 'bear', items: [{ item: 'balls', count: 1 }] },
+    { id: 1, nickname: 'Paula', avatar: 'fox', items: [{ item: 'rackets', count: 2 }], needs: [] },
+    { id: 2, nickname: 'Korb_Karl', avatar: 'bear', items: [{ item: 'balls', count: 1 }], needs: [] },
   ],
+  equipment_needed: [],
+  equipment_missing: [],
   cancelled: false,
   move_offer: null,
   blocked_user_in: false,
@@ -165,7 +167,7 @@ describe('Equipment (SCRUM-170)', () => {
     act(() => toggle.click())
 
     const people = [...container.querySelectorAll('.equipment-people li')].map((li) => li.textContent)
-    expect(people).toEqual(['🦊 du: 🏓 2 Schläger', '🐻 Korb_Karl: ⚪ Bälle'])
+    expect(people).toEqual(['🦊 du: bringt 🏓 2 Schläger', '🐻 Korb_Karl: bringt ⚪ Bälle'])
   })
 
   it('shows a guest the summary line only', async () => {
@@ -196,5 +198,105 @@ describe('Equipment (SCRUM-170)', () => {
     const container = await render(karl)
 
     expect(button(container, 'Ausrüstung ändern')).toBeUndefined()
+  })
+})
+
+// Paula brings 2 Schläger, Karl needs 4 and the Netz: 2 Schläger and the Netz are missing.
+const short: Meetup = {
+  ...meetup,
+  equipment: [{ item: 'rackets', count: 2 }],
+  equipment_by_person: [
+    { id: 1, nickname: 'Paula', avatar: 'fox', items: [{ item: 'rackets', count: 2 }], needs: [] },
+    { id: 2, nickname: 'Korb_Karl', avatar: 'bear', items: [{ item: 'balls', count: 1 }], needs: [{ item: 'rackets', count: 4 }, { item: 'net', count: 1 }] },
+  ],
+  equipment_needed: [{ item: 'rackets', count: 4 }, { item: 'net', count: 1 }],
+  equipment_missing: [{ item: 'rackets', count: 2 }, { item: 'net', count: 1 }],
+}
+
+describe('Brauche ich (SCRUM-171)', () => {
+  it('joins needing 1 Schläger; an item is brought or needed, not both', async () => {
+    const fetchMock = serve([{ ...bare, actions: ['join'] }])
+    const container = await render(karl)
+
+    act(() => button(container, 'Ich komme mit')!.click())
+    act(() => button(container, 'Ausrüstung (freiwillig)')!.click())
+    act(() => labelled(container, 'Schläger: brauche ich').click())
+    expect(labelled(container, 'Schläger: brauche ich').textContent).toBe('Brauche 1')
+    act(() => labelled(container, 'Bälle: bringe ich mit').click())
+    act(() => labelled(container, 'Bälle: brauche ich').click())
+    expect(labelled(container, 'Bälle: bringe ich mit').getAttribute('aria-pressed')).toBe('false')
+    await act(async () => button(container, 'Beitreten')!.click())
+
+    expect(sent(fetchMock, 'POST')[1]).toEqual({
+      party_size: 1,
+      equipment: [{ item: 'rackets', count: 1, kind: 'need' }, { item: 'balls', count: 1, kind: 'need' }],
+    })
+  })
+
+  it('counts the Schläger a user needs, and keeps the count when they bring them instead', async () => {
+    serve([{ ...bare, actions: ['join'] }])
+    const container = await render(karl)
+    act(() => button(container, 'Ich komme mit')!.click())
+    act(() => button(container, 'Ausrüstung (freiwillig)')!.click())
+
+    act(() => labelled(container, 'Schläger: brauche ich').click())
+    act(() => labelled(container, 'Schläger: mehr').click())
+    expect(labelled(container, 'Schläger: brauche ich').textContent).toBe('Brauche 2')
+    expect(labelled(container, 'Schläger: bringe ich mit').textContent).toBe('Bringe')
+
+    act(() => labelled(container, 'Schläger: bringe ich mit').click())
+    expect(labelled(container, 'Schläger: bringe ich mit').textContent).toBe('Bringe 2')
+    expect(labelled(container, 'Schläger: brauche ich').textContent).toBe('Brauche')
+  })
+
+  it('shows what is still missing, for guests too', async () => {
+    serve([{ ...short, host: null, participants: null, equipment_by_person: null, actions: ['join'] }])
+    const container = await render(null)
+
+    expect(container.querySelector('.equipment-missing')!.textContent).toBe('⚠ Fehlt noch: 🏓 2 Schläger · 🥅 Netz')
+    expect(container.querySelector('.equipment-ok')).toBeNull()
+  })
+
+  it('shows "Ausrüstung ✓" when people need something and nothing is missing', async () => {
+    serve([{ ...short, equipment_missing: [] }])
+    const container = await render(paula)
+
+    expect(container.querySelector('.equipment-ok')!.textContent).toBe('Ausrüstung ✓')
+    expect(container.querySelector('.equipment-missing')).toBeNull()
+  })
+
+  it('shows no status line when nobody needs anything', async () => {
+    serve([meetup])
+    const container = await render(paula)
+
+    expect(container.querySelector('.equipment-ok')).toBeNull()
+    expect(container.querySelector('.equipment-missing')).toBeNull()
+  })
+
+  it('lists who brings and who needs what', async () => {
+    serve([short])
+    const container = await render(paula)
+
+    act(() => button(container, 'Ausrüstung ▸')!.click())
+
+    const people = [...container.querySelectorAll('.equipment-people li')].map((li) => li.textContent)
+    expect(people).toEqual([
+      '🦊 du: bringt 🏓 2 Schläger',
+      '🐻 Korb_Karl: bringt ⚪ Bälle · braucht 🏓 4 Schläger, 🥅 Netz',
+    ])
+  })
+
+  it('changes the own Equipment, starting from what the user brings and needs', async () => {
+    const fetchMock = serve([short])
+    const container = await render(karl)
+
+    act(() => button(container, 'Ausrüstung ändern')!.click())
+    expect(labelled(container, 'Schläger: brauche ich').textContent).toBe('Brauche 4')
+    act(() => labelled(container, 'Netz: nicht dabei').click())
+    await act(async () => button(container, 'Speichern')!.click())
+
+    expect(sent(fetchMock, 'PUT')[1]).toEqual({
+      equipment: [{ item: 'rackets', count: 4, kind: 'need' }, { item: 'balls', count: 1 }],
+    })
   })
 })

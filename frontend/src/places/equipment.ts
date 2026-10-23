@@ -31,5 +31,5 @@ export function equipmentText(activityType: string | null | undefined, { item: k
   return `${found.emoji} ${found.label}${count > 1 ? ` (${count})` : ''}`
 }
 
-export const equipmentLine = (activityType: string | null | undefined, items: EquipmentCount[]) =>
-  items.map((each) => equipmentText(activityType, each)).join(' · ')
+export const equipmentLine = (activityType: string | null | undefined, items: EquipmentCount[], separator = ' · ') =>
+  items.map((each) => equipmentText(activityType, each)).join(separator)

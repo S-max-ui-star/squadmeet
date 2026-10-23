@@ -217,3 +217,115 @@ def test_a_blocker_is_counted_but_not_named(client, place, host, guest, third):
 
     assert totals(seen) == [("rackets", 2), ("net", 1)]
     assert brought(seen) == {"Pingpong_Paula": {"net": 1}}
+
+
+# SCRUM-171: "Brauche ich" and "Fehlt noch".
+
+NEED_1_RACKET = [{"item": "rackets", "count": 1, "kind": "need"}]
+
+
+def needed(meetup):
+    """{nickname: {item: count}} of what each person needs."""
+    return {
+        person["nickname"]: {each["item"]: each["count"] for each in person["needs"]}
+        for person in meetup["equipment_by_person"]
+    }
+
+
+def missing(meetup):
+    return [(each["item"], each["count"]) for each in meetup["equipment_missing"]]
+
+
+def test_a_user_says_what_they_need(client, place, host, guest):
+    meetup = create(client, host[0], place.id, equipment=RACKETS_2).json()
+
+    joined = join_with(client, guest[0], meetup["id"], NEED_1_RACKET + [{"item": "balls", "kind": "need"}]).json()
+
+    # What people bring and what they need are apart.
+    assert totals(joined) == [("rackets", 2)]
+    assert [(each["item"], each["count"]) for each in joined["equipment_needed"]] == [("rackets", 1), ("balls", 1)]
+    assert brought(joined) == {"Pingpong_Paula": {"rackets": 2}, "Korb_Karl": {}}
+    assert needed(joined) == {"Pingpong_Paula": {}, "Korb_Karl": {"rackets": 1, "balls": 1}}
+
+
+@pytest.mark.parametrize(
+    "equipment",
+    [
+        [{"item": "balls"}, {"item": "balls", "kind": "need"}],  # bring and need: not both
+        [{"item": "balls", "kind": "lend"}],
+        [{"item": "rackets", "count": 5, "kind": "need"}],
+        [{"item": "balls", "count": 2, "kind": "need"}],
+    ],
+)
+def test_needs_that_do_not_fit_are_refused(client, place, host, equipment):
+    assert create(client, host[0], place.id, equipment=equipment).status_code == 422
+
+
+def test_missing_compares_what_is_needed_with_what_is_brought(client, place, host, guest, third):
+    # Paula brings 2 Schläger; Karl needs 1, Mia 3: 2 are still missing.
+    meetup = create(client, host[0], place.id, equipment=RACKETS_2).json()
+    join_with(client, guest[0], meetup["id"], NEED_1_RACKET)
+    joined = join_with(client, third[0], meetup["id"], [{"item": "rackets", "count": 3, "kind": "need"}]).json()
+
+    assert missing(joined) == [("rackets", 2)]
+
+    # Karl brings 2 more: nothing is missing.
+    changed = change(client, guest[0], meetup["id"], RACKETS_2).json()
+    assert missing(changed) == []
+
+
+def test_one_ball_is_enough_for_everybody_who_needs_balls(client, place, host, guest, third):
+    meetup = create(client, host[0], place.id, equipment=[{"item": "net", "kind": "need"}]).json()
+    join_with(client, guest[0], meetup["id"], [{"item": "balls", "kind": "need"}])
+    joined = join_with(client, third[0], meetup["id"], [{"item": "balls", "kind": "need"}]).json()
+
+    # An item without a count is there or not: Bälle count once, however many need them.
+    assert missing(joined) == [("balls", 1), ("net", 1)]
+
+    changed = change(client, host[0], meetup["id"], [{"item": "balls"}, {"item": "net"}]).json()
+    assert missing(changed) == []
+
+
+def test_a_guest_sees_what_is_missing_but_not_who_needs_it(client, place, host):
+    create(client, host[0], place.id, equipment=NEED_1_RACKET)
+
+    [meetup] = meetups_at(client, place.id)
+
+    assert missing(meetup) == [("rackets", 1)]
+    assert meetup["equipment_by_person"] is None
+
+
+def test_leave_removes_what_the_user_needs(client, place, host, guest):
+    meetup = create(client, host[0], place.id).json()
+    join_with(client, guest[0], meetup["id"], NEED_1_RACKET)
+
+    leave(client, guest[0], meetup["id"])
+
+    [seen] = meetups_seen_by(client, host[0], place.id)
+    assert (seen["equipment_needed"], seen["equipment_missing"]) == ([], [])
+
+
+def test_a_move_takes_what_the_host_needs_along(client, place, host, guest):
+    old = create(client, host[0], place.id, starts_at=later(days=1), equipment=NEED_1_RACKET).json()
+    # With a Join the Host gets a new Meetup at the new time.
+    join(client, guest[0], old["id"])
+    new_start = datetime.fromisoformat(old["starts_at"]) + timedelta(hours=1)
+
+    moved = change_time(client, host[0], old["id"], new_start.isoformat()).json()
+
+    assert moved["id"] != old["id"]
+    assert needed(only(meetups_seen_by(client, host[0], place.id), moved["id"])) == {
+        "Pingpong_Paula": {"rackets": 1}
+    }
+
+
+def test_what_a_blocker_needs_is_missing_but_not_named(client, place, host, guest, third):
+    meetup = create(client, host[0], place.id).json()
+    join_with(client, guest[0], meetup["id"], NEED_1_RACKET)
+    join(client, third[0], meetup["id"])
+    client.post("/api/blocks", json={"nickname": "Mia_Matte"}, headers=auth_header(guest[0]))
+
+    seen = only(meetups_seen_by(client, third[0], place.id), meetup["id"])
+
+    assert missing(seen) == [("rackets", 1)]
+    assert "Korb_Karl" not in needed(seen)

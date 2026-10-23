@@ -1,4 +1,5 @@
-"""The Equipment a user brings to a Meetup, per Activity type (SCRUM-170, see CONTEXT.md).
+"""The Equipment a user brings to a Meetup (SCRUM-170) or needs there (SCRUM-171), per
+Activity type, see CONTEXT.md.
 
 A fixed list, no free text (ADR-0004). The key is stored in the database and must never
 change; the German labels are in frontend/src/places/equipment.ts. Equipment belongs to a
@@ -6,6 +7,7 @@ Meetup, not to a Place: the Host and each Join have their own rows.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
@@ -32,9 +34,14 @@ ACTIVITY_EQUIPMENT: dict[ActivityType, tuple[Item, ...]] = {
 }
 
 
+# "Bringe ich mit" or "Brauche ich" (SCRUM-171).
+Kind = Literal["bring", "need"]
+
+
 class EquipmentChoice(BaseModel):
     item: str
     count: int = Field(default=1, ge=1, le=MAX_COUNT)
+    kind: Kind = "bring"
 
 
 Choices = list[EquipmentChoice]
@@ -54,7 +61,7 @@ def order(activity_type: str, item: str) -> int:
 
 def problem(activity_type: str, choices: Choices) -> str | None:
     """Why `choices` do not fit the Place, or None. Only the items of the Place's Activity
-    type, each once, within its count. The caller raises it (this module stays free of
+    type, each once (so not both brought and needed), within its count. The caller raises it (this module stays free of
     app.meetup_lifecycle, which uses it)."""
     items = {item.key: item for item in items_for(activity_type)}
     seen: set[str] = set()
@@ -68,6 +75,20 @@ def problem(activity_type: str, choices: Choices) -> str | None:
             return f"Höchstens {item.max_count} × {choice.item}"
         seen.add(choice.item)
     return None
+
+
+def missing(activity_type: str, brought: dict[str, int], needed: dict[str, int]) -> dict[str, int]:
+    """"Fehlt noch" (SCRUM-171): per item, how many are needed beyond what is brought, in the
+    order of the fixed list. An item without a count (Bälle, Netz) is there or not: one person
+    who brings it is enough for everybody who needs it."""
+    short: dict[str, int] = {}
+    for item in items_for(activity_type):
+        need, have = needed.get(item.key, 0), brought.get(item.key, 0)
+        if item.max_count == 1:
+            need, have = min(need, 1), min(have, 1)
+        if need > have:
+            short[item.key] = need - have
+    return short
 
 
 def rows_of(session: Session, meetup_id: int, user_id: int) -> list[MeetupEquipment]:
@@ -85,7 +106,13 @@ def replace(session: Session, meetup_id: int, user_id: int, choices: Choices) ->
     drop(session, meetup_id, user_id)
     for choice in choices:
         session.add(
-            MeetupEquipment(meetup_id=meetup_id, user_id=user_id, item=choice.item, count=choice.count)
+            MeetupEquipment(
+                meetup_id=meetup_id,
+                user_id=user_id,
+                item=choice.item,
+                count=choice.count,
+                kind=choice.kind,
+            )
         )
 
 
@@ -100,7 +127,7 @@ def drop(session: Session, meetup_id: int, user_id: int) -> None:
 def carry(session: Session, from_meetup_id: int, to_meetup_id: int, user_id: int) -> None:
     """A Move: the user takes their Equipment along to the new Meetup."""
     choices = [
-        EquipmentChoice(item=row.item, count=row.count)
+        EquipmentChoice(item=row.item, count=row.count, kind=row.kind)
         for row in rows_of(session, from_meetup_id, user_id)
     ]
     replace(session, to_meetup_id, user_id, choices)

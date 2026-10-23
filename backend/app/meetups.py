@@ -1,6 +1,6 @@
 """The Meetup routes (see CONTEXT.md): a Now-meetup ("Ich bin jetzt hier", SCRUM-29), a later
 Meetup (SCRUM-35), Join and Leave (SCRUM-34), the Host's Cancel, End, Leave and move (SCRUM-37),
-the Equipment each person brings (SCRUM-170), and how a Meetup is shown to whom (guests and
+the Equipment each person brings (SCRUM-170) or needs (SCRUM-171), and how a Meetup is shown to whom (guests and
 Block, SCRUM-32).
 
 The rules live in app.meetup_lifecycle (SCRUM-61): state, transitions and who may do what. These
@@ -159,7 +159,9 @@ class EquipmentCount(BaseModel):
 
 
 class PersonEquipmentRead(HostRead):
+    # What the person brings, and what they need (SCRUM-171).
     items: list[EquipmentCount]
+    needs: list[EquipmentCount]
 
 
 class MeetupRead(BaseModel):
@@ -179,6 +181,10 @@ class MeetupRead(BaseModel):
     # `people`), and who brings what, Host first; None for a guest. Blockers stay unnamed.
     equipment: list[EquipmentCount]
     equipment_by_person: list[PersonEquipmentRead] | None
+    # SCRUM-171: what everybody needs, summed per item, and "Fehlt noch": what is needed beyond
+    # what is brought (app.equipment.missing). For guests too, like `equipment`.
+    equipment_needed: list[EquipmentCount]
+    equipment_missing: list[EquipmentCount]
     starts_at: datetime
     ends_at: datetime
     cancelled: bool
@@ -229,12 +235,18 @@ def move_offer(session: Session, meetup: Meetup, user: User | None, joins, now: 
 
 
 Brought = dict[int, list[EquipmentCount]]
+# Per kind ("bring", "need"): the items of each user.
+ByKind = dict[str, Brought]
 
 
-def equipment_of(session: Session, ids: list[int]) -> dict[int, tuple[str, Brought]]:
-    """Per Meetup: its Activity type, and per user the items they bring, in the order of
-    app/equipment.py. A Meetup without Equipment is missing."""
-    found: dict[int, tuple[str, Brought]] = {}
+def no_equipment() -> ByKind:
+    return {"bring": {}, "need": {}}
+
+
+def equipment_of(session: Session, ids: list[int]) -> dict[int, tuple[str, ByKind]]:
+    """Per Meetup: its Activity type, and per kind and user the items they bring or need, in
+    the order of app/equipment.py. A Meetup without Equipment is missing."""
+    found: dict[int, tuple[str, ByKind]] = {}
     rows = session.exec(
         select(MeetupEquipment, Place.activity_type)
         .join(Meetup, Meetup.id == MeetupEquipment.meetup_id)
@@ -242,8 +254,8 @@ def equipment_of(session: Session, ids: list[int]) -> dict[int, tuple[str, Broug
         .where(MeetupEquipment.meetup_id.in_(ids))
     ).all()
     for row, activity_type in sorted(rows, key=lambda pair: equipment.order(pair[1], pair[0].item)):
-        _, people = found.setdefault(row.meetup_id, (activity_type, {}))
-        people.setdefault(row.user_id, []).append(EquipmentCount(item=row.item, count=row.count))
+        _, kinds = found.setdefault(row.meetup_id, (activity_type, no_equipment()))
+        kinds[row.kind].setdefault(row.user_id, []).append(EquipmentCount(item=row.item, count=row.count))
     return found
 
 
@@ -257,6 +269,17 @@ def summed(activity_type: str, people: Brought) -> list[EquipmentCount]:
         EquipmentCount(item=item, count=totals[item])
         for item in sorted(totals, key=lambda key: equipment.order(activity_type, key))
     ]
+
+
+def missing(activity_type: str, kinds: ByKind) -> list[EquipmentCount]:
+    """"Fehlt noch" for one Meetup (SCRUM-171)."""
+    if not kinds["need"]:
+        return []
+    brought, needed = (
+        {each.item: each.count for each in summed(activity_type, kinds[kind])} for kind in ("bring", "need")
+    )
+    short = equipment.missing(activity_type, brought, needed)
+    return [EquipmentCount(item=item, count=count) for item, count in short.items()]
 
 
 def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list[MeetupRead]:
@@ -290,7 +313,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
     contact_ids = contacts_of(session, user.id) - blocks_with(session, user.id) if user else set()
     reads = []
     for meetup in meetups:
-        activity_type, people = brought.get(meetup.id, ("", {}))
+        activity_type, kinds = brought.get(meetup.id, ("", no_equipment()))
         host = hosts[meetup.host_id]
         present = [host, *(member for _, member in joins[meetup.id])]
         members = {meetup.host_id} | {member.id for _, member in joins[meetup.id]}
@@ -322,7 +345,7 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                     for member in present
                     if member.id in contact_ids
                 ],
-                equipment=summed(activity_type, people),
+                equipment=summed(activity_type, kinds["bring"]),
                 equipment_by_person=None
                 if user is None
                 else [
@@ -330,11 +353,15 @@ def to_reads(session: Session, meetups: list[Meetup], user: User | None) -> list
                         id=member.id,
                         nickname=member.nickname,
                         avatar=member.avatar,
-                        items=people[member.id],
+                        items=kinds["bring"].get(member.id, []),
+                        needs=kinds["need"].get(member.id, []),
                     )
                     for member in present
-                    if member.id not in hidden and member.id in people
+                    if member.id not in hidden
+                    and (member.id in kinds["bring"] or member.id in kinds["need"])
                 ],
+                equipment_needed=summed(activity_type, kinds["need"]),
+                equipment_missing=missing(activity_type, kinds),
                 starts_at=meetup.starts_at,
                 ends_at=meetup.ends_at,
                 cancelled=meetup.cancelled_at is not None,

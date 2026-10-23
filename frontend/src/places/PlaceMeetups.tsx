@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadToken, type User } from '../api/auth'
-import { fetchMeetups, type EquipmentCount, type Meetup } from '../api/meetups'
+import { fetchMeetups, type EquipmentChoice, type Meetup } from '../api/meetups'
 import { onMeetupChange } from '../api/live'
 import MeetupCard from './MeetupCard'
 import MeetupCreateForm from './MeetupCreateForm'
@@ -100,7 +100,7 @@ export default function PlaceMeetups({ placeId, activityType, user, onLoginNeede
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState<'now' | 'later' | null>(null)
   const [moving, setMoving] = useState<{ id: number; startsAt: string } | null>(null)
-  const [joining, setJoining] = useState<{ id: number; partySize: number; equipment: EquipmentCount[] } | null>(null)
+  const [joining, setJoining] = useState<{ id: number; partySize: number; equipment: EquipmentChoice[] } | null>(null)
   const [person, setPerson] = useState<{ meetupId: number; nickname: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())

@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
-import { createMeetup, createSeries, type EquipmentCount } from '../api/meetups'
+import { createMeetup, createSeries, type EquipmentChoice } from '../api/meetups'
 import EquipmentPicker from './EquipmentPicker'
 import PartySizeStepper from './PartySizeStepper'
 import {
@@ -27,7 +27,7 @@ type SubmitInput = {
   series: boolean
   slotFields: SlotFields[]
   partySize: number
-  equipment: EquipmentCount[]
+  equipment: EquipmentChoice[]
   until: string
   hours: number
   startsAt: string
@@ -132,7 +132,7 @@ export default function MeetupCreateForm({ kind, placeId, activityType, busy, ru
   const [until, setUntil] = useState('')
   const [hours, setHours] = useState(2)
   const [partySize, setPartySize] = useState(1)
-  const [equipment, setEquipment] = useState<EquipmentCount[]>([])
+  const [equipment, setEquipment] = useState<EquipmentChoice[]>([])
 
   const bounds = inputBounds(openedAt)
   const { series, noWeekday, berlinDate, emptySeries } = seriesState(kind, repeat, slotFields, until, openedAt)

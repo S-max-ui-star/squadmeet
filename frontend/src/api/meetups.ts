@@ -10,7 +10,10 @@ export type Participant = MeetupHost & { party_size: number }
 
 // SCRUM-170: one item of Equipment and how many (keys in places/equipment.ts).
 export type EquipmentCount = { item: string; count: number }
-export type PersonEquipment = MeetupHost & { items: EquipmentCount[] }
+// What a person brings (`items`) and needs (`needs`, SCRUM-171).
+export type PersonEquipment = MeetupHost & { items: EquipmentCount[]; needs: EquipmentCount[] }
+// A choice in the forms: brought without `kind`, as before SCRUM-171, or needed.
+export type EquipmentChoice = EquipmentCount & { kind?: 'need' }
 
 // The Host moved the Meetup; the viewer has not chosen go along / stay / leave yet.
 export type MoveOffer = { meetup_id: number; host: MeetupHost; starts_at: string; ends_at: string }
@@ -35,6 +38,10 @@ export type Meetup = {
   // null for a guest (SCRUM-170).
   equipment: EquipmentCount[]
   equipment_by_person: PersonEquipment[] | null
+  // SCRUM-171: what everybody needs, summed per item, and what is still missing ("Fehlt
+  // noch"; the server decides). Guests see both.
+  equipment_needed: EquipmentCount[]
+  equipment_missing: EquipmentCount[]
   // ISO 8601 with time zone, e.g. "2026-10-12T09:00:00Z".
   starts_at: string
   ends_at: string
@@ -61,7 +68,7 @@ export type MeetupInput = {
   hours: number
   party_size: number
   starts_at?: string
-  equipment?: EquipmentCount[]
+  equipment?: EquipmentChoice[]
 }
 
 export type MapMeetups = { places: Place[]; meetups: Meetup[]; truncated: boolean }
@@ -142,7 +149,7 @@ export async function joinMeetup(
   token: string,
   meetupId: number,
   partySize: number,
-  equipment: EquipmentCount[] = [],
+  equipment: EquipmentChoice[] = [],
 ): Promise<Meetup> {
   const response = await fetch(`/api/meetups/${meetupId}/join`, {
     method: 'POST',
@@ -154,7 +161,7 @@ export async function joinMeetup(
 }
 
 // "Ausrüstung ändern" (SCRUM-170): the user's whole Equipment for the Meetup; [] = nothing.
-export async function changeEquipment(token: string, meetupId: number, equipment: EquipmentCount[]): Promise<Meetup> {
+export async function changeEquipment(token: string, meetupId: number, equipment: EquipmentChoice[]): Promise<Meetup> {
   const response = await fetch(`/api/meetups/${meetupId}/equipment`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

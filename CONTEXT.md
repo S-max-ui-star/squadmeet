@@ -134,11 +134,17 @@ The number of people a user brings, including themselves (1–10). Extra people 
 _Avoid_: group, guests
 
 **Equipment** (Ausrüstung):
-The things a user brings to one Meetup or Occurrence, from a fixed list per Activity type (for
-example Schläger with a count 1–4, Bälle, Netz). The Host and each Join have their own. Leave
-removes it; a handover and a Move keep it with the person. It belongs to the Meetup, not to the
-Place or the profile.
+The things a user brings to one Meetup or Occurrence, or needs there ("Brauche ich"), from a
+fixed list per Activity type (for example Schläger with a count 1–4, Bälle, Netz). A user brings
+or needs an item, not both. The Host and each Join have their own. Leave removes it; a handover
+and a Move keep it with the person. It belongs to the Meetup, not to the Place or the profile.
 _Avoid_: gear, items, Material
+
+**Missing Equipment** (Fehlt noch):
+What the people in a Meetup need beyond what they bring. An item with a count (Schläger) is
+missing by the difference; an item without a count (Bälle, Netz) is missing only when somebody
+needs it and nobody brings it.
+_Avoid_: shortage, lacking
 
 ## Ratings
 

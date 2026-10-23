@@ -10,10 +10,11 @@ import {
   joinMeetup,
   leaveMeetup,
   moveMeetupStart,
-  type EquipmentCount,
+  type EquipmentChoice,
   type Meetup,
   type MeetupAction,
   type MoveAnswer,
+  type PersonEquipment,
 } from '../api/meetups'
 import { AVATARS } from '../auth/avatars'
 import EquipmentPicker from './EquipmentPicker'
@@ -23,7 +24,7 @@ import PartySizeStepper from './PartySizeStepper'
 import { fromInputValue, inputBounds, slot, startChoice, toInputValue } from './meetupTime'
 
 type Person = { meetupId: number; nickname: string }
-type Joining = { id: number; partySize: number; equipment: EquipmentCount[] }
+type Joining = { id: number; partySize: number; equipment: EquipmentChoice[] }
 type Moving = { id: number; startsAt: string }
 type Run = (action: (token: string) => Promise<unknown>) => Promise<boolean>
 
@@ -218,12 +219,34 @@ function SelectedJoinForm({ meetup, activityType, joining, busy, setJoining, run
   return <JoinForm meetup={meetup} activityType={activityType} joining={joining} busy={busy} setJoining={setJoining} run={run} />
 }
 
-// The viewer's own items, to start "Ausrüstung ändern" from.
-const mine = (meetup: Meetup, user: User | null) =>
-  meetup.equipment_by_person?.find((person) => person.id === user?.id)?.items ?? []
+// The viewer's own items, brought and needed, to start "Ausrüstung ändern" from.
+function mine(meetup: Meetup, user: User | null): EquipmentChoice[] {
+  const own = meetup.equipment_by_person?.find((person) => person.id === user?.id)
+  if (!own) return []
+  return [...own.items, ...own.needs.map((each) => ({ ...each, kind: 'need' as const }))]
+}
+
+// "bringt 🏓 2 Schläger · braucht ⚪ Bälle, 🥅 Netz" for one person (SCRUM-171).
+function personLine(activityType: string | null | undefined, person: PersonEquipment) {
+  const parts = [['bringt', person.items], ['braucht', person.needs]] as const
+  return parts
+    .filter(([, items]) => items.length > 0)
+    .map(([verb, items]) => `${verb} ${equipmentLine(activityType, items, ', ')}`)
+    .join(' · ')
+}
+
+// SCRUM-171: "Fehlt noch" when people need more than is brought, "Ausrüstung ✓" when they need
+// something and all of it is there; nothing when nobody needs anything.
+function EquipmentStatus({ meetup, activityType }: { meetup: Meetup; activityType?: string | null }) {
+  if (meetup.equipment_missing.length > 0) {
+    return <p className="equipment-line equipment-missing">⚠ Fehlt noch: {equipmentLine(activityType, meetup.equipment_missing)}</p>
+  }
+  if (meetup.equipment_needed.length > 0) return <p className="equipment-line equipment-ok">Ausrüstung ✓</p>
+  return null
+}
 
 // SCRUM-170: one summary line for everybody, and "Ausrüstung ▸" (closed by default) with who
-// brings what.
+// brings and needs what.
 function EquipmentSummary({ meetup, activityType, user }: {
   meetup: Meetup
   activityType?: string | null
@@ -234,6 +257,7 @@ function EquipmentSummary({ meetup, activityType, user }: {
   return (
     <>
       {meetup.equipment.length > 0 && <p className="equipment-line">Mitgebracht: {equipmentLine(activityType, meetup.equipment)}</p>}
+      <EquipmentStatus meetup={meetup} activityType={activityType} />
       {people.length > 0 && (
         <button type="button" className="link-button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
           Ausrüstung {listOpen ? '▾' : '▸'}
@@ -243,7 +267,7 @@ function EquipmentSummary({ meetup, activityType, user }: {
         <ul className="equipment-people">
           {people.map((person) => (
             <li key={person.id}>
-              {AVATARS[person.avatar]?.emoji ?? ''} {person.id === user?.id ? 'du' : person.nickname}: {equipmentLine(activityType, person.items)}
+              {AVATARS[person.avatar]?.emoji ?? ''} {person.id === user?.id ? 'du' : person.nickname}: {personLine(activityType, person)}
             </li>
           ))}
         </ul>
@@ -260,7 +284,7 @@ function EquipmentChange({ meetup, activityType, user, busy, run }: {
   busy: boolean
   run: Run
 }) {
-  const [editing, setEditing] = useState<EquipmentCount[] | null>(null)
+  const [editing, setEditing] = useState<EquipmentChoice[] | null>(null)
   if (editing === null) {
     if (!meetup.actions.includes('equipment')) return null
     return <button type="button" disabled={busy} onClick={() => setEditing(mine(meetup, user))}>Ausrüstung ändern</button>
