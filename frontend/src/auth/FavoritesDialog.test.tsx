@@ -31,6 +31,14 @@ describe('FavoritesDialog (SCRUM-41)', () => {
     const container = await render(vi.fn(async () => Response.json([favorite])))
     expect(container.textContent).toContain('Tischtennisplatte')
     expect(container.textContent).toContain('Mo, Mi, 17:00–21:00 Uhr')
+    expect(container.textContent).not.toContain('Als Favorit merken')
+  })
+
+  it('says how to add a Favorite when there is none (SCRUM-178)', async () => {
+    const container = await render(vi.fn(async () => Response.json([])))
+
+    expect(container.textContent).toContain('Noch keine Favoriten gespeichert.')
+    expect(container.textContent).toContain('Öffne einen Platz auf der Karte und tippe auf „☆ Als Favorit merken“.')
   })
 
   it('adds a same-day Time rule', async () => {

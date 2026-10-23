@@ -82,6 +82,9 @@ describe('MyMeetupsDialog (SCRUM-102)', () => {
     document.body.innerHTML = ''
     const none = await render([])
     expect(none.container.textContent).toContain('Keine anstehenden Treffen')
+    // SCRUM-178: an empty view says what to do next.
+    expect(none.container.textContent).toContain('Tippe auf der Karte auf einen Platz und starte ein Treffen')
+    expect(one.container.textContent).not.toContain('Tippe auf der Karte')
   })
 
   it('marks a cancelled Meetup as "Abgesagt"', async () => {

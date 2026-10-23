@@ -52,6 +52,15 @@ describe('ContactsDialog (SCRUM-32)', () => {
     expect(text).toContain('abgelehnt')
     expect(button(container, 'Neu anfragen')).toBeDefined()
     expect(onChanged).toHaveBeenCalledWith(data)
+    expect(text).not.toContain('Gib oben den genauen Nickname ein')
+  })
+
+  it('says how to add a Contact when there is none (SCRUM-178)', async () => {
+    const empty: Contacts = { contacts: [], incoming: [], outgoing: [], blocked: [] }
+    const container = await render(vi.fn(async () => Response.json(empty)))
+
+    expect(container.textContent).toContain('Noch keine Kontakte.')
+    expect(container.textContent).toContain('Gib oben den genauen Nickname ein und tippe auf „Anfragen“.')
   })
 
   it('accepts a request', async () => {

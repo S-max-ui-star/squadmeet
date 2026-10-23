@@ -135,6 +135,8 @@ describe('NotificationsDialog (SCRUM-40)', () => {
     ])
     expect(onChanged).toHaveBeenLastCalledWith([])
     expect(container.textContent).toContain('Noch keine Benachrichtigungen')
+    // SCRUM-178: the empty list says what shows up here.
+    expect(container.textContent).toContain('Hier siehst du Änderungen an deinen Treffen')
   })
 
   it('marks all Notifications as read (SCRUM-101)', async () => {
