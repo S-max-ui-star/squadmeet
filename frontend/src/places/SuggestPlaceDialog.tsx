@@ -146,7 +146,7 @@ export default function SuggestPlaceDialog({ token, onCreated, onOpenPlace, onCl
 
       <p className="hint">Andere sehen den Vorschlag auf der Karte. Er braucht 3 Bestätigungen, deine zählt als erste.</p>
       {error && <p className="form-error">{error}</p>}
-      <button type="submit" disabled={busy || !position || !activityType}>
+      <button type="submit" className="btn-primary" disabled={busy || !position || !activityType}>
         Weiter
       </button>
       <button type="button" className="link" onClick={onClose}>

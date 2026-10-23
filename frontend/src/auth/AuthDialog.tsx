@@ -217,7 +217,7 @@ function AuthActions({
 }) {
   return (
     <>
-      <button type="submit" disabled={busy || captchaMissing}>
+      <button type="submit" className="btn-primary" disabled={busy || captchaMissing}>
         {TITLES[mode]}
       </button>
       <button

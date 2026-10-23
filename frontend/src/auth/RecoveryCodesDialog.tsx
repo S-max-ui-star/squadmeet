@@ -56,7 +56,7 @@ export default function RecoveryCodesDialog({ token, user, onClose }: Props) {
 
       {error && <p className="form-error">{error}</p>}
 
-      <button type="submit" disabled={busy}>
+      <button type="submit" className="btn-primary" disabled={busy}>
         Neue Codes erstellen
       </button>
       <button type="button" className="link" disabled={busy} onClick={onClose}>

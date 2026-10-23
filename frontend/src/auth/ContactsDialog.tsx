@@ -128,7 +128,7 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
             Kontakt hinzufügen (genauer Nickname)
             <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
           </label>
-          <button type="submit" disabled={busy || nickname.trim() === ''}>
+          <button type="submit" className="btn-primary" disabled={busy || nickname.trim() === ''}>
             Anfragen
           </button>
         </div>
