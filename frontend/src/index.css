@@ -885,7 +885,10 @@ body {
     max-height: min(220px, 40%);
   }
 
+  /* Full reaches the top of the screen: above the search (z-index 1200), so nothing covers the
+     title and × (SCRUM-179). Small and half stay below it. */
   .place-detail[data-snap='full'] {
+    z-index: 1250;
     height: 100%;
     max-height: 100%;
   }
