@@ -31,7 +31,7 @@ describe('PlaceShareButton (SCRUM-95)', () => {
     await act(async () => button.click())
 
     expect(writeText).toHaveBeenCalledWith('https://squadmeet.duckdns.org/platz/7')
-    expect(button.textContent).toBe('Link kopiert')
+    expect(button.querySelector('.place-action-label')!.textContent).toBe('Link kopiert')
   })
 
   it('opens the system share sheet with the Place name and production link when available', async () => {
@@ -62,7 +62,7 @@ describe('PlaceShareButton (SCRUM-95)', () => {
     await act(async () => button.click())
 
     expect(writeText).toHaveBeenCalledWith('https://squadmeet.duckdns.org/platz/7')
-    expect(button.textContent).toBe('Link kopiert')
+    expect(button.querySelector('.place-action-label')!.textContent).toBe('Link kopiert')
   })
 
   it('stays quiet when the user closes the share sheet', async () => {
@@ -76,7 +76,7 @@ describe('PlaceShareButton (SCRUM-95)', () => {
     await act(async () => button.click())
 
     expect(writeText).not.toHaveBeenCalled()
-    expect(button.textContent).toBe('Teilen')
+    expect(button.querySelector('.place-action-label')!.textContent).toBe('Teilen')
   })
 
   // SCRUM-160: share refused and no clipboard: the user is told, also by a screen reader.
@@ -90,7 +90,7 @@ describe('PlaceShareButton (SCRUM-95)', () => {
 
     const status = document.querySelector('[role="status"]')!
     expect(status.textContent).toBe('Teilen nicht möglich.')
-    expect(button.textContent).toBe('Teilen')
+    expect(button.querySelector('.place-action-label')!.textContent).toBe('Teilen')
   })
 
   it('reads a copied link out', async () => {

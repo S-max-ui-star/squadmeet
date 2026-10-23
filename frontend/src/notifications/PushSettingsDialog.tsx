@@ -94,7 +94,7 @@ export default function PushSettingsDialog({ token, onClose }: Props) {
       )}
       {state === 'unsupported' && !iosNeedsInstall && <p>Dieser Browser unterstützt keine Push-Benachrichtigungen.</p>}
       {state === 'off' && (
-        <button type="button" disabled={busy} onClick={enable}>Push einschalten</button>
+        <button type="button" className="btn-primary" disabled={busy} onClick={enable}>Push einschalten</button>
       )}
       {state === 'on' && (
         <>

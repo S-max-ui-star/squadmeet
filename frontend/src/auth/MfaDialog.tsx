@@ -112,7 +112,7 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
           </p>
           {passwordField}
           {codeField}
-          <button type="submit" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy}>
             Ausschalten
           </button>
         </>
@@ -129,7 +129,7 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
             <code className="mfa-secret">{setup.secret}</code>
           </p>
           {codeField}
-          <button type="submit" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy}>
             Bestätigen und einschalten
           </button>
         </>
@@ -141,7 +141,7 @@ export default function MfaDialog({ token, user, onChanged, onNewRecoveryCodes, 
             {user.is_admin && ' Als Admin brauchst du sie für die Admin-Funktionen.'}
           </p>
           {passwordField}
-          <button type="submit" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy}>
             Einschalten
           </button>
         </>

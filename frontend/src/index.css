@@ -65,11 +65,18 @@ body {
   flex-shrink: 0;
 }
 
+/* SCRUM-174: a laptop shows the Nickname and "Konto", a phone only the bell and a round Avatar
+   button (see the phone rules below). */
+.account-button-avatar {
+  display: none;
+}
+
 .notification-button {
   position: relative;
 }
 
-.notification-count {
+.notification-count,
+.filter-count {
   position: absolute;
   top: -7px;
   right: -7px;
@@ -80,6 +87,11 @@ body {
   color: white;
   font-size: 0.7rem;
   line-height: 1.2;
+}
+
+/* SCRUM-175: an active filter is a state, not a warning, so it is blue. */
+.filter-count {
+  background: #1a5fb4;
 }
 
 .notification-list {
@@ -146,13 +158,6 @@ body {
   color: #555;
   font-size: 0.8rem;
   font-weight: 400;
-}
-
-.favorite-button-box {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
 }
 
 /* SCRUM-102: "Meine Treffen", one button per Meetup (or per Series). */
@@ -796,33 +801,130 @@ body {
   font-size: 1.2rem;
 }
 
-.place-detail-title span,
-.place-detail-location {
+.place-detail-title span {
   margin: 0;
   color: #505663;
 }
 
-.place-detail-location strong,
-.place-detail-location span {
-  display: block;
+/* SCRUM-176: the address under the name, at most two lines in the sticky head. */
+.place-detail-title {
+  min-width: 0;
 }
 
-.place-detail-location a {
-  display: inline-block;
-  margin-top: 3px;
+.place-detail-title > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
-.place-detail-location .place-detail-route {
-  margin-right: 10px;
-  font-weight: 700;
+/* SCRUM-176: Route, Teilen, Favorit, Karte as one row of equal buttons; hints go below. */
+.place-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.place-detail-back {
-  align-self: flex-start;
-  padding: 10px 0;
+.place-action {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 2px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #1a5fb4;
   text-decoration: none;
+  background: white;
+  border: 2px solid #d5d8de;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.place-action:hover:not(:disabled) {
+  background: #eef4fc;
+}
+
+.place-action:disabled {
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.place-action[aria-pressed='true'] {
+  border-color: #1a5fb4;
+}
+
+.place-action-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.place-action-label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.place-action-note,
+.place-actions [role='status'] {
+  flex-basis: 100%;
+  order: 1;
+}
+
+/* SCRUM-176: City report and Place report in one fold at the end of the Place detail. */
+.problem-fold {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d5d8de;
+  border-radius: 10px;
+}
+
+/* A Condition issue in the Ratings: the city should hear about it. */
+.problem-fold.highlighted {
+  background: #fff4e5;
+  border-color: #e07b00;
+  border-left-width: 6px;
+}
+
+.problem-fold-toggle {
+  padding: 4px 0;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.problem-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* "display: flex" above would beat the hidden attribute. */
+.problem-fold-body[hidden] {
+  display: none;
+}
+
+.problem-fold-body .hint {
+  margin: 0;
+}
+
+/* Inside the fold the City report needs no frame of its own: the fold has it. */
+.problem-fold .city-report,
+.problem-fold .city-report.highlighted {
+  padding: 0;
+  background: none;
+  border: none;
 }
 
 /* SCRUM-167: below the laptop width the detail is a sheet with a grip: small, half (as before)
@@ -842,10 +944,13 @@ body {
     transition: none;
   }
 
+  /* The line marks where the text scrolls under the head: without it, half a line of "Adresse"
+     right under the title looked like leftover text (SCRUM-174). */
   .place-detail-head {
     top: 0;
     margin-top: 0;
     padding-top: 28px;
+    box-shadow: 0 1px 0 #d5d8de;
   }
 
   /* Two classes, so the touch rule for ".place-detail button" does not make it taller. */
@@ -884,7 +989,10 @@ body {
     max-height: min(220px, 40%);
   }
 
+  /* Full reaches the top of the screen: above the search (z-index 1200), so nothing covers the
+     title and × (SCRUM-179). Small and half stay below it. */
   .place-detail[data-snap='full'] {
+    z-index: 1250;
     height: 100%;
     max-height: 100%;
   }
@@ -1347,6 +1455,24 @@ body {
 
 .contact-list li span {
   flex: 1;
+}
+
+/* SCRUM-174: input and "Anfragen" in one row, as in the search. */
+.contact-ask {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.contact-ask label {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog .contact-ask input,
+.dialog .contact-ask button {
+  min-height: 40px;
+  box-sizing: border-box;
 }
 
 /* SCRUM-84: the question before "Blockieren" on its own line, the buttons below. */
@@ -2298,16 +2424,17 @@ body {
     display: none;
   }
 
+  /* SCRUM-175: the filters are in the sheet from "Filter" in the bottom bar, not on the map. */
   .time-filter,
   .activity-filter {
-    left: 8px;
+    display: none;
   }
 
   .map-toolbar + .place-search {
     right: 8px;
   }
 
-  /* SCRUM-165: the bottom bar replaces the toolbar, so the filters keep their logged-out rows. */
+  /* SCRUM-165: the bottom bar replaces the toolbar. */
   .map-toolbar {
     display: none;
   }
@@ -2320,6 +2447,82 @@ body {
   .bottom-nav ~ .leaflet-container .leaflet-bottom {
     bottom: var(--bottom-nav);
   }
+
+  /* SCRUM-174: the bell and the Avatar as two round buttons; Konto has the Nickname. */
+  .account-name,
+  .account-button-text {
+    display: none;
+  }
+
+  .account-button-avatar {
+    display: inline;
+  }
+
+  .account .notification-button,
+  .account .account-button {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+    background: #f2f3f5;
+    border: 1px solid #d5d8de;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* SCRUM-174: a rare action, so a round ＋ and not a wide button over the markers. */
+  .suggest-button {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+
+  .suggest-button-text {
+    display: none;
+  }
+
+  /* SCRUM-174: while a Place is open, the sheet gets the room; the search stays. CenterOn
+     (SCRUM-173) skips controls with no height. */
+  body:has(.place-detail) .account {
+    display: none;
+  }
+
+  /* SCRUM-175: the filter sheet. The map stays visible above it and only a little darker, so the
+     user sees the markers change. */
+  .dialog-backdrop:has(> .filter-sheet) {
+    background: rgb(0 0 0 / 15%);
+  }
+
+  .filter-sheet .time-filter,
+  .filter-sheet .activity-filter {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .filter-sheet h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #505663;
+  }
+
+  .filter-sheet .time-filter button,
+  .filter-sheet .activity-filter button {
+    min-height: 44px;
+    box-shadow: none;
+  }
+
+  /* On and off not by colour alone. */
+  .filter-sheet button[aria-pressed='true']::before {
+    content: '✓ ';
+  }
 }
 
 /* SCRUM-165: phones only; the Place detail (z-index 1100) covers it. */
@@ -2330,7 +2533,9 @@ body {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Four items when logged in, two for a visitor (SCRUM-175). */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 0 max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left));
   background: white;
   border-top: 1px solid #d5d8de;
@@ -2359,18 +2564,14 @@ body {
   line-height: 1;
 }
 
-.bottom-nav button[aria-current='page'] {
-  font-weight: 700;
-  color: #1a5fb4;
-}
-
 .bottom-nav button:focus-visible {
   outline: 2px solid #1a5fb4;
   outline-offset: -4px;
 }
 
 /* On the icon, not on the corner of the wide button. */
-.bottom-nav .notification-count {
+.bottom-nav .notification-count,
+.bottom-nav .filter-count {
   top: 4px;
   right: calc(50% - 22px);
 }
@@ -2402,9 +2603,10 @@ body {
     min-height: 36px;
   }
 
-  .place-detail-location a {
-    display: inline-block;
-    padding: 10px 0;
+  /* A plain (secondary) button stays 44 px high in the Place detail too (SCRUM-177). */
+  .place-detail button:not([class]):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+    min-height: 44px;
   }
 
   input[type='checkbox'] {
@@ -2420,4 +2622,70 @@ body {
   input[type='range'] {
     min-height: 44px;
   }
+}
+
+/* SCRUM-177: three button levels.
+   - Secondary (outlined) is the default for a plain button in a dialog or the Place detail. Zero
+     specificity, so every rule that already styles a button still wins. The groups in the :not()
+     list have their own neutral look without a text colour; they keep it as it is.
+   - Primary (filled) is the one main action of a dialog: className="btn-primary".
+   - Text is the existing className="link", now also outside dialogs. */
+:where(.dialog, .place-detail) :where(button:not([class])):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a5fb4;
+  background: white;
+  border: 2px solid #1a5fb4;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+:where(.dialog, .place-detail) :where(button:not([class]):hover:not(:disabled)):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  background: #eef4fc;
+}
+
+:where(.dialog, .place-detail) :where(button:not([class]):disabled):not(:where(.meetup-card, .series-join, .my-meetup-list, .stepper, .segments, .equipment-chips, .star-picker,
+    .reason-group, .issue-check-buttons, .activity-choice, .duplicate-list, .admin-buttons) *) {
+  color: #6b7280;
+  background: #f1f3f5;
+  border-color: #c4c9d1;
+  cursor: not-allowed;
+}
+
+:where(button.link) {
+  padding: 0;
+  font: inherit;
+  color: #1a5fb4;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Last in the file, so it wins over ".dialog button" and the touch rules with the same weight. */
+button.btn-primary {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  background: #1a5fb4;
+  border: 2px solid #1a5fb4;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button.btn-primary:hover:not(:disabled) {
+  background: #174f96;
+  border-color: #174f96;
+}
+
+button.btn-primary:disabled {
+  color: #6b7280;
+  background: #e4e7eb;
+  border-color: #e4e7eb;
+  cursor: not-allowed;
 }

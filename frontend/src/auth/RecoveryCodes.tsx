@@ -50,7 +50,7 @@ export default function RecoveryCodes({ codes, replaced = false, onConfirmed }: 
         <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
         Ich habe die Codes sicher gespeichert
       </label>
-      <button type="button" disabled={!saved} onClick={onConfirmed}>
+      <button type="button" className="btn-primary" disabled={!saved} onClick={onConfirmed}>
         Weiter
       </button>
     </Dialog>

@@ -24,7 +24,7 @@ export default function MapToolbar({ incomingRequests, onContacts, onFavorites, 
         📍
       </button>
       <button type="button" aria-label="Meine Treffen" title="Meine Treffen" onClick={onMyMeetups}>
-        📅
+        🤝
       </button>
     </div>
   )

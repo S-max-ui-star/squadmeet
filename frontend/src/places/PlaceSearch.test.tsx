@@ -58,6 +58,18 @@ describe('PlaceSearch', () => {
     expect(container.textContent).toContain('Keine Treffer')
   })
 
+  it('keeps the search button active with an empty field; a tap puts the cursor in the field (SCRUM-178)', async () => {
+    const request = vi.spyOn(placesApi, 'searchPlaces').mockResolvedValue([])
+    const { container } = render()
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Suchen"]')!
+
+    expect(button.disabled).toBe(false)
+    await act(async () => button.click())
+
+    expect(request).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(container.querySelector('input'))
+  })
+
   it('allows only one request while a search is pending', async () => {
     let finish!: (hits: placesApi.PlaceSearchHit[]) => void
     const request = vi.spyOn(placesApi, 'searchPlaces').mockImplementation(

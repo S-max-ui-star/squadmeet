@@ -52,6 +52,15 @@ describe('ContactsDialog (SCRUM-32)', () => {
     expect(text).toContain('abgelehnt')
     expect(button(container, 'Neu anfragen')).toBeDefined()
     expect(onChanged).toHaveBeenCalledWith(data)
+    expect(text).not.toContain('Gib oben den genauen Nickname ein')
+  })
+
+  it('says how to add a Contact when there is none (SCRUM-178)', async () => {
+    const empty: Contacts = { contacts: [], incoming: [], outgoing: [], blocked: [] }
+    const container = await render(vi.fn(async () => Response.json(empty)))
+
+    expect(container.textContent).toContain('Noch keine Kontakte.')
+    expect(container.textContent).toContain('Gib oben den genauen Nickname ein und tippe auf „Anfragen“.')
   })
 
   it('accepts a request', async () => {
@@ -83,6 +92,14 @@ describe('ContactsDialog (SCRUM-32)', () => {
     expect(container.textContent).toContain('Anfrage nicht möglich')
     // SCRUM-147: the typed Nickname stays, so the user can correct it.
     expect(input.value).toBe('Pingpong_Paula')
+  })
+
+  it('puts the input and "Anfragen" in one row, as in the search (SCRUM-174)', async () => {
+    const container = await render(vi.fn(async () => Response.json(data)))
+    const row = container.querySelector('.contact-ask')!
+
+    expect(row.querySelector('input')).not.toBeNull()
+    expect(row.lastElementChild).toBe(button(container, 'Anfragen'))
   })
 
   it('blocks a Contact and lists blocked users with "Aufheben"', async () => {

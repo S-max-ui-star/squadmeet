@@ -122,13 +122,16 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
           run(() => askForContact(token, asked), `Anfrage an ${asked} gesendet`).then((sent) => sent && setNickname(''))
         }}
       >
-        <label>
-          Kontakt hinzufügen (genauer Nickname)
-          <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
-        </label>
-        <button type="submit" disabled={busy || nickname.trim() === ''}>
-          Anfragen
-        </button>
+        {/* Input and button in one row, as in the search (SCRUM-174). */}
+        <div className="contact-ask">
+          <label>
+            Kontakt hinzufügen (genauer Nickname)
+            <input value={nickname} onChange={(event) => setNickname(event.target.value)} required />
+          </label>
+          <button type="submit" className="btn-primary" disabled={busy || nickname.trim() === ''}>
+            Anfragen
+          </button>
+        </div>
       </form>
       {notice && <p className="hint">{notice}</p>}
       {error && <p className="form-error">{error}</p>}
@@ -156,7 +159,11 @@ export default function ContactsDialog({ token, onChanged, onClose }: Props) {
       {data && (
         <section>
           <h3>Deine Kontakte</h3>
-          {data.contacts.length === 0 && <p className="hint">Noch keine Kontakte.</p>}
+          {data.contacts.length === 0 && (
+            <p className="hint">
+              Noch keine Kontakte. Gib oben den genauen Nickname ein und tippe auf „Anfragen“.
+            </p>
+          )}
           <ul className="contact-list">
             {data.contacts.map((contact) => (
               <ContactRow

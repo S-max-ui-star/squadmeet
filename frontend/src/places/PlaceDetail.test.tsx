@@ -2,7 +2,9 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { saveToken } from '../api/auth'
+import { useContext, useEffect } from 'react'
 import PlaceDetail from './PlaceDetail'
+import { ProblemFoldContext } from './problemFold'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -40,19 +42,20 @@ const place = {
 }
 
 describe('PlaceDetail', () => {
-  it('shows name, Activity type and the stored address', () => {
+  it('shows name, Activity type and the stored address in the head (SCRUM-176)', () => {
     const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
     const text = container.textContent
 
     expect(text).toContain('Korbanlage')
-    expect(text).toContain('Basketball')
-    expect(text).toContain('Adresse')
-    expect(text).toContain('Anton-Bruckner-Allee 1, Leipzig')
+    expect(container.querySelector('.place-detail-head')!.textContent).toContain(
+      'Basketball · Anton-Bruckner-Allee 1, Leipzig',
+    )
     expect(text).not.toContain('Von Nutzern hinzugefügt')
     const route = container.querySelector<HTMLAnchorElement>('a[href*="maps/dir"]')
     expect(route?.href).toContain('destination=51.3,12.3')
     expect(route?.target).toBe('_blank')
-    expect([...container.querySelectorAll('button')].some((button) => button.textContent === 'Teilen')).toBe(true)
+    expect(container.querySelector('a[aria-label="Route planen"]')).toBe(route)
+    expect(container.querySelector('a[href*="openstreetmap.org/?mlat"]')).toBeNull()
   })
 
   it('marks a Place that came from a suggestion with "Von Nutzern hinzugefügt"', () => {
@@ -191,6 +194,13 @@ describe('PlaceDetail', () => {
     }
   })
 
+  it('has no "Zurück zur Karte" link: the × closes the detail (SCRUM-174)', () => {
+    const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {} })
+
+    expect(container.querySelector('.place-detail-back')).toBeNull()
+    expect(container.textContent).not.toContain('Zurück')
+  })
+
   it('offers to try again after an error', () => {
     const onRetry = vi.fn()
     const { container } = render({ place: null, error: 'GET failed: 500', onRetry, onClose: () => {} })
@@ -199,6 +209,121 @@ describe('PlaceDetail', () => {
     act(() => retry.click())
 
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  describe('content (SCRUM-176)', () => {
+    const parts = {
+      parts: {
+        meetups: <div className="test-meetups">Ich bin jetzt hier</div>,
+        favorite: <button type="button" className="place-action">Favorit</button>,
+      },
+      children: <div className="test-ratings">Bewertungen</div>,
+    }
+
+    it('shows the main actions first, then the side actions, the Ratings and "Problem melden"', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {}, ...parts })
+
+      const order = [...container.querySelectorAll('.test-meetups, .place-actions, .test-ratings, .problem-fold')].map(
+        (element) => element.className.split(' ')[0],
+      )
+      expect(order).toEqual(['test-meetups', 'place-actions', 'test-ratings', 'problem-fold'])
+    })
+
+    it('has four side actions with a name each: Route, Teilen, Favorit, Karte', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {}, ...parts })
+
+      const labels = [...container.querySelectorAll('.place-actions .place-action')].map(
+        (action) => action.getAttribute('aria-label') ?? action.textContent,
+      )
+      expect(labels).toEqual(['Route planen', '↗Teilen', 'Favorit', 'Auf der Karte zeigen'])
+    })
+
+    it('"Karte" zooms the app map in on the Place and makes the sheet small', () => {
+      const onShowOnMap = vi.fn()
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {}, onShowOnMap, ...parts })
+
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label="Auf der Karte zeigen"]')!.click())
+
+      expect(onShowOnMap).toHaveBeenCalledOnce()
+      expect(container.querySelector<HTMLElement>('.place-detail')!.dataset.snap).toBe('small')
+    })
+
+    it('folds "Problem melden" at first, with the Place report inside', () => {
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {}, ...parts })
+      const toggle = container.querySelector<HTMLButtonElement>('.problem-fold-toggle')!
+      const body = container.querySelector<HTMLElement>('.problem-fold-body')!
+
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+      expect(body.hidden).toBe(true)
+      expect(body.querySelector('.place-report')).not.toBeNull()
+
+      act(() => toggle.click())
+
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      expect(body.hidden).toBe(false)
+    })
+
+    it('opens "Problem melden" at first when the Place was reported already', () => {
+      const { container } = render({ place: { ...place, open_reports: 1 }, error: null, onRetry: () => {}, onClose: () => {} })
+
+      expect(container.querySelector<HTMLElement>('.problem-fold-body')!.hidden).toBe(false)
+    })
+
+    it('lets the Ratings open and mark "Problem melden" and gives them the slot for the City report', () => {
+      const seen: { slot: HTMLElement | null } = { slot: null }
+      function FakeRatings() {
+        const fold = useContext(ProblemFoldContext)!
+        useEffect(() => {
+          seen.slot = fold.slot
+        })
+        return (
+          <>
+            <button type="button" onClick={fold.open}>open</button>
+            <button type="button" onClick={() => fold.setHighlighted(true)}>mark</button>
+          </>
+        )
+      }
+      const { container } = render({ place, error: null, onRetry: () => {}, onClose: () => {}, children: <FakeRatings /> })
+      const click = (text: string) =>
+        act(() => [...container.querySelectorAll('button')].find((b) => b.textContent === text)!.click())
+
+      click('open')
+      click('mark')
+
+      expect(container.querySelector<HTMLElement>('.problem-fold-body')!.hidden).toBe(false)
+      expect(container.querySelector('.problem-fold')!.className).toContain('highlighted')
+      expect(container.querySelector('.problem-fold-body')!.contains(seen.slot)).toBe(true)
+    })
+
+    it('has no clashing keys when the Meetups use the Place id as key, as in App', () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      render({
+        place,
+        error: null,
+        onRetry: () => {},
+        onClose: () => {},
+        parts: { meetups: <div key={place.id} className="test-meetups" /> },
+      })
+
+      const clash = error.mock.calls.filter((call) => String(call[0]).includes('two children with the same key'))
+      error.mockRestore()
+      expect(clash).toEqual([])
+    })
+
+    it('shows no Meetups, Favorite or Ratings for a Place suggestion', () => {
+      const { container } = render({
+        place: { ...place, is_suggestion: true },
+        error: null,
+        onRetry: () => {},
+        onClose: () => {},
+        ...parts,
+      })
+
+      expect(container.querySelector('.test-meetups')).toBeNull()
+      expect(container.querySelector('.test-ratings')).toBeNull()
+      expect(container.textContent).not.toContain('Favorit')
+      expect(container.querySelector('[aria-label="Route planen"]')).not.toBeNull()
+    })
   })
 
   describe('sheet on a phone (SCRUM-167)', () => {

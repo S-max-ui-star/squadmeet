@@ -16,6 +16,7 @@ vi.mock('react-leaflet', () => {
     setView: vi.fn(),
   }
   return {
+    AttributionControl: () => null,
     MapContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Marker: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -136,6 +137,22 @@ function button(text: string): HTMLButtonElement {
   return found
 }
 
+// One round avatar button opens Konto (SCRUM-174); its text is the Avatar, its name is "Konto".
+function accountButton(): HTMLButtonElement {
+  const found = document.querySelector<HTMLButtonElement>('.account button[aria-label="Konto"]')
+  if (!found) throw new Error('Button not found: Konto')
+  return found
+}
+
+// The bottom bar's items have an icon in their text (SCRUM-165).
+function navButton(label: string): HTMLButtonElement {
+  const found = Array.from(document.querySelectorAll<HTMLButtonElement>('.bottom-nav button')).find((item) =>
+    item.textContent?.includes(label),
+  )
+  if (!found) throw new Error(`Bottom bar item not found: ${label}`)
+  return found
+}
+
 async function click(element: HTMLElement) {
   await act(async () => element.click())
 }
@@ -148,7 +165,7 @@ describe('App account changes', () => {
     await act(async () => root?.render(<App />))
 
     // Abmelden is in Konto (SCRUM-169), so the logout starts with that dialog open.
-    await click(button('Konto'))
+    await click(accountButton())
     expect(document.querySelector('.account-dialog')).not.toBeNull()
 
     await click(button('Abmelden'))
@@ -168,6 +185,67 @@ describe('App account changes', () => {
     expect(document.querySelector('.account')?.textContent).not.toContain('Abmelden')
   })
 
+  it('shows the bell and one avatar button that opens Konto (SCRUM-174)', async () => {
+    localStorage.setItem('squadmeet.token', 'first-token')
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+
+    const buttons = [...document.querySelectorAll('.account button')]
+    expect(buttons.map((item) => item.getAttribute('aria-label'))).toEqual(['Benachrichtigungen', 'Konto'])
+    expect(accountButton().textContent).toContain('🦊')
+
+    await click(accountButton())
+    expect(document.querySelector('.account-dialog')).not.toBeNull()
+  })
+
+  it('names the round ＋ button "Platz vorschlagen" (SCRUM-174)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+
+    expect(document.querySelector('.suggest-button')?.getAttribute('aria-label')).toBe('Platz vorschlagen')
+  })
+
+  it('shows the legal links on the map only to a visitor: logged in, they are in Konto (SCRUM-174)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+    expect(document.querySelector('.legal-links')).not.toBeNull()
+
+    await click(button('Anmelden'))
+    await click(button('Als Zweiter anmelden'))
+
+    expect(document.querySelector('.legal-links')).toBeNull()
+  })
+
+  it('shows a visitor the bottom bar with Filter and Anmelden; after login, the four items (SCRUM-175)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+
+    const items = () => [...document.querySelectorAll('.bottom-nav button')].map((item) => item.textContent)
+    expect(items()).toEqual(['🎚️Filter', '🔑Anmelden'])
+
+    await click(navButton('Anmelden'))
+    await click(button('Als Zweiter anmelden'))
+
+    expect(items()).toEqual(['🎚️Filter', '🤝Treffen', '⭐Favoriten', '👤Kontakte'])
+  })
+
+  it('opens the filter sheet from the bar; a Time choice loads Meetups and puts a badge on Filter (SCRUM-175)', async () => {
+    root = createRoot(document.querySelector('#root')!)
+    await act(async () => root?.render(<App />))
+    expect(document.querySelector('.filter-sheet')).toBeNull()
+
+    await click(navButton('Filter'))
+    const sheet = document.querySelector<HTMLElement>('.filter-sheet')!
+    const threeHours = [...sheet.querySelectorAll('button')].find((item) => item.textContent === '3 h')!
+    await click(threeHours)
+
+    expect(vi.mocked(fetchMapMeetups).mock.calls.at(-1)?.[1]).toBe('3h')
+    expect(threeHours.getAttribute('aria-pressed')).toBe('true')
+    await click(sheet.querySelector<HTMLButtonElement>('.dialog-close')!)
+    expect(document.querySelector('.filter-sheet')).toBeNull()
+    expect(navButton('Filter').getAttribute('aria-label')).toBe('Filter, 1 aktiv')
+  })
+
   it('does not apply viewer-specific map data after logout or to the next account', async () => {
     localStorage.setItem('squadmeet.token', 'first-token')
     let finishFirst!: (answer: MapMeetups) => void
@@ -182,7 +260,7 @@ describe('App account changes', () => {
     expect(vi.mocked(fetchMapMeetups).mock.calls[0][3]).toBe('first-token')
     expect(document.querySelector('[data-testid="map-loading"]')?.textContent).toBe('true')
 
-    await click(button('Konto'))
+    await click(accountButton())
     await click(button('Abmelden'))
     await act(async () => finishFirst({
       places: [],

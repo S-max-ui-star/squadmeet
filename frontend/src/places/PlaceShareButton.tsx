@@ -43,8 +43,10 @@ export default function PlaceShareButton({ placeId, placeName }: Props) {
 
   return (
     <>
-      <button type="button" className="link-button place-detail-share" disabled={state === 'busy'} onClick={share}>
-        {state === 'copied' ? 'Link kopiert' : 'Teilen'}
+      {/* One of the side actions of the Place detail (SCRUM-176). */}
+      <button type="button" className="place-action" disabled={state === 'busy'} onClick={share}>
+        <span className="place-action-icon" aria-hidden="true">↗</span>
+        <span className="place-action-label">{state === 'copied' ? 'Link kopiert' : 'Teilen'}</span>
       </button>
       {/* Always in the page, so a screen reader reads the result out (SCRUM-160). */}
       <span role="status" className={state === 'failed' ? 'form-error' : 'visually-hidden'}>

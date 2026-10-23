@@ -109,6 +109,7 @@ export default function HomeAreaDialog({ token, fallbackCenter, onClose }: Props
           <HomeAreaFields form={form} onChange={change} />
           <button
             type="button"
+            className="btn-primary"
             onClick={() => form.point && save(form, form.point)}
             disabled={busy || !form.point || form.types.size === 0}
           >

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { AttributionControl, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { fetchPlace, fetchPlaces, underReview, type MapArea, type Place, type PlaceSearchHit } from './api/places'
@@ -31,7 +31,7 @@ import { legalPageFromPath } from './legal/legal'
 import LegalLinks from './legal/LegalLinks'
 import ActivityFilter from './places/ActivityFilter'
 import { ACTIVITY_TYPES, activityOf, type ActivityType } from './places/activities'
-import { filterPlaces } from './places/filter'
+import { activeFilterCount, filterPlaces } from './places/filter'
 import { placeIcon, spotIcon } from './places/markers'
 import PlaceDetail from './places/PlaceDetail'
 import PlaceMeetups from './places/PlaceMeetups'
@@ -41,6 +41,7 @@ import PlaceRatings from './places/PlaceRatings'
 import PlaceSearch from './places/PlaceSearch'
 import MapToolbar from './places/MapToolbar'
 import BottomNav from './places/BottomNav'
+import FilterSheet from './places/FilterSheet'
 import MyMeetupsDialog from './places/MyMeetupsDialog'
 import MeetupMap from './places/MeetupMap'
 import FavoriteButton from './places/FavoriteButton'
@@ -130,6 +131,8 @@ type OpenDialog =
         | 'myMeetups'
         | 'notifications'
         | 'pushSettings'
+        // Phones: the filters from the bottom bar (SCRUM-175).
+        | 'filter'
     }
   | { kind: 'admin'; admin: AdminDialogKind }
   // Where the Home area map starts (SCRUM-45).
@@ -463,7 +466,7 @@ export default function App() {
       <div className="account">
         {user ? (
           <>
-            <span>
+            <span className="account-name">
               {AVATARS[user.avatar]?.emoji} {user.nickname}
             </span>
             <button
@@ -474,9 +477,15 @@ export default function App() {
             >
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
-            {/* Abmelden is in Konto (SCRUM-169). */}
-            <button type="button" onClick={() => show('account')}>
-              Konto
+            {/* Abmelden is in Konto (SCRUM-169). A phone shows only the Avatar, a round button
+                (SCRUM-174); a laptop shows the word. */}
+            <button type="button" className="account-button" aria-label="Konto" onClick={() => show('account')}>
+              <span className="account-button-avatar" aria-hidden="true">
+                {AVATARS[user.avatar]?.emoji ?? '👤'}
+              </span>
+              <span className="account-button-text" aria-hidden="true">
+                Konto
+              </span>
             </button>
           </>
         ) : (
@@ -596,18 +605,34 @@ export default function App() {
           onClose={closeDialog}
         />
       )}
-      {/* Phones (SCRUM-165); before the elements it pushes up, so the CSS reaches them with "~". */}
-      {user && (
-        <BottomNav
-          incomingRequests={incomingRequests}
-          onMap={closeOnMapTap}
-          onMyMeetups={() => show('myMeetups')}
-          onFavorites={() => show('favorites')}
-          onContacts={() => show('contacts')}
+      {isOpen('filter') && (
+        <FilterSheet
+          span={timeSpan}
+          chosen={chosen}
+          onSpanChange={changeTimeSpan}
+          onChosenChange={setChosen}
+          onClose={closeDialog}
         />
       )}
-      <button type="button" className="suggest-button" onClick={startSuggesting}>
-        ＋ Platz vorschlagen
+      {/* Phones (SCRUM-165), also for a visitor (SCRUM-175); before the elements it pushes up, so
+          the CSS reaches them with "~". */}
+      <BottomNav
+        loggedIn={user !== null}
+        activeFilters={activeFilterCount(timeSpan, chosen)}
+        incomingRequests={incomingRequests}
+        onFilter={() => show('filter')}
+        onLogin={loginNeeded}
+        onMyMeetups={() => show('myMeetups')}
+        onFavorites={() => show('favorites')}
+        onContacts={() => show('contacts')}
+      />
+      {/* A rare action: on a phone only a round ＋ (SCRUM-174). */}
+      <button type="button" className="suggest-button" aria-label="Platz vorschlagen" onClick={startSuggesting}>
+        <span aria-hidden="true">＋</span>
+        <span className="suggest-button-text" aria-hidden="true">
+          {' '}
+          Platz vorschlagen
+        </span>
       </button>
       {isOpen('delete') && user && (
         <DeleteAccountDialog token={loadToken() ?? ''} user={user} onDeleted={handleDeleted} onClose={closeDialog} />
@@ -617,7 +642,8 @@ export default function App() {
           <LegalPage kind={legalPage} photos={photos} navigate={navigate} />
         </Suspense>
       )}
-      <LegalLinks navigate={navigate} />
+      {/* A visitor reaches the Impressum in one step; a logged-in user finds it in Konto (SCRUM-174). */}
+      {!user && <LegalLinks navigate={navigate} />}
       {isOpen('recoveryCodes') && user && (
         <RecoveryCodesDialog token={loadToken() ?? ''} user={user} onClose={closeDialog} />
       )}
@@ -662,22 +688,30 @@ export default function App() {
           }}
           // Only the map: the detail stays open with the thanks, even when the Place leaves the map.
           onReported={reloadPlaces}
+          // "Karte" in the side actions: zoom the map in on the Place (SCRUM-176).
+          onShowOnMap={() => focusOn(selectedId)}
+          parts={{
+            favorite: (
+              <FavoriteButton
+                key={`favorite-${selectedId}-${user?.id ?? 'guest'}`}
+                placeId={selectedId}
+                token={user ? loadToken() : null}
+                onLoginNeeded={loginNeeded}
+              />
+            ),
+            meetups: (
+              <PlaceMeetups
+                key={`meetups-${selectedId}`}
+                placeId={selectedId}
+                activityType={selected?.activity_type ?? null}
+                user={user}
+                onLoginNeeded={loginNeeded}
+                onChanged={reloadPlaces}
+                readOnly={reviewOnly}
+              />
+            ),
+          }}
         >
-          <FavoriteButton
-            key={`favorite-${selectedId}-${user?.id ?? 'guest'}`}
-            placeId={selectedId}
-            token={user ? loadToken() : null}
-            onLoginNeeded={loginNeeded}
-          />
-          <PlaceMeetups
-            key={selectedId}
-            placeId={selectedId}
-            activityType={selected?.activity_type ?? null}
-            user={user}
-            onLoginNeeded={loginNeeded}
-            onChanged={reloadPlaces}
-            readOnly={reviewOnly}
-          />
           {/* A new key per user, so a logout does not keep the old user's own Rating. */}
           <PlaceRatings
             key={`${selectedId}-${user?.id ?? 'guest'}`}
@@ -707,7 +741,11 @@ export default function App() {
         maxBoundsViscosity={1}
         worldCopyJump
         style={{ height: '100%' }}
+        // Only "© OpenStreetMap" in the corner, without Leaflet's "🇺🇦 Leaflet" prefix; Leaflet is
+        // named in the Impressum (SCRUM-191).
+        attributionControl={false}
       >
+        <AttributionControl prefix={false} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
