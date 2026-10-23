@@ -9,7 +9,6 @@ import {
   type Position,
 } from '../api/suggestions'
 import Dialog from '../Dialog'
-import LegalLinks from '../legal/LegalLinks'
 import { ACTIVITIES, ACTIVITY_TYPES, activityOf, type ActivityType } from './activities'
 
 type Props = {
@@ -97,7 +96,6 @@ export default function SuggestPlaceDialog({ token, onCreated, onOpenPlace, onCl
         <button type="button" className="link" onClick={onClose}>
           Abbrechen
         </button>
-        <LegalLinks className="legal-links-inline" />
       </Dialog>
     )
   }
@@ -154,7 +152,6 @@ export default function SuggestPlaceDialog({ token, onCreated, onOpenPlace, onCl
       <button type="button" className="link" onClick={onClose}>
         Abbrechen
       </button>
-      <LegalLinks className="legal-links-inline" />
     </Dialog>
   )
 }

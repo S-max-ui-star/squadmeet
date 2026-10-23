@@ -49,7 +49,8 @@ function PlaceDetailHead({ place, error, onClose, titleId, closeRef, grip }: Hea
         <h2 id={titleId}>{place?.name ?? (error ? 'Platz nicht gefunden' : 'Lädt …')}</h2>
         {activity && <span>{activity.label}</span>}
       </div>
-      {/* At the top, so a phone user need not scroll down to "Zurück zur Karte" (SCRUM-76). */}
+      {/* At the top, so a phone user need not scroll down to close (SCRUM-76). With a tap on the
+          map, the only way to close (SCRUM-174). */}
       <button ref={closeRef} type="button" className="place-detail-close" aria-label="Schließen" onClick={onClose}>
         ×
       </button>
@@ -190,17 +191,6 @@ export default function PlaceDetail({
           </button>
         </>
       )}
-
-      <a
-        className="place-detail-back"
-        href="/"
-        onClick={(event) => {
-          event.preventDefault()
-          onClose()
-        }}
-      >
-        ‹ Zurück zur Karte
-      </a>
     </section>
   )
 }

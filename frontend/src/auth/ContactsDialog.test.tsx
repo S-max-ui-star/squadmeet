@@ -85,6 +85,14 @@ describe('ContactsDialog (SCRUM-32)', () => {
     expect(input.value).toBe('Pingpong_Paula')
   })
 
+  it('puts the input and "Anfragen" in one row, as in the search (SCRUM-174)', async () => {
+    const container = await render(vi.fn(async () => Response.json(data)))
+    const row = container.querySelector('.contact-ask')!
+
+    expect(row.querySelector('input')).not.toBeNull()
+    expect(row.lastElementChild).toBe(button(container, 'Anfragen'))
+  })
+
   it('blocks a Contact and lists blocked users with "Aufheben"', async () => {
     const blockedData = { ...data, contacts: [], blocked: [mia] }
     const fetchMock = vi

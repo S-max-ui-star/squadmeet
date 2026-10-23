@@ -463,7 +463,7 @@ export default function App() {
       <div className="account">
         {user ? (
           <>
-            <span>
+            <span className="account-name">
               {AVATARS[user.avatar]?.emoji} {user.nickname}
             </span>
             <button
@@ -474,9 +474,15 @@ export default function App() {
             >
               🔔{unreadNotifications > 0 && <span className="notification-count">{unreadNotifications}</span>}
             </button>
-            {/* Abmelden is in Konto (SCRUM-169). */}
-            <button type="button" onClick={() => show('account')}>
-              Konto
+            {/* Abmelden is in Konto (SCRUM-169). A phone shows only the Avatar, a round button
+                (SCRUM-174); a laptop shows the word. */}
+            <button type="button" className="account-button" aria-label="Konto" onClick={() => show('account')}>
+              <span className="account-button-avatar" aria-hidden="true">
+                {AVATARS[user.avatar]?.emoji ?? '👤'}
+              </span>
+              <span className="account-button-text" aria-hidden="true">
+                Konto
+              </span>
             </button>
           </>
         ) : (
@@ -606,8 +612,13 @@ export default function App() {
           onContacts={() => show('contacts')}
         />
       )}
-      <button type="button" className="suggest-button" onClick={startSuggesting}>
-        ＋ Platz vorschlagen
+      {/* A rare action: on a phone only a round ＋ (SCRUM-174). */}
+      <button type="button" className="suggest-button" aria-label="Platz vorschlagen" onClick={startSuggesting}>
+        <span aria-hidden="true">＋</span>
+        <span className="suggest-button-text" aria-hidden="true">
+          {' '}
+          Platz vorschlagen
+        </span>
       </button>
       {isOpen('delete') && user && (
         <DeleteAccountDialog token={loadToken() ?? ''} user={user} onDeleted={handleDeleted} onClose={closeDialog} />
@@ -617,7 +628,8 @@ export default function App() {
           <LegalPage kind={legalPage} photos={photos} navigate={navigate} />
         </Suspense>
       )}
-      <LegalLinks navigate={navigate} />
+      {/* A visitor reaches the Impressum in one step; a logged-in user finds it in Konto (SCRUM-174). */}
+      {!user && <LegalLinks navigate={navigate} />}
       {isOpen('recoveryCodes') && user && (
         <RecoveryCodesDialog token={loadToken() ?? ''} user={user} onClose={closeDialog} />
       )}
